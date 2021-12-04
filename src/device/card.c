@@ -612,11 +612,17 @@ read_deck(struct card_context *card_ctx, char *file_name)
     buf.buffer[0] = 0; /* Initialize bufer to empty */
 
     free (card_ctx->file_name);
-    card_ctx->file_name = strdup(file_name);
-
+	card_ctx->file_name = NULL;
     card_ctx->file = fopen(file_name, "rb");
     if (card_ctx->file == NULL)
        return -1;
+
+	if ((card_ctx->file_name = (char*)malloc(strlen(file_name))) == NULL) {
+		fclose(card_ctx->file);
+		return -1;
+	}
+
+	strcpy(card_ctx->file_name, file_name);
 
     /* Move stack down if any cards in it */
     if (card_ctx->hopper_pos > 0) {
@@ -642,9 +648,14 @@ read_deck(struct card_context *card_ctx, char *file_name)
         /* Allocate space for some more cards if needed */
         if (card_ctx->hopper_cards >= card_ctx->hopper_size) {
             card_ctx->hopper_size += DECK_SIZE;
-            card_ctx->images = (uint16_t (*)[1][80])realloc(card_ctx->images,
+            card_ctx->images = (uint16_t (*)[1][80])realloc((void *)card_ctx->images,
                        (size_t)card_ctx->hopper_size * sizeof(*(card_ctx->images)));
-            memset(&card_ctx->images[card_ctx->hopper_cards], 0,
+			if (card_ctx->images == NULL) {
+				card_ctx->hopper_size = 0;
+				card_ctx->hopper_cards = 0;
+				return -1;
+			}
+            memset((void *)&card_ctx->images[card_ctx->hopper_cards], 0,
                        (size_t)(card_ctx->hopper_size - card_ctx->hopper_cards) *
                              sizeof(*(card_ctx->images)));
         }
@@ -685,9 +696,14 @@ empty_cards(struct card_context *card_ctx)
     /* Reduce size of stack to DECK_SIZE */
     if (card_ctx->hopper_size > DECK_SIZE) {
         card_ctx->hopper_size = DECK_SIZE;
-        card_ctx->images = (uint16_t (*)[1][80])realloc(card_ctx->images,
+        card_ctx->images = (uint16_t (*)[1][80])realloc((void *)card_ctx->images,
                    (size_t)card_ctx->hopper_size * sizeof(*(card_ctx->images)));
-        memset(&card_ctx->images[0], 0,
+		if (card_ctx->images == NULL) {
+			card_ctx->hopper_size = 0;
+			card_ctx->hopper_cards = 0;
+			return;
+		}
+        memset((void *)&card_ctx->images[0], 0,
                    (size_t)(card_ctx->hopper_size) * sizeof(*(card_ctx->images)));
     }
 
@@ -702,6 +718,9 @@ empty_cards(struct card_context *card_ctx)
 void
 blank_deck(struct card_context *card_ctx, int cards)
 {
+
+	if (card_ctx->images == NULL)
+		return;
 
     /* Move stack down if any cards in it */
     if (card_ctx->hopper_pos > 0) {
@@ -720,16 +739,21 @@ blank_deck(struct card_context *card_ctx, int cards)
         /* Allocate space for some more cards if needed */
         if (card_ctx->hopper_cards >= card_ctx->hopper_size) {
             card_ctx->hopper_size += DECK_SIZE;
-            card_ctx->images = (uint16_t (*)[1][80])realloc(card_ctx->images,
+            card_ctx->images = (uint16_t (*)[1][80])realloc((void *)card_ctx->images,
                        (size_t)card_ctx->hopper_size * sizeof(*(card_ctx->images)));
-            memset(&card_ctx->images[card_ctx->hopper_cards], 0,
+			if (card_ctx->images == NULL) {
+				card_ctx->hopper_size = 0;
+				card_ctx->hopper_cards = 0;
+				return;
+			}
+            memset((void *)&card_ctx->images[card_ctx->hopper_cards], 0,
                        (size_t)(card_ctx->hopper_size - card_ctx->hopper_cards) *
                              sizeof(*(card_ctx->images)));
         }
 
         /* Process one card */
         cards--;
-        memset(&(*card_ctx->images)[card_ctx->hopper_cards], 0, 80 * sizeof(uint16_t));
+        memset((void *)&(*card_ctx->images)[card_ctx->hopper_cards], 0, 80 * sizeof(uint16_t));
         card_ctx->hopper_cards++;
     }
 }
@@ -744,9 +768,14 @@ stack_card(struct card_context *card_ctx, uint16_t (*image)[80])
     /* Allocate space for some more cards if needed */
     if (card_ctx->hopper_cards >= card_ctx->hopper_size) {
         card_ctx->hopper_size += DECK_SIZE;
-        card_ctx->images = (uint16_t (*)[1][80])realloc(card_ctx->images,
+        card_ctx->images = (uint16_t (*)[1][80])realloc((void *)card_ctx->images,
                    (size_t)card_ctx->hopper_size * sizeof(*(card_ctx->images)));
-        memset(&card_ctx->images[card_ctx->hopper_cards], 0,
+		if (card_ctx->images == NULL) {
+			card_ctx->hopper_size = 0;
+			card_ctx->hopper_cards = 0;
+			return -1;
+		}
+        memset((void *)&card_ctx->images[card_ctx->hopper_cards], 0,
                    (size_t)(card_ctx->hopper_size - card_ctx->hopper_cards) *
                          sizeof(*(card_ctx->images)));
     }
@@ -759,6 +788,7 @@ stack_card(struct card_context *card_ctx, uint16_t (*image)[80])
             _punch_card(card_ctx, &(*card_ctx->images)[card_ctx->hopper_cards]);
         }
     }
+	return 0;
 }
 
 /*
@@ -772,15 +802,21 @@ save_deck(struct card_context *card_ctx, char *file_name)
     }
     free(card_ctx->file_name);
 
-    card_ctx->file_name = strdup(file_name);
+	card_ctx->file = fopen(file_name, "wb");
+	if (card_ctx->file == NULL)
+		return -1;
 
-    card_ctx->file = fopen(file_name, "wb");
-    if (card_ctx->file == NULL)
-       return -1;
+	if ((card_ctx->file_name = (char*)malloc(strlen(file_name))) == NULL) {
+		fclose(card_ctx->file);
+		return -1;
+	}
+
+	strcpy(card_ctx->file_name, file_name);
 
     while (card_ctx->hopper_pos < card_ctx->hopper_cards) {
         _punch_card(card_ctx, &(*card_ctx->images)[card_ctx->hopper_cards]);
     }
+	return 0;
 }
 
 /*
@@ -794,6 +830,9 @@ init_card_context()
     static int           ebcdic_init = 0;
     struct card_context *card_ctx;
 
+	if ((card_ctx = (struct card_context*)malloc(sizeof(struct card_context))) == NULL)
+		return NULL;
+	memset((void*)card_ctx, 0, sizeof(struct card_context));
 
     /* Initialize reverse mapping if not initialized */
     if (!ebcdic_init) {
@@ -819,8 +858,7 @@ init_card_context()
         ebcdic_init = 1;
     }
 
-    card_ctx = malloc(sizeof(struct card_context));
-    memset(card_ctx, 0, sizeof(struct card_context));
+
 
     card_ctx->hopper_size = 0;
     card_ctx->hopper_cards = 0;

@@ -29,11 +29,16 @@ project(${PROJECT_NAME} VERSION 0.0.0
 
 set (${PROJECT_NAME}_VERSION_MAJOR 0)
 set (${PROJECT_NAME}_VERSION_MINOR 0)
-set (SDL2_BUILDING_LIBRARY 1)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
+find_package (Threads)
 
-add_executable(${PROJECT_NAME})
+if (WIN32)
+    add_executable(${PROJECT_NAME} WIN32)
+else()
+    set (SDL2_BUILDING_LIBRARY 1)
+    add_executable(${PROJECT_NAME})
+endif()
 
 
 find_package (SDL2 REQUIRED)

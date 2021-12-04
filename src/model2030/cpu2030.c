@@ -250,9 +250,9 @@ static int        sel_chain_det[2];
 void
 cycle()
 {
-   uint16_t   nextWX;
+   uint16_t   nextWX = cpu_2030.WX;
    uint16_t   mask;
-   struct ROS_2030  *sal = &ros_2030[cpu_2030.WX];
+   struct ROS_2030  *sal = &ros_2030[nextWX];
    int         dec;
    int         carry_in;
    uint16_t   abus_f;
@@ -1588,8 +1588,8 @@ printf("Mark GR empty\n");
                    if (sal->CS == 0x1d)
                        cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.GI[cpu_2030.ch_sel];
                   cpu_2030.Abus = cpu_2030.GR[cpu_2030.ch_sel];
-                  if (((odd_parity[cpu_2030.GR[i]& 0xff] ^ cpu_2030.GR[i]) & 0x100) != 0) {
-                      cpu_2030.GE[i] |= BIT5;
+                  if (((odd_parity[cpu_2030.GR[cpu_2030.ch_sel]& 0xff] ^ cpu_2030.GR[cpu_2030.ch_sel]) & 0x100) != 0) {
+                      cpu_2030.GE[cpu_2030.ch_sel] |= BIT5;
                       printf("Set GR to A bus\n");
                   }
                   break;

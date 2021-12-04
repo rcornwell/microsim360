@@ -31,6 +31,8 @@
 #include <stdio.h>
 #ifndef _WIN32
 #include <unistd.h>
+#else
+#include <SDL_main.h>
 #endif
 #include <fcntl.h>
 
@@ -2266,9 +2268,9 @@ int main(int argc, char *argv[]) {
     int      hd, wd;
     int      wb;
     char     buffer[4];
-    int      mWindowID;
-    int      mDeviceID;
-    int      mPopID;
+    int      mWindowID = -1;
+    int      mDeviceID = -1;
+    int      mPopID = -1;
 
     /* Start SDL */
     SDL_Init( SDL_INIT_EVERYTHING );
@@ -2744,6 +2746,7 @@ printf("Quit\n");
     SDL_DestroyRenderer(render);
     SDL_DestroyWindow(screen);
     SDL_Quit(); 
+	return 0;
 } 
 
 

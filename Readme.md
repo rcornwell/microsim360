@@ -23,3 +23,24 @@ Planed devices include:
 *  IBM 2415 Tape drive.
 *  IBM 2803 Tape controller.
 *  IBM 2703 Terminal controller.
+
+To Build on Linux:
+
+   mkdir build 
+   cd build
+   cmake ..
+   make
+
+
+To Build on Windows:
+   Install SDL2 libraries and headers in C:\SDL2
+
+   Under Bash prompt:
+
+   mkdir build
+   cd build
+   cmake .. -G "Visual Studio 16 2019" -DCMAKE_BUILD_TYPE=Debug  -DSDL2_PATH="c:\SDL2" \
+     -DSDL2_IMAGE_INCLUDE_DIR="c:\SDL2" -DSDL2_IMAGE_LIBRARY="c:\SDL2\lib\x64\SDL2_image.lib" \
+     -DSDL2_TTF_PATH="c:\SDL2"
+   cmake --build .
+

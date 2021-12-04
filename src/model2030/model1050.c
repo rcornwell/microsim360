@@ -29,6 +29,8 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#define closesocket close
+#define SOCKET int
 #else
 #include <winsock.h>
 #endif
@@ -61,8 +63,8 @@
 #define TNS_SKIP        004                             /* skip next cmd */
 #define TNS_CRPAD       005                             /* CR padding */
 
-static int       sock;
-static int       cons;
+static SOCKET    sock;
+static SOCKET    cons;
 static int       key_buf[256];
 static char      out_buf;
 static int       out_flg;
@@ -82,23 +84,33 @@ static fd_set    fds_socks;
 static SDL_Thread *thrd;
 static int       model1050_thrd(void *data);
 static int       running = 0;
+#ifdef _WIN32
+WSADATA wsaData = { 0 };
+#endif
 
 void
 model1050_init()
 {
-    int      flags;
+    int                 flags;
     struct sockaddr_in  locAddr;
-    int      on = 1;
+    int                 on = 1;
 
+#ifdef _WIN32
+	int      i;
+
+	i = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (i != 0) {
+		printf("WSAStartup failed: %d\n", i);
+		return;
+	}
+#endif
     FD_ZERO(&fds_socks);
-    cons = -1;
+    cons = 0;
     if ((sock = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Socket Open");
         return;
     }
 
-//    flags = fcntl(sock, F_GETFL, 0);
- //   fcntl(sock, F_SETFL, flags | O_NONBLOCK);
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
     locAddr.sin_family = AF_INET;
@@ -146,7 +158,7 @@ model1050_func(uint16_t *tags, uint8_t *tags_out, uint8_t tags_in, int *t_reques
 {
     *t_request = 0;
     *tags_out = 0;
-    if (cons >= 0) {
+    if (cons > 0) {
        /* Set default tags out */
        *tags_out = 0x10;
 
@@ -173,7 +185,6 @@ model1050_func(uint16_t *tags, uint8_t *tags_out, uint8_t tags_in, int *t_reques
        /* If microshare enabled */
        if ((tags_in & 0x20) != 0) {
            *tags_out |= 0x00;
-//           *t_request = 1;
        }
 
        /* If proceed set, signal that we can accept input */
@@ -227,10 +238,13 @@ printf("Kill console\n");
         running = 0;
         SDL_WaitThread(thrd, NULL);
     }
-    if (cons >= 0)
-        close(cons);
-    if (sock >= 0)
-        close(sock);
+    if (cons > 0)
+        closesocket(cons);
+    if (sock > 0)
+        closesocket(sock);
+#ifdef _WIN32
+	WSACleanup();
+#endif
 }
 
 
@@ -250,7 +264,7 @@ printf("Set EOB\n");
            key_buf[in_ptr++] = in_char;
            in_ptr &= 0xff;
            in_len++;
-           write(cons, &in_char, 1);
+           send(cons, &in_char, 1, 0);
        }
     }
 }
@@ -274,7 +288,7 @@ model1050_thrd(void *data)
     fd_set         read_set, write_set;
     struct sockaddr_in client;
     int            size;
-    int            newsock;
+    SOCKET         newsock;
     char           buffer[256];
     int            flags;
         printf("Console started\n");
@@ -296,39 +310,39 @@ model1050_thrd(void *data)
             printf("Accept\n\r");
 //            flags = fcntl(newsock, F_GETFL, 0);
  //           fcntl(newsock, F_SETFL, flags | O_NONBLOCK);
-            if (cons < 0) {
+            if (cons == 0) {
                printf("Connected\n");
                cons = newsock;
                FD_SET(newsock, &fds_socks);
-               write(newsock, init_string, 15);
+               send(newsock, init_string, 15, 0);
                in_ptr = 0;
                out_ptr = 0;
                in_len = 0;
                t_state = TNS_NORM;
            } else {
                static char *msg = "Console already connected\n\r";
-               write(newsock, msg, sizeof(msg));
-               close(newsock);
+               send(newsock, msg, sizeof(msg), 0);
+               closesocket(newsock);
            } 
         }
 
         /* Send any data ready to send */
             if (out_flg) {
-                write(cons, &out_buf, 1);
+                send(cons, &out_buf, 1, 0);
                 out_flg = 0;
-   printf("Write %c %d\n", out_buf, j);
+   printf("Write %c\n", out_buf);
                 if (out_buf == '\r')
-                   write(cons, "\n", 1);
+                   send(cons, "\n", 1, 0);
             }
             if (out_cr) {
-                write(cons, "\r\n", 2);
+                send(cons, "\r\n", 2, 0);
                 out_cr = 0;
             }
 
         /* Collect any waiting input */
         if (FD_ISSET(cons, &read_set)) {
             int j, k;
-            j = read(cons, buffer, 256);
+            j = recv(cons, buffer, 256, 0);
    printf("Read returned %d\n", j);
             if (j == 0) {
              printf("Disonnected\n");
