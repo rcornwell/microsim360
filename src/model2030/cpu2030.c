@@ -124,7 +124,7 @@ static char *cc_name[] = {
      "+", "+1", ".", "|", "0c", "1c", "cc", "^" };
 
 static char *cs_name[] = {
-     "", "LZ>S5", "HZ>S4", "Z>S", "0>S", "TR>S1", "0>S0", "1>S0",
+     "", "LZ>S5", "HZ>S4", "LZ>S5,HZ>S4", "0>S4,S5", "TR>S1", "0>S0", "1>S0",
      "0>S2", "ZNZ>S2", "0>S6", "1>S6", "0>S7", "1>S7", "K>FB", "K>FA",
      "", "", "", "", "", "", "GUV>GCD", "GR>GK",
      "GR>GF", "GR>GG", "GR>GU", "GR>GV", "K>GH", "GI>GR", "K>GB", "K>GA"};
@@ -895,15 +895,16 @@ printf("Mark GR empty\n");
                  mem[i] = cpu_2030.M[cpu_2030.MN_REG + i] & 0xff;
              }
              print_inst(mem);
+             printf("  CC=%02x\n", cpu_2030.LS[0xBB]);
 
              for (i = 0; i < 16; i++) {
-                 if ((i & 0x3) == 0x0)
-                      printf("\n");
                  printf(" GR%02d = %02x%02x%02x%02x", i,
                       cpu_2030.LS[(i << 4) + 0] & 0xff,
                       cpu_2030.LS[(i << 4) + 1] & 0xff,
                       cpu_2030.LS[(i << 4) + 2] & 0xff,
                       cpu_2030.LS[(i << 4) + 3] & 0xff);
+                 if ((i & 0x3) == 0x3)
+                      printf("\n");
              }
              printf("\n");
           }
@@ -1074,7 +1075,6 @@ printf("Mark GR empty\n");
                         cpu_2030.LS[cpu_2030.MN_REG + 256] = 0x00;
                         break;
                    }
-//                   mem_wrap_req = 0;
                }
                allow_write = 1;
                read_call = 0;
@@ -1284,8 +1284,10 @@ printf("Mark GR empty\n");
                       nextWX |= 0x1;
                    break;
            case 5: /* VDD */
-                   if ((cpu_2030.R_REG & 0xF) <= 0x9 && ((cpu_2030.R_REG & 0xf0) <= 0x90))
-                      nextWX |= 0x1;
+                   nextWX |= !(((cpu_2030.R_REG | (cpu_2030.R_REG << 1)) & (cpu_2030.R_REG >> 1)) & 0x44);
+//                   if (((cpu_2030.R_REG & 0x8) == 0 || (cpu_2030.R_REG & 0x6) == 0) &&
+ //                      ((cpu_2030.R_REG & 0x80) == 0 || (cpu_2030.R_REG & 0x60) == 0))
+  //                    nextWX |= 0x1;
                    break;
            case 6: /* IBC Carry from bit 1 to 0. */
                    if ((cpu_2030.STAT_REG & BIT6) != 0)
@@ -1792,15 +1794,16 @@ printf("Mark GR empty\n");
            case 5:
            case 6:
                    /* Add low order 4 bits */
-                   carries = ((abus_f & 0xf) + (bbus_f & 0xf) + carry_in) & 0x10;
+           //        carries = ((abus_f & 0xf) + (bbus_f & 0xf) + carry_in) & 0x10;
                    /* Add bits 1-7 */
-                   carries |= ((abus_f & 0x7f) + (bbus_f & 0x7f) + carry_in) & 0x80;
+            //       carries |= ((abus_f & 0x7f) + (bbus_f & 0x7f) + carry_in) & 0x80;
                    /* Compute final sum */
                    cpu_2030.Alu_out = abus_f + bbus_f + carry_in;
-                   carries |= (cpu_2030.Alu_out & 0x100);
+             //      carries |= (cpu_2030.Alu_out & 0x100);
                    /* Move carries back one bit */
-                   carries >>= 1;
-           //        printf(" %02x + %02x -> %02x %02x\n", abus_f, bbus_f, cpu_2030.Alu_out, carries);
+              //     carries >>= 1;
+                   carries = ((abus_f & bbus_f) | ((abus_f ^ bbus_f) & ~cpu_2030.Alu_out));
+                   printf(" %02x + %02x -> %02x %02x\n", abus_f, bbus_f, cpu_2030.Alu_out, carries);
                    cpu_2030.Alu_out &= 0xff;
                    break;
            case 2:
@@ -1827,7 +1830,7 @@ printf("Mark GR empty\n");
                if (sal->CC == 3) {
                    wait = 1;
                }
-           //    printf(" corr %02x o %02x -> %02x\n", abus_f, bbus_f, cpu_2030.Alu_out);
+               printf(" corr %02x o %02x -> %02x\n", abus_f, bbus_f, cpu_2030.Alu_out);
            }
            cpu_2030.Alu_out |= odd_parity[cpu_2030.Alu_out] ^ even_parity;
     
@@ -1840,7 +1843,7 @@ printf("Mark GR empty\n");
            case 1:
                    cpu_2030.TE = cpu_2030.Alu_out;
                    model1050_out(cpu_2030.TE);
-                 printf("Write TE: %02x\n", cpu_2030.TE);
+                   printf("Write TE: %02x\n", cpu_2030.TE);
                    break;
            case 2:
                    cpu_2030.JE = cpu_2030.D_REG & 0xff;
@@ -1850,7 +1853,7 @@ printf("Mark GR empty\n");
                    break;
            case 4:
                    cpu_2030.TA = cpu_2030.Alu_out & 0xff;
-                 printf("Write TA: %02x\n", cpu_2030.TA);
+                   printf("Write TA: %02x\n", cpu_2030.TA);
                    break;
            case 5: 
                    cpu_2030.H_REG = cpu_2030.Alu_out;

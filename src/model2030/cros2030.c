@@ -65,63 +65,6 @@ uint16_t const odd_parity[256] = {
     /* 37x */ 0x000, 0x100, 0x100, 0x000, 0x100, 0x000, 0x000, 0x100
 };
 
-#if 0
-/* Definitions of fields. */
-char *ch_name[] = {
-     "0", "1", "RO", "V67=0", "STI", "OPI", "AC", "S0",
-     "S1", "S2", "S4", "S6", "G0", "G2", "G4", "G6"};
-
-char *cl_name[] = {
-     "0", "1", "CA>W", "AI", "SVI", "R=VDD", "ICB", "Z=0",
-     "G7", "S3", "S5", "S7", "G1", "G3", "G5", "INTR" };
-
-char *cm_name[] = {
-     "Write", "Comp", "Store", "Read IJ", "Read UV", "Read T",
-     "Read CKN", "Read GUV"};
-
-char *cu1_name[] = {   /* Names for cm = 03-7 */
-     "MS", "LS", "MPX", "MLS" };
-char *cu2_name[] = {   /* Name for cm = 0-2 */
-     "x", "GR", "K>W", "FWX>WX"};
-
-char *ca_name[] = {
-     "FT", "TT", "", "", "S", "H", "FI", "R",
-     "D", "L", "G", "T", "V", "U", "J", "I",
-     "F", "SFG", "MC", "C", "Q", "JI", "TI",
-     "", "", "", "", "GR", "GS", "GT", "GJ"};
-
-char *cb_name[] = {
-     "R", "L", "D", "K"};
-
-char *ck_name[] = {
-     "0", "1", "2", "3", "4", "5", "6", "7",
-     "8", "9", "a", "b", "c", "d", "e", "f",
-     "", "UV>WX", "Rwrap", "Swrap", "SHI", "ACF",
-     "Rhl", "Sll", "OE", "ASCII", "INST", "0>MC",
-     "stwrap", "0>IPL", "0>F", "1>F0" };
-
-char *cd_name[] = {
-     "Z", "TE", "JE", "Q", "TA", "H", "S", "R",
-     "D", "L", "G", "T", "V", "U", "J", "I" };
-
-char *cf_name[] = {
-     "0", "L", "H", "", "Stop", "XL", "XH", "X" };
-
-char *cg_name[] = {
-     "0", "L", "H", "" };
-
-char *cv_name[] = {
-     "bin", "comp", "+2", "+3" };
-
-char *cc_name[] = {
-     "add", "+1", "and", "or", "0c", "1c", "cc", "^" };
-
-char *cs_name[] = {
-     "", "LZ>S5", "HZ>S4", "Z>S", "0>S", "TR>S1", "0>S0", "1>S0",
-     "0>S2", "ZNZ>S2", "0>S6", "1>S6", "0>S7", "1>S7", "K>FB", "K>FA",
-     "", "", "", "", "", "", "GUV>GCD", "GR>GK",
-     "GR>GF", "GR>GG", "GR>GU", "GR>GV", "K>GH", "GI>GH", "K>GB", "K>GA"};
-#endif
 
 int
 main(int argc, char *argv[])
