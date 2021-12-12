@@ -119,7 +119,7 @@ int read_deck(struct card_context *card_ctx, char *file_name);
 void empty_cards(struct card_context *card_ctx);
 
 /* Add into hopper cards blank cards.  */
-void blank_blank(struct card_context *card_ctx, int cards);
+void blank_deck(struct card_context *card_ctx, int cards);
 
 /* Put a card image on stacker. */
 int stack_card(struct card_context *card_ctx, uint16_t (*image)[80]);

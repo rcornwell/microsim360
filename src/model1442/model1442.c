@@ -89,6 +89,7 @@ struct _1442_context {
     int                    pch_full;     /* Card in punch */
     int                    stk_sel;      /* Current stacker */
     int                    eof_flag;     /* End of file flag */
+    int                    stop_flag;    /* Stop at end of current command */
 };
 
 void model1442_feed(struct _1442_context *ctx);
@@ -823,7 +824,10 @@ model1442_feed(struct _1442_context *ctx)
        ctx->rdr_full = 0;
     }
 
-    ctx->rdr_full = read_card(ctx->feed, &ctx->rdr_card);
+    if (ctx->stop_flag == 0) {
+        ctx->rdr_full = read_card(ctx->feed, &ctx->rdr_card);
+    }
+    ctx->stop_flag = 0;
     ctx->rdr_col = 0;
     ctx->hop_cnt = hopper_size(ctx->feed);
     ctx->stk_cnt[0] = stack_size(ctx->stack[0]);
@@ -941,6 +945,7 @@ static void model1442_update(struct _popup *popup, void *device, int index)
     struct _device *unit = (struct _device *)device;
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
     int r;
+    int cards;
 
     switch (index) {
     case 0:  /* End of file key */
@@ -948,8 +953,10 @@ static void model1442_update(struct _popup *popup, void *device, int index)
           break;
 
     case 1:  /* Start Key */
-          if (ctx->selected == 0 && ctx->rdr_full == 0) {
-              model1442_feed(ctx);
+          if (ctx->selected == 0) {
+              if (ctx->rdr_full == 0) {
+                  model1442_feed(ctx);
+              }
               if (ctx->rdr_full) {
                   ctx->state = STATE_END;
                   ctx->status |= SNS_DEVEND;
@@ -960,9 +967,11 @@ static void model1442_update(struct _popup *popup, void *device, int index)
     case 2:  /* NPRO */
           if (ctx->selected == 0)
               model1442_feed(ctx);
+          ctx->eof_flag = 0;
           break;
 
     case 3:  /* STOP */
+          ctx->stop_flag = 1;
           break;
 
     case 4: /* Empty hopper */
@@ -974,6 +983,10 @@ static void model1442_update(struct _popup *popup, void *device, int index)
           break;
 
     case 6: /* Load hopper blanks */
+          cards = atoi(popup->text[0].text);
+          if (cards > 0) {
+              blank_deck(ctx->feed, cards);
+          }
           break;
 
     case 7: /* Empty Stacker 1 */
@@ -981,6 +994,7 @@ static void model1442_update(struct _popup *popup, void *device, int index)
           break;
 
     case 8: /* Save Stacker 1 */
+          r = save_deck(ctx->stack[0], popup->text[1].text);
           break;
 
     case 9: /* Empty Stacker 2 */
@@ -988,6 +1002,7 @@ static void model1442_update(struct _popup *popup, void *device, int index)
           break;
 
     case 10: /* Save Stacker 2 */
+          r = save_deck(ctx->stack[1], popup->text[2].text);
           break;
     }
     ctx->hop_cnt = hopper_size(ctx->feed);
