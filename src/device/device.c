@@ -87,3 +87,22 @@ print_tags(uint16_t tags, uint16_t bus_out)
     printf("\n");
 }
 
+void
+add_chan(struct _device *dev, uint16_t addr)
+{
+      uint16_t    ch = (addr >> 8) & 0x7;
+      struct   _device *d;
+
+      dev->addr = addr;
+      dev->next = NULL;
+      /* If channel empty, add it */
+      if (chan[ch] == NULL) {
+          chan[ch] = dev;
+          return;
+      }
+      /* Walk to end of list */
+      for (d = chan[ch]; d->next != NULL; d = d->next);
+      if (d != NULL) {
+          d->next = dev;
+      }
+}

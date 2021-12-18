@@ -154,7 +154,7 @@ printf("Read %c %d\n", ch, in_len);
 }
 
 void
-model1050_func(uint16_t *tags, uint8_t *tags_out, uint8_t tags_in, int *t_request)
+model1050_func(uint8_t *tags_out, uint8_t tags_in, int *t_request)
 {
     *t_request = 0;
     *tags_out = 0;
@@ -225,7 +225,7 @@ model1050_func(uint16_t *tags, uint8_t *tags_out, uint8_t tags_in, int *t_reques
           *t_request = 1;
        }
 
-       printf("Cons %04x %02x %02x %d\n", *tags, tags_in, *tags_out, *t_request);
+       printf("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
     }
 } 
 

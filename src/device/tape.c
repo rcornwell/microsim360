@@ -98,7 +98,7 @@ tape_attach(struct _tape_buffer *tape, char *file_name, int type, int ring, int 
       tape->srec = 0;
       tape->dirty = 0;
       tape->format |= TAPE_BOT;
-      if ((tape->fd = open(file_name, flags)) < 0)
+      if ((tape->fd = open(file_name, flags, 0660)) < 0)
           return 0;
       tape->file_name = strdup(file_name);
       return 1;
@@ -447,7 +447,7 @@ tape_read_forw(struct _tape_buffer *tape)
                            return r;
                    }
                    tape->lrecl = lrecl[0] | ((uint32_t)lrecl[1] << 8) |
-                                ((uint32_t)lrecl[2] << 16) | ((uint32_t)lrecl[2] << 24);
+                                ((uint32_t)lrecl[2] << 16) | ((uint32_t)lrecl[3] << 24);
                    if (tape->lrecl == 0xffffffff) {
                        tape->format |= TAPE_EOT;
                        /* If we hit EOM marker, back up so if there is
@@ -507,6 +507,7 @@ tape_read_back(struct _tape_buffer *tape)
      uint8_t      lrecl[4];
      int           r;
      int           i;
+     int           j;
 
      if (tape->file_name == NULL)
         return -1;
@@ -525,15 +526,24 @@ tape_read_back(struct _tape_buffer *tape)
                            return r;
                    }
                    tape->lrecl = lrecl[0] | ((uint32_t)lrecl[1] << 8) |
-                                ((uint32_t)lrecl[2] << 16) | ((uint32_t)lrecl[2] << 24);
+                                ((uint32_t)lrecl[2] << 16) | ((uint32_t)lrecl[3] << 24);
                    if (tape->lrecl == 0xffffffff) {
                        return 0;
                    }
                    if (tape->lrecl == 0) {
                        tape->pos_frame -= IRG_LEN;
                        tape->format |= TAPE_MARK;
-                       return 1;
+printf("\nTape mark\n");
+                       return 2;
                    }
+                   tape->orecl = tape->lrecl;
+                   j = tape->lrecl;
+                   if (j > 100)
+                       j = 100;
+                   for(i = 0; i < j; i++)
+                       printf ("%02x ", tape->buffer[tape->pos_buff + i]);
+
+     printf("\nTape read backward: %d\n", tape->orecl);
                    tape->orecl = tape->lrecl;
                    break;
           
@@ -595,6 +605,7 @@ tape_read_frame(struct _tape_buffer *tape, uint8_t *data)
                        if (tape->lrecl == 0)
                            return 0;
                        r = tape_readbk_byte(tape, data);
+                       printf("Tape read bk frame: %d %d, %d\n", r, tape->lrecl, tape->orecl);
                        l = -l;
                        tape->lrecl--;
                        break;
@@ -689,7 +700,7 @@ tape_finish_rec(struct _tape_buffer *tape)
                                 return r;
                         }
                         tape->lrecl = lrecl[0] | ((uint32_t)lrecl[1] << 8) |
-                                     ((uint32_t)lrecl[2] << 16) | ((uint32_t)lrecl[2] << 24);
+                                     ((uint32_t)lrecl[2] << 16) | ((uint32_t)lrecl[3] << 24);
                         if (tape->lrecl != tape->orecl) {
                             printf(" Tape read error lrecl != lrecl\n");
                         }
@@ -721,17 +732,17 @@ tape_finish_rec(struct _tape_buffer *tape)
                         break;
                    case FUNC_RDBACK:
                         /* Make sure we are at end of record. */
-                        while (tape->lrecl < tape->orecl) {
+                        while (tape->lrecl > 0) {
                              r = tape_read_frame(tape, &lrecl[0]);
                         }
                         /* Read in 4 byte trailing record length logical record length */
-                        for (i = 0; i < 4; i++) {
-                            r = tape_read_byte(tape, &lrecl[i]);
+                        for (i = 3; i >= 0; i--) {
+                            r = tape_readbk_byte(tape, &lrecl[i]);
                             if (r != 1)
                                 return r;
                         }
                         tape->lrecl = lrecl[0] | ((uint32_t)lrecl[1] << 8) |
-                                     ((uint32_t)lrecl[2] << 16) | ((uint32_t)lrecl[2] << 24);
+                                     ((uint32_t)lrecl[2] << 16) | ((uint32_t)lrecl[3] << 24);
                         if (tape->lrecl != tape->orecl) {
                             printf(" Tape read error lrecl != lrecl\n");
                         }
@@ -784,6 +795,7 @@ tape_start_rewind(struct _tape_buffer *tape)
 int
 tape_rewind_frames(struct _tape_buffer *tape, int frames)
 {
+    printf("Rewind %ld %d\n", tape->pos_frame, frames);
      if (tape->file_name == NULL)
         return -1;
      if (tape->pos_frame < frames) {

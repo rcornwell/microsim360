@@ -31,6 +31,6 @@
 void model1050_init();
 void model1050_out(uint16_t out_char);
 void model1050_in(uint16_t *in_char);
-void model1050_func(uint16_t *tags, uint8_t *tags_out, uint8_t tags_in, int *t_request);
+void model1050_func(uint8_t *tags_out, uint8_t tags_in, int *t_request);
 void model1050_done();
 #endif

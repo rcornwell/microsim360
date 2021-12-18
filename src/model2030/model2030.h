@@ -59,8 +59,6 @@ uint8_t  RATE_SW;
 uint8_t  CHK_SW;
 uint8_t  MATCH_SW;
 
-uint16_t const odd_parity[256];
-
 struct ROS_2030 {
     uint8_t    CN;
     uint8_t    CH;
@@ -85,7 +83,7 @@ struct ROS_2030 {
 
 
 struct CPU_2030 {
-int          count;
+int         count;
 uint16_t    M[64 * 1024];
 uint16_t    LS[2048];
 

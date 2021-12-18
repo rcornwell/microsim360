@@ -60,8 +60,10 @@
 */
 
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 #include <memory.h>
 #include "card.h"
 
@@ -617,7 +619,7 @@ read_deck(struct card_context *card_ctx, char *file_name)
     if (card_ctx->file == NULL)
        return -1;
 
-	if ((card_ctx->file_name = (char*)malloc(strlen(file_name))) == NULL) {
+	if ((card_ctx->file_name = (char*)malloc(strlen(file_name)+1)) == NULL) {
 		fclose(card_ctx->file);
 		return -1;
 	}
@@ -806,7 +808,7 @@ save_deck(struct card_context *card_ctx, char *file_name)
 	if (card_ctx->file == NULL)
 		return -1;
 
-	if ((card_ctx->file_name = (char*)malloc(strlen(file_name))) == NULL) {
+	if ((card_ctx->file_name = (char*)malloc(strlen(file_name)+1)) == NULL) {
 		fclose(card_ctx->file);
 		return -1;
 	}

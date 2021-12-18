@@ -39,8 +39,9 @@
 #include "panel.h"
 #include "model2030.h"
 #include "model1050.h"
-#include "model2415.h"
 #include "model1442.h"
+#include "model1443.h"
+#include "model2415.h"
 #include "lamps_img.xpm"
 #include "hex_dial_img.xpm"
 #include "store_dials_img.xpm"
@@ -287,7 +288,7 @@ draw_circle(int x, int y, int radius, SDL_Color color)
 }
 
 void
-add_switch(int *value, int x, int y, int w, int h, SDL_Color *col, struct _labels *lab, TTF_Font *font)
+add_switch(int *value, int x, int y, int w, int h, int t, SDL_Color *col, struct _labels *lab, TTF_Font *font)
 {
     SDL_Surface *text;
    
@@ -314,8 +315,9 @@ add_switch(int *value, int x, int y, int w, int h, SDL_Color *col, struct _label
     sws[sws_ptr].rect.y = y;
     sws[sws_ptr].rect.w = w;
     sws[sws_ptr].rect.h = h;
-    sws[sws_ptr].c = col;
+    sws[sws_ptr].c[0] = col;
     sws[sws_ptr].value = value;
+    sws[sws_ptr].type = t;
     sws_ptr++;
 }
 
@@ -416,11 +418,11 @@ draw_screen30(int hd, int wd)
 
     /* Draw push buttons */
     for (i = 0; i < sws_ptr; i++) {
-        SDL_SetRenderDrawColor( render, sws[i].c->r,
-                                        sws[i].c->g,
-                                        sws[i].c->b, 0xff);
+        SDL_SetRenderDrawColor( render, sws[i].c[0]->r,
+                                        sws[i].c[0]->g,
+                                        sws[i].c[0]->b, 0xff);
         SDL_RenderFillRect( render, &sws[i].rect);
-        if (i == 8) {  /* Handle timer interrupt switch */
+        if (sws[i].type == ONOFF) {  /* Handle timer interrupt switch */
            SDL_SetRenderDrawColor( render, c.r, c.g, c.b, 0xff);
            SDL_RenderFillRect( render, &sws[i].rect);
            rect.x = sws[i].rect.x;
@@ -435,9 +437,9 @@ draw_screen30(int hd, int wd)
            rect.h = hd;
            SDL_RenderCopy(render, off, NULL, & rect);
  
-           SDL_SetRenderDrawColor( render, sws[i].c->r,
-                                           sws[i].c->g,
-                                           sws[i].c->b, 0xff);
+           SDL_SetRenderDrawColor( render, sws[i].c[0]->r,
+                                           sws[i].c[0]->g,
+                                           sws[i].c[0]->b, 0xff);
            rect.x = sws[i].rect.x;
            rect.y = sws[i].rect.y;
            if (*sws[i].value == 0)
@@ -628,9 +630,9 @@ draw_popup(struct _popup *popup, int hd, int wd)
 
     /* Draw push buttons */
     for (i = 0; i < popup->sws_ptr; i++) {
-        SDL_SetRenderDrawColor( popup->render, popup->sws[i].c->r,
-                                        popup->sws[i].c->g,
-                                        popup->sws[i].c->b, 0xff);
+        SDL_SetRenderDrawColor( popup->render, popup->sws[i].c[0]->r,
+                                        popup->sws[i].c[0]->g,
+                                        popup->sws[i].c[0]->b, 0xff);
         SDL_RenderFillRect( popup->render, &popup->sws[i].rect);
         if (popup->sws[i].top != NULL && popup->sws[i].bot != NULL) {
            rect.x = popup->sws[i].rect.x + (popup->sws[i].rect.w / 2) - ((wd * popup->sws[i].top_len)/2);
@@ -992,9 +994,10 @@ setup_fp(int hd, int wd, int h2, int w2)
     SDL_Surface *text;
     SDL_Texture *txt;
     int      shf;
-    int	     i, j, k, f;
+    int	     i, j, k;
     int      wb;
     int	     hx, wx;
+    Uint32   f;
 
     wb = (strlen(row1) + 1) * (3 * wd);
 
@@ -1399,16 +1402,16 @@ next_row1:
     (void) add_led(&cpu_2030.GF[0], 3, rect.x, rect.y, hd, wd, DIG_PCI);
     rect.x += wd * 5;
     pos_chan2[5] = rect.x;
-    (void)add_led(&cpu_2030.SEL_TAGS[0], 7, rect.x, rect.y, hd, wd, DIG_OP);
+    (void)add_led(&cpu_2030.SEL_TI[0], 7, rect.x, rect.y, hd, wd, DIG_OP);
     rect.x += wd * 6;
     pos_chan2[6] = rect.x;
-    (void)add_led(&cpu_2030.SEL_TAGS[0], 6, rect.x, rect.y, hd, wd, 24);
+    (void)add_led(&cpu_2030.SEL_TI[0], 6, rect.x, rect.y, hd, wd, 24);
     rect.x += wd * 6;
     pos_chan2[7] = rect.x;
-    (void)add_led(&cpu_2030.SEL_TAGS[0], 5, rect.x, rect.y, hd, wd, 25);
+    (void)add_led(&cpu_2030.SEL_TI[0], 5, rect.x, rect.y, hd, wd, 25);
     rect.x += wd * 6;
     pos_chan2[8] = rect.x;
-    (void)add_led(&cpu_2030.SEL_TAGS[0], 4, rect.x, rect.y, hd, wd, 26);
+    (void)add_led(&cpu_2030.SEL_TI[0], 4, rect.x, rect.y, hd, wd, 26);
     rect.x += wd * 6;
     rect.y += hd * 2;
     rect.x = pos_chan2[5];
@@ -1548,13 +1551,13 @@ next_row1:
     rect.x += wd * 5;
     (void) add_led(&cpu_2030.GF[1], 3, rect.x, rect.y, hd, wd, DIG_PCI);
     rect.x += wd * 5;
-    (void)add_led(&cpu_2030.SEL_TAGS[1], 7, rect.x, rect.y, hd, wd, DIG_OP);
+    (void)add_led(&cpu_2030.SEL_TI[1], 7, rect.x, rect.y, hd, wd, DIG_OP);
     rect.x += wd * 6;
-    (void)add_led(&cpu_2030.SEL_TAGS[1], 6, rect.x, rect.y, hd, wd, 24);
+    (void)add_led(&cpu_2030.SEL_TI[1], 6, rect.x, rect.y, hd, wd, 24);
     rect.x += wd * 6;
-    (void)add_led(&cpu_2030.SEL_TAGS[1], 5, rect.x, rect.y, hd, wd, 25);
+    (void)add_led(&cpu_2030.SEL_TI[1], 5, rect.x, rect.y, hd, wd, 25);
     rect.x += wd * 6;
-    (void)add_led(&cpu_2030.SEL_TAGS[1], 4, rect.x, rect.y, hd, wd, 26);
+    (void)add_led(&cpu_2030.SEL_TI[1], 4, rect.x, rect.y, hd, wd, 26);
     rect.x += wd * 6;
     rect.x = pos_chan2[5];
     rect.y += hd * 2;
@@ -1914,22 +1917,22 @@ next_row1:
     /* CTL REG */
     (void)add_led(&cpu_2030.MC_REG, 4, rect.x, rect.y, hd, wd, 55);
 
-    add_switch(&SYS_RST, 10, (h2 * 67), wd * 10, hd * 2, &c3, &sw_labels[0], font1);
-    add_switch(&ROAR_RST,10, (h2 * 70), wd * 10, hd * 2, &c3, &sw_labels[1], font1);
-    add_switch(NULL, 10, (h2 * 73), wd * 10, hd * 2, &c, NULL, NULL);
-    add_switch(&START, 10, (h2 * 76), wd * 10, hd * 2, &c2, &sw_labels[2], font1);
-    add_switch(NULL, 85, (h2 * 67), wd * 10, hd * 2, &c, NULL, font1);
-    add_switch(&SET_IC, 85, (h2 * 70), wd * 10, hd * 2, &c3, &sw_labels[3], font1);
-    add_switch(&CHECK_RST, 85, (h2 * 73), wd * 10, hd * 2, &c3, &sw_labels[4], font1);
-    add_switch(&STOP, 85, (h2 * 76), wd * 10, hd * 2, &c5, &sw_labels[5], font1);
-    add_switch(&INT_TMR, 160, (h2 * 67), wd * 10, hd * 2, &c3, &sw_labels[6], font1);
-    add_switch(&STORE, 160, (h2 * 70), wd * 10, hd * 2, &c3, &sw_labels[7], font1);
-    add_switch(&LAMP_TEST, 160, (h2 * 73), wd * 10, hd * 2, &c3, &sw_labels[8], font1);
-    add_switch(&DISPLAY, 160, (h2 * 76), wd * 10, hd * 2, &c3, &sw_labels[9], font1);
-    add_switch(NULL, 780, (h2 * 66), wd * 10, hd * 2, &c, &sw_labels[10], font1);
-    add_switch(&POWER, 1000, (h2 * 66), wd * 10, hd * 2, &c5, &sw_labels[11], font1);
-    add_switch(&INTR, 780, (h2 * 79), wd * 10, hd * 2, &c5, &sw_labels[12], font1);
-    add_switch(&LOAD, 1000, (h2 * 79), wd * 10, hd * 2, &c3, &sw_labels[13], font1);
+    add_switch(&SYS_RST, 10, (h2 * 67), wd * 10, hd * 2, SW, &c3, &sw_labels[0], font1);
+    add_switch(&ROAR_RST,10, (h2 * 70), wd * 10, hd * 2, SW, &c3, &sw_labels[1], font1);
+    add_switch(NULL, 10, (h2 * 73), wd * 10, hd * 2, SW, &c, NULL, NULL);
+    add_switch(&START, 10, (h2 * 76), wd * 10, hd * 2, SW, &c2, &sw_labels[2], font1);
+    add_switch(NULL, 85, (h2 * 67), wd * 10, hd * 2, SW, &c, NULL, font1);
+    add_switch(&SET_IC, 85, (h2 * 70), wd * 10, hd * 2, SW, &c3, &sw_labels[3], font1);
+    add_switch(&CHECK_RST, 85, (h2 * 73), wd * 10, hd * 2, SW, &c3, &sw_labels[4], font1);
+    add_switch(&STOP, 85, (h2 * 76), wd * 10, hd * 2, SW, &c5, &sw_labels[5], font1);
+    add_switch(&INT_TMR, 160, (h2 * 67), wd * 10, hd * 2, ONOFF, &c3, &sw_labels[6], font1);
+    add_switch(&STORE, 160, (h2 * 70), wd * 10, hd * 2, SW, &c3, &sw_labels[7], font1);
+    add_switch(&LAMP_TEST, 160, (h2 * 73), wd * 10, hd * 2, SW, &c3, &sw_labels[8], font1);
+    add_switch(&DISPLAY, 160, (h2 * 76), wd * 10, hd * 2, SW, &c3, &sw_labels[9], font1);
+    add_switch(NULL, 780, (h2 * 66), wd * 10, hd * 2, SW, &c, &sw_labels[10], font1);
+    add_switch(&POWER, 1000, (h2 * 66), wd * 10, hd * 2, SW, &c5, &sw_labels[11], font1);
+    add_switch(&INTR, 780, (h2 * 79), wd * 10, hd * 2, SW, &c5, &sw_labels[12], font1);
+    add_switch(&LOAD, 1000, (h2 * 79), wd * 10, hd * 2, SW, &c3, &sw_labels[13], font1);
 
     ADD_LABEL(620,(h2 * 34), (wd * 40), "ROS CONTROL", c1, cc);
     ADD_LABEL(620 + (wd * 4), (h2 * 36), wd*6, "INHBIT", c1, cc);
@@ -2247,11 +2250,6 @@ timer_callback(uint32_t interval, void *param)
     return interval;
 }
 
-extern void draw_model1442(SDL_Renderer *render, int x, int y);
-extern void init_card(SDL_Renderer *render);
-extern void init_tape();
-
-
 int main(int argc, char *argv[]) {
     SDL_Rect rect, rect2;
     SDL_Thread *thrd;
@@ -2371,8 +2369,9 @@ int main(int argc, char *argv[]) {
 
     setup_fp(hd, wd, h2, w2);
 
-    chan[0] = model1442_init(render2);
-    chan[1] = model2415_init(render2);
+    (void)model1443_init(render2, 0x00b);
+    (void)model1442_init(render2, 0x00a);
+    (void)model2415_init(render2, 0x0c0);
     model1050_init();
     thrd = SDL_CreateThread(process, "CPU", NULL);
     disp_timer = SDL_AddTimer(20, &timer_callback, NULL);

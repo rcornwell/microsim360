@@ -52,6 +52,8 @@ target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARIES} ${SDL2_IMAGE_LIBRARIES}
                         ${SDL2_TTF_LIBRARIES})
 if (WIN32)
     target_link_libraries(${PROJECT_NAME} wsock32 ws2_32)
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
 else()
     add_compile_options( -Wall -Wunused-result $<$<CONFIG:DEBUG>:-g>)
     add_compile_definitions($<$<CONFIG:DEBUG>:DEBUG>)

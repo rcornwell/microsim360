@@ -36,7 +36,8 @@
 #ifndef _MODEL1442_H_
 #define _MODEL1442_H_
 
+#include <stdint.h>
 #include "device.h"
 
-struct _device *model1442_init(SDL_Renderer *render); 
+struct _device *model1442_init(SDL_Renderer *render, uint16_t addr); 
 #endif

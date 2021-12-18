@@ -89,6 +89,7 @@ struct _device {
     void       *dev;               /* Pointer to device function */
     SDL_Rect    rect[8];           /* Display area */
     int         n_units;           /* Number of units */
+    uint16_t    addr;              /* Device address and channel */
     struct _device *next;          /* Next device in chain */
 };
 
@@ -108,6 +109,8 @@ uint16_t const odd_parity[256];
 void print_tags(uint16_t tags, uint16_t bus_out);
 
 void print_inst(uint8_t *val);
+
+void add_chan(struct _device *dev, uint16_t addr);
 
 
 /******************************************************************

@@ -20,6 +20,7 @@
 
 add_subdirectory(device)
 add_subdirectory(model1442)
+add_subdirectory(model1443)
 add_subdirectory(model2415)
 add_subdirectory(model2030)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/image)

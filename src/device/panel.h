@@ -79,17 +79,24 @@ struct _ctl_label {
     SDL_Texture  *text;
 } ctl_label[1000];
 
+
+#define SW    0
+#define IND   1
+#define ONOFF 2
+
 /* Push button switch */
 struct _switch {
     SDL_Rect     rect;           /* Outline of switch */
     SDL_Texture *top;            /* First line of label */
     SDL_Texture *bot;            /* Second line of label */
-    SDL_Color   *c;              /* Color */
+    SDL_Color   *c[2];           /* On/Off Color */
+    SDL_Color   *ct;             /* Color of text */
     char        *lab;            /* Pointer to text label, not freed */
     int         *value;          /* Value to modify from switch */
     int          top_len;        /* Length of first line */
     int          bot_len;        /* Length of second line */
     int          active;         /* Currently active */
+    int          type;           /* Type of switch */
 } sws[100];
 
 /* Indicator button */
@@ -169,6 +176,65 @@ struct _number {
      SDL_Rect     rect;
      SDL_Color   *c;
      int         *value;
+};
+
+/* Structure defining roller display */
+struct _roller {
+    int           sel;                /* Current roller selection */
+    SDL_Rect      rect[36];           /* Rectangles to display lights */
+    int           col[36];            /* Color */
+    SDL_Rect      blabel[36];         /* Display location for selector */
+    struct _disp {
+        SDL_Texture *label[36];       /* Label to display */
+        uint32_t    *value[36];       /* Pointer to value */
+        int         shift[36];        /* Shift amount */
+        int         a_start;          /* Area start index */
+        int         a_end;            /* Area start index */
+        int         m_start;          /* Mark start index */
+        int         m_end;            /* Mark start index */
+        int         t_start;          /* Text start index */
+        int         t_end;            /* Text start index */
+    } disp[8];
+    struct _parity {
+        uint32_t   *value;            /* Pointer to value to compute */
+        int        shift;             /* Amount to shift */
+        uint32_t   mask;              /* Mask for parity */
+    } parity[32];                     /* Parity pointers */
+    int            num_par;           /* Number of parities to compute */
+    struct _area   areas[100];        /* List of color areas */
+    struct _mark   marks[100];        /* List of marks */
+    struct _ctl_label label[1000];    /* Text labels */
+} roller[6];
+
+struct _panel {
+      struct _lamp lamp[20];
+      struct _led_bits led_bits[1000];
+      struct _area areas[100];
+      struct _mark marks[1000];
+      struct _ros_bits ros_bits[1000];
+      struct _ctl_label ctl_label[1000];
+      struct _switch sws[100];
+      struct _ind ind[100];
+      struct _dial dial[4];
+      struct _hex hex_dial[10];
+      struct _store  store_dial[2];
+      struct _text text[10];
+      struct _combo combo[10];
+      struct _number number[10];
+
+      int        ros_ptr;
+      int        lamp_ptr;
+      int        led_ptr;
+      int        area_ptr;
+      int        mrk_ptr;
+      int        ctl_ptr;
+      int        sws_ptr;
+      int        ind_ptr;
+      int        txt_ptr;
+      int        cmb_ptr;
+      int        num_ptr;
+      int        hex_ptr;
+      int        store_ptr;
 };
 
 /* Structure of device control popup */

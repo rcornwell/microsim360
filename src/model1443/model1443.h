@@ -38,4 +38,6 @@
 #include <stdint.h>
 #include "device.h"
 
+struct _device *model1443_init(SDL_Renderer *render, uint16_t addr);
+
 #endif
