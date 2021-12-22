@@ -142,7 +142,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
         return;
     }
     
- printf("Printer tags ");
+ printf("Printer tags: %d ", ctx->state);
     print_tags(*tags, bus_out);
 
     if (ctx->delay > 0) {
@@ -358,7 +358,7 @@ printf("Oper comand %02x\n", ctx->cmd);
              case 4:  /* Sense */
                     ctx->data = ctx->sense;
                     ctx->data_rdy = 1;
-                    ctx->data_end;
+                    ctx->data_end = 1;
                     ctx->state = STATE_DATA_O;
 printf("Sense %02x\n", ctx->sense);
                     break;
@@ -626,8 +626,9 @@ printf("End channel status %02x %02x\n", ctx->status, ctx->cmd);
                  }
                  *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);  /* Clear select out and in */
 printf("Accepted\n");
-//                  ctx->selected = 0;
-                  ctx->status &= ~SNS_CHNEND;
+                  if ((*tags & CHAN_SUP_OUT) == 0) {
+                      ctx->status &= ~SNS_CHNEND;
+                  }
                   ctx->status |= SNS_DEVEND;
                   ctx->delay = 150;
                   ctx->state = STATE_WAIT;                    /* All done, back to idle state */
@@ -640,7 +641,9 @@ printf("Accepted\n");
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
 printf("Stacked\n");
                   ctx->selected = 0;
-                  ctx->status &= ~SNS_CHNEND;
+                  if ((*tags & CHAN_SUP_OUT) == 0) {
+                      ctx->status &= ~SNS_CHNEND;
+                  }
                   ctx->status |= SNS_DEVEND;
                   ctx->state = STATE_WAIT;                         /* Stack status */
                   break;
@@ -943,13 +946,6 @@ print_line(struct _1443_context *ctx)
        ctx->row = 0;
     }
     
-    if (ch9 && (ctx->cmd & 0x3) == 0x1) {
-       ctx->sense |= SENSE_CHAN9;
-    }
-    if (ch12 && (ctx->cmd & 0x3) == 0x1) {
-       ctx->status |= SNS_UNITEXP;
-    }
-
     if (ctx->fcb[i] & mask) {
         while (r-- > 0) {
            fwrite("\r\n", 1, 2, ctx->file);
