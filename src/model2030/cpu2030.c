@@ -211,6 +211,8 @@ static int        sel_dev_irq_cond[2];
 static int        sel_irq_cond[2];
 static int        sel_chain_det[2];
 
+static int        cg_mask[4] = { 0x00, 0x0f, 0xf0, 0xff };
+
 /* MATCH_SW 
 
    0     PROCESS  MN
@@ -885,6 +887,7 @@ printf("Mark GR empty\n");
               sel_chain_pulse = 0;
            }
            cpu_2030.WX = priority_bus;
+           goto chan_scan;
         }
         /* Otherwise see if CPU clock is running */
         if (clock_start_lch) {         
@@ -898,7 +901,7 @@ printf("Mark GR empty\n");
                  mem[i] = cpu_2030.M[cpu_2030.MN_REG + i] & 0xff;
              }
              print_inst(mem);
-             printf("  CC=%02x\n", cpu_2030.LS[0xBB]);
+             printf(" IC=%02x%02x CC=%02x\n", cpu_2030.I_REG & 0xff, cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB]);
 
              for (i = 0; i < 16; i++) {
                  printf(" GR%02d = %02x%02x%02x%02x", i,
@@ -1385,25 +1388,9 @@ printf("Mark GR empty\n");
                        break;
            }
     
-           /* Handle special case of CU when CM specifies read or write */
-           if (sal->CM < 3) {
-               switch(sal->CU) {
-               case 2:
-                    nextWX &= 0xff;
-                    nextWX |= (sal->CK & 0xF) << 8;
-                    break;
-               case 3:
-                    if (cpu_2030.H_REG & BIT5) {
-                        sel_ros_req &= ~(1 << cpu_2030.ch_sel);
-                        cpu_2030.ch_sel = cpu_2030.ch_sav;
-                        nextWX = cpu_2030.GWX;
-                        cpu_2030.STAT_REG = cpu_2030.MPX_STAT;
-                    } else {
-                        nextWX = cpu_2030.FWX;
-                        cpu_2030.STAT_REG = cpu_2030.SEL_STAT;
-                    }
-                    break;
-               }
+           if (sal->CM < 3 && sal->CU == 2) {
+               nextWX &= 0xff;
+               nextWX |= (sal->CK & 0xF) << 8;
            }
     
            cpu_2030.WX = nextWX;
@@ -1508,6 +1495,9 @@ printf("Mark GR empty\n");
            case 0x06:    /* FI */
                   /* MPX Channel Bus-in */
                   cpu_2030.Abus = cpu_2030.FI;
+                  if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_STA_IN)) == (CHAN_ADR_OUT|CHAN_STA_IN)) {
+                      cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
+                  }
                   allow_a_reg_chk = 1;
                   break;
            case 0x07:    /* R */
@@ -1756,17 +1746,13 @@ printf("Mark GR empty\n");
     
            dec = (sal->CV == 3);
            /* Set up B alu input. */
-           bbus_f = cpu_2030.Bbus & 0xff;
-           if ((sal->CG & 1) == 0)
-              bbus_f &= 0xf0;
-           if ((sal->CG & 2) == 0)
-              bbus_f &= 0x0f;
-           if (dec) 
-              bbus_f = ((bbus_f + 0x60) & 0xf0) | ((bbus_f + 0x6) & 0x0f);
+           bbus_f = cpu_2030.Bbus & cg_mask[sal->CG];
            if ((sal->CV & 0x2) ? ((cpu_2030.S_REG & BIT0) != 0): (sal->CV == 1)) {
               bbus_f ^= 0xff;
               tc = 1;
            } else {
+              if (dec) 
+                 bbus_f = ((bbus_f + 0x60) & 0xf0) | ((bbus_f + 0x6) & 0x0f);
               tc = 0;
            }
     
@@ -1797,17 +1783,11 @@ printf("Mark GR empty\n");
            case 4:
            case 5:
            case 6:
-                   /* Add low order 4 bits */
-           //        carries = ((abus_f & 0xf) + (bbus_f & 0xf) + carry_in) & 0x10;
-                   /* Add bits 1-7 */
-            //       carries |= ((abus_f & 0x7f) + (bbus_f & 0x7f) + carry_in) & 0x80;
                    /* Compute final sum */
                    cpu_2030.Alu_out = abus_f + bbus_f + carry_in;
-             //      carries |= (cpu_2030.Alu_out & 0x100);
-                   /* Move carries back one bit */
-              //     carries >>= 1;
+                   /* Compute bit carries */
                    carries = ((abus_f & bbus_f) | ((abus_f ^ bbus_f) & ~cpu_2030.Alu_out));
-                   printf(" %02x + %02x -> %02x %02x\n", abus_f, bbus_f, cpu_2030.Alu_out, carries);
+//                   printf(" %02x + %02x -> %02x %02x\n", abus_f, bbus_f, cpu_2030.Alu_out, carries);
                    cpu_2030.Alu_out &= 0xff;
                    break;
            case 2:
@@ -1833,8 +1813,10 @@ printf("Mark GR empty\n");
                }
                if (sal->CC == 3) {
                    wait = 1;
+               } else {
+                   wait = 0;
                }
-               printf(" corr %02x o %02x -> %02x\n", abus_f, bbus_f, cpu_2030.Alu_out);
+//               printf(" corr %02x o %02x -> %02x\n", abus_f, bbus_f, cpu_2030.Alu_out);
            }
            cpu_2030.Alu_out |= odd_parity[cpu_2030.Alu_out] ^ even_parity;
     
@@ -2266,9 +2248,6 @@ printf("Mark GR empty\n");
                    break;
              }
 
-           if ((cpu_2030.S_REG & BIT7) != 0)
-              wait = 0;
-
            /* Set hard stop if needed */
            if ((second_err_stop && first_mach_chk_req)) {
               printf("Machine check\n");
@@ -2315,6 +2294,13 @@ printf("Mark GR empty\n");
                }
            }
            
+           /* Save status of flags for next cycle to check */
+           /* But don't update if doing a restore cycle */
+           if (sal->CM >= 3 || sal->CU != 3) {
+                cpu_2030.STAT_REG = (((carries & BIT0) != 0) ? BIT5 : 0) |
+                                    (((carries & BIT1) != 0) ? BIT6 : 0) |
+                                    (((cpu_2030.Alu_out & 0xff)== 0) ? BIT4 : 0);
+           }
            
                
            printf("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
@@ -2327,6 +2313,7 @@ printf("Mark GR empty\n");
 
         }
 
+chan_scan:
         /* Scan each channel */
         /* Start with MPX channel */
         cpu_2030.FT &= ~BIT3;
@@ -2342,7 +2329,6 @@ printf("Mark GR empty\n");
         cpu_2030.MPX_TI &= IN_TAGS;  /* Clear outbound tags */
         cpu_2030.MPX_TI |= cpu_2030.MPX_TAGS;  /* Copy current tags to output */
         cpu_2030.FI = 0;
-     printf("MPX %04x %04x\n", cpu_2030.MPX_TAGS, cpu_2030.MPX_TI);
         for (dev = chan[0]; dev != NULL; dev = dev->next) {
              dev->bus_func(dev, &cpu_2030.MPX_TI, cpu_2030.O_REG, &cpu_2030.FI);
         }
@@ -2596,13 +2582,6 @@ printf("Mark GR empty\n");
              }
         }
 
-        /* Save status of flags for next cycle to check */
-        /* But don't update if doing a restore cycle */
-        if (sal->CM >= 3 || sal->CU != 3) {
-             cpu_2030.STAT_REG = (((carries & BIT0) != 0) ? BIT5 : 0) |
-                                 (((carries & BIT1) != 0) ? BIT6 : 0) |
-                                 (((cpu_2030.Alu_out & 0xff)== 0) ? BIT4 : 0);
-        }
         if (CHK_SW == 0) { /* Diagnostics mode */
             cpu_2030.FT &= ~BIT5;
             if (cpu_2030.O_REG & BIT0)  /* Select In */
@@ -2622,6 +2601,7 @@ printf("Mark GR empty\n");
             /* If OP IN UP, service-in and no service out, or no command out, SVI up */
             /* If OP IN UP, status-in no service in, or no command out, STI up */
             /* If OP IN UP, no service in or status in, both down */
+            /* If Adr out up, op in down, sti down, STI down */
             cpu_2030.FT &= ~BIT5;
             if ((cpu_2030.MPX_TI & CHAN_SEL_IN) != 0)
                cpu_2030.FT |= BIT5;
@@ -2629,10 +2609,11 @@ printf("Mark GR empty\n");
                cpu_2030.STAT_REG |= BIT1;
             if ((cpu_2030.MPX_TI & CHAN_SRV_IN) != 0)
                cpu_2030.STAT_REG |= BIT3;
-            if ((cpu_2030.MPX_TI & CHAN_OPR_IN) != 0)
+            if ((cpu_2030.MPX_TI & CHAN_OPR_IN) != 0) {
                cpu_2030.STAT_REG |= BIT2;
-            else
+            } else if ((cpu_2030.MPX_TI & CHAN_ADR_OUT) == 0) {
                cpu_2030.STAT_REG |= BIT1|BIT3;
+            }
             if ((cpu_2030.MPX_TI & CHAN_ADR_IN) != 0)
                cpu_2030.STAT_REG |= BIT0;
         }
@@ -2666,6 +2647,16 @@ printf("Mark GR empty\n");
                 priority_stack_reg |= BIT7;
             }
         }
+           /* Handle special case of CU when CM specifies read or write */
+           if (sal->CM < 3 && sal->CU == 3) {
+               if (cpu_2030.H_REG & BIT5) {
+                   sel_ros_req &= ~(1 << cpu_2030.ch_sel);
+                   cpu_2030.ch_sel = cpu_2030.ch_sav;
+                   cpu_2030.WX = cpu_2030.GWX;
+               } else {
+                   cpu_2030.WX = cpu_2030.FWX;
+               }
+           }
     }
     /* Restore Operational out */
     cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;
