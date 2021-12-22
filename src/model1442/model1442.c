@@ -101,7 +101,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
     int      i;
 
- printf("Reader tags ");
+ printf("Reader tags: %d ", ctx->state);
     print_tags(*tags, bus_out);
     /* Reset device if OPER OUT is dropped */
     if ((*tags & (CHAN_OPR_OUT|CHAN_SUP_OUT)) == 0) {
@@ -280,6 +280,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
                  /* If SELECT DEVICE */
                  if (ctx->cmd == 0 || (ctx->status & (SNS_UNITCHK|SNS_UNITEXP)) != 0) {
+                     *tags &= ~(CHAN_OPR_IN);           /* Clear select out and in */
                      ctx->state = STATE_IDLE;
                  } else { 
                      ctx->state = STATE_OPR;
