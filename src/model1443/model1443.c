@@ -95,6 +95,7 @@ struct _1443_context {
     int                    cnt;          /* Transfer count */
     int                    fcb_num;      /* Forms control number */
     const uint16_t        *fcb;          /* Form control block */
+    uint8_t                output[15][120];
 };
 
 static const uint16_t cctape_legacy[] = {
@@ -120,6 +121,61 @@ static const uint16_t cctape_std1[] = {
 0x000, 0x000, 0x000, 0x000, 0x004, 0x000, 0x000, 0x000, 0x000, 0x000, /* 51 - 60 */
 0x002, 0x000, 0x001, 0x000, 0x000, 0x000, };                          /* 61 - 66 */
 
+const static uint8_t ebcdic_to_out[256] = {
+/*      0     1     2     3    4     5      6   7 */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,      /* 0x */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,      /* 1x */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,      /* 2x */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,      /* 3x */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,      /* 4x */
+    /*           [     .     <     (     +     |   */
+    0x00, 0x00, 0x40, 0x30, 0x40, 0x40, 0x2b, 0x40,
+    0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,      /* 5x */
+    /*           !     $     *     )     ;     ^   */
+    0x00, 0x00, 0x40, 0x2f, 0x33, 0x40, 0x40, 0x40,
+    /* -  / */
+    0x2c, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,      /* 6x */
+    /*                 ,     %     _     >     ?   */
+    0x00, 0x00, 0x00, 0x2e, 0x32, 0x40, 0x40, 0x40,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,      /* 7x */
+    /*     `     :     #     @     \     =     "   */
+    0x00, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+    /*     a     b     c     d     e     f     g   */
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,      /* 8x */
+    /* h  i */
+    0x08, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    /*     j     k     l     m     n     o     p    */
+    0x00, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,      /* 9x */
+    /* q  r */
+    0x11, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    /*     ~     s     t     u     v     w     x   */
+    0x00, 0x2c, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,      /* Ax */
+    /* y  z */
+    0x19, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,      /* Bx */
+    /*{    A     B     C     D     E     F     G   */
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,      /* 8x */
+    /* H  I */
+    0x08, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    /*}    J     K     L     M     N     O     P    */
+    0x00, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,      /* 9x */
+    /* Q   R */
+    0x11, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    /* \         S     T     U     V     W     X   */
+    0x40, 0x00, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,      /* Ax */
+    /* Y   Z */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x19, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    /*  0     1     2     3     4     5     6     7    */
+    0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,      /* Fx */
+    /* 8  9 */
+    0x29, 0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+
 int print_line(struct _1443_context *ctx);
 
 void
@@ -142,8 +198,8 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
         return;
     }
     
- printf("Printer tags: %d ", ctx->state);
-    print_tags(*tags, bus_out);
+// printf("Printer tags: %d ", ctx->state);
+ //   print_tags(*tags, bus_out);
 
     if (ctx->delay > 0) {
         ctx->delay--;
@@ -818,7 +874,7 @@ printf("stack cmd\n");
               break;
 
     case STATE_WAIT:
- printf("wait %d %d\n", ctx->selected, ctx->delay);
+// printf("wait %d %d\n", ctx->selected, ctx->delay);
              /* If we get select out with address out, reselection */
              if (!ctx->selected &&
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
@@ -875,6 +931,8 @@ print_line(struct _1443_context *ctx)
         for (i = 0; i < ctx->col; i++) {
            int         ch = ctx->buf[i];
 
+           if (i < 120)
+               ctx->output[14][i] = ebcdic_to_out[ch];
            ch = ebcdic_to_ascii[ch];
            if (!isprint(ch))
               ch = '.';
@@ -888,6 +946,7 @@ print_line(struct _1443_context *ctx)
         /* Print out buffer */
         fwrite(&out, 1, i, ctx->file);
         printf( " Printer: %s\n", out);
+        memset(ctx->buf, 0x40, sizeof(ctx->buf));
     }
     fflush(ctx->file);
 
@@ -895,6 +954,8 @@ print_line(struct _1443_context *ctx)
     if (l < 4) {
         while(l != 0) {
             fwrite("\r\n", 1, 2, ctx->file);
+            memcpy(&ctx->output[0][0], &ctx->output[1][0], 14 * 120);
+            memset(&ctx->output[14][0], 0, 120);
             r++;
             f = 0;
             if (ctx->fcb[ctx->row] & (0x1000 >> 9) != 0)
@@ -907,6 +968,8 @@ print_line(struct _1443_context *ctx)
             l--;
         }
         if (ctx->row > ctx->lpp) {
+           memcpy(&ctx->output[0][0], &ctx->output[1][0], 14 * 120);
+           memset(&ctx->output[14][0], 0, 120);
            if (f)
                fwrite("\r\n", 1, 2, ctx->file);
            fwrite("\f", 1, 1, ctx->file);
@@ -922,8 +985,6 @@ print_line(struct _1443_context *ctx)
     }
 
     mask = 0x1000 >> (l & 0xf);  /* Mask which channel to stop at */
-    ch9 = 0;
-    ch12 = 0;
     f = 0;     /* Indicate if we started new form */
     l = 0;     /* Total lines skipped */
     r = 0;     /* What row we should be on */
@@ -932,13 +993,11 @@ print_line(struct _1443_context *ctx)
          r++;
          if (i > ctx->lpp) {
              fwrite("\r\n\f", 1, 3, ctx->file);
+             memcpy(&ctx->output[0][0], &ctx->output[1][0], 14 * 120);
+             memset(&ctx->output[14][0], 0, 120);
              f = 1;
              r = 0;
          }
-         if (ctx->fcb[i] & (0x1000 >> 9) != 0)
-             ch9 = 1;
-         if (ctx->fcb[i] & (0x1000 >> 12) != 0)
-             ch12 = 1;
     }
 
     /* If we passed over form, clear row */
@@ -949,6 +1008,8 @@ print_line(struct _1443_context *ctx)
     if (ctx->fcb[i] & mask) {
         while (r-- > 0) {
            fwrite("\r\n", 1, 2, ctx->file);
+           memcpy(&ctx->output[0][0], &ctx->output[1][0], 14 * 120);
+           memset(&ctx->output[14][0], 0, 120);
            ctx->row++;
            if (ctx->row > ctx->lpp) {
                fwrite("\f", 1, 1, ctx->file);
@@ -957,7 +1018,6 @@ print_line(struct _1443_context *ctx)
         }
     }
 
-    memset(ctx->buf, 0x40, sizeof(ctx->buf));
     return l;
 }
 
@@ -986,12 +1046,12 @@ draw_model1443(struct _device *unit, SDL_Renderer *render)
 
     /* Draw basic device */
     rect.x = x;
-    rect.y = y;
-    rect.h = 142;
+    rect.y = y + 42;
+    rect.h = 100;
     rect.w = 305;
     rect2.x = 0;
     rect2.y = 0;
-    rect2.h = 142;
+    rect2.h = 100;
     rect2.w = 305;
     SDL_RenderCopy(render, model1443_img, &rect2, &rect);
     /* Draw device number */
@@ -1004,68 +1064,34 @@ draw_model1443(struct _device *unit, SDL_Renderer *render)
     rect2.y = 20;
     SDL_RenderCopy(render, txt, NULL, & rect2);
     SDL_DestroyTexture(txt);
-#if 0 
-    /* Draw stacked cards */
-    rect2.x = 351;
-    rect2.w = 399 - rect2.x;
-    rect2.y = 10;
-    rect2.h = hopper_size(ctx->feed) / 30;
-    rect2.y = 40 - rect2.h;
-    rect.x = 184;
-    rect.y = 56 - rect2.h;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw weight */
-    rect2.x = 351;
-    rect2.y = 0;
-    rect2.h = 10;
-    rect.x = 184;
-    rect.y -= 8;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw front */
-    rect2.x = 351;
-    rect2.y = 51;
-    rect2.w++;
-    rect2.h = 15;
-    rect.x = 182;
-    rect.y = 60 - rect2.h;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw Stacker 2 */
-    rect2.x = 344;
-    rect2.y = 104;
-    rect2.w = stack_size(ctx->stack[1]) / 30;
-    rect2.h = 30;
-    rect.x = 122;
-    rect.y = 75;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw Stacker 1 */
-    rect2.x = 344;
-    rect2.y = 104;
-    rect2.w = stack_size(ctx->stack[0]) / 30;
-    rect2.h = 30;
-    rect.x = 122;
-    rect.y = 75;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Overlay */
-    rect2.x = 343;
-    rect2.y = 69;
-    rect2.w = 400 - 343;
-    rect2.h = 101 - 69;
-    rect.x = 122;
-    rect.y = 97;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-#endif
+    /* Draw the paper.  */
+    rect.x = x + 89;
+    rect.y = y + 23 + 42;
+    rect.w = 94;
+    rect.h = 22;
+    rect2.x = 0;
+    rect2.y = 120 + ctx->row;
+    rect2.w = 94;
+    rect2.h = 22;
+    SDL_RenderCopy(render, model1443_img, &rect2, &rect);
+    /* Draw output */
+    rect.h = 2;
+    rect.w = 2;
+    rect2.x = 118;
+    rect2.h = 2;
+    rect2.w = 2;
+    for (i = 0; i < 10; i++) {
+        rect.x = x + 89;
+        rect.y = y + 23 + 42 + (2 * i) ;
+        for (j = 0; j < 94; j++) {
+            uint8_t  ch = ctx->output[i][j];
+            if (ch != 0) {
+                rect2.x = ch * 2;
+                SDL_RenderCopy(render, model1443_img, &rect2, &rect);
+            }
+            rect.x++;
+        }
+    }
 }
 
 static void lpr_update(struct _popup *popup, void *device, int index)

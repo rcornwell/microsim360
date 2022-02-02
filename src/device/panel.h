@@ -108,6 +108,7 @@ struct _ind {
     SDL_Color   *ct;             /* Color of text */
     char        *lab;            /* Pointer to text label, not freed */
     int         *value;          /* Value to watch */
+    int          shift;          /* Shift value */
     int          top_len;        /* Length of first line */
     int          bot_len;        /* Length of second line */
 } ind[100];
@@ -250,6 +251,7 @@ struct _popup {
       struct _combo combo[10];
       struct _number number[10];
 
+      int        unit_num;
       int        lamp_ptr;
       int        led_ptr;
       int        area_ptr;
@@ -260,6 +262,7 @@ struct _popup {
       int        txt_ptr;
       int        cmb_ptr;
       int        num_ptr;
+      int        temp[10];
       SDL_Window *screen;
       SDL_Renderer *render;
       void       *device;

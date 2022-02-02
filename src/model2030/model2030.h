@@ -84,11 +84,12 @@ struct ROS_2030 {
 
 struct CPU_2030 {
 int         count;
-uint16_t    M[64 * 1024];
-uint16_t    LS[2048];
+uint16_t    M[64 * 1024];       /* Main memory */
+uint16_t    LS[2048];           /* Local storage and BUMP storage */
+uint8_t     MP[256];            /* Protection storage. 4 bits */
 
-int          mem_max;            /* Maximum memory address - 1 */
-                                 /* 8K = 0x1FFF, 16K = 0x3FFF, 32K = 0x7FF, 64k = 0xFFFF */
+int          mem_max;           /* Maximum memory address - 1 */
+                                /* 8K = 0x1FFF, 16K = 0x3FFF, 32K = 0x7FF, 64k = 0xFFFF */
 
 uint16_t    Abus;               /* Holds the input to the A side of ALU. */
 uint16_t    Bbus;               /* Holds the input to the B side of ALU. */
@@ -152,7 +153,7 @@ uint16_t    O_REG;              /* Mux bus out and control register. */
 uint16_t    FI;                 /* MPX bus in. */
 uint16_t    MPX_TAGS;           /* MPX Tags out */
 uint16_t    MPX_TI;             /* MPX Tags in */
-uint8_t     FT;                 /* MPX tag in */
+uint16_t    FT;                 /* MPX tag in */
 
 /* FT bits.
  *
@@ -165,10 +166,9 @@ uint8_t     FT;                 /* MPX tag in */
  *   Bit 6  - Select Out
  *   Bit 7  - MPX Channel interrpt
  */
-int          t_request;
 uint16_t    TI;                 /* 1050 bus in */
 uint16_t    TE;                 /* 1050 bus out */
-uint8_t     TT;                 /* 1050 tag in */
+uint16_t    TT;                 /* 1050 tag in */
 /* TT Bits.
  *
  * Bit 0 - Cancel
@@ -180,7 +180,7 @@ uint8_t     TT;                 /* 1050 tag in */
  * Bit 6 - Attention
  * Bit 7 - Data Check
  */
-uint8_t     TA;                 /* 1050 tag out */
+uint16_t    TA;                 /* 1050 tag out */
 /* TA Bits.
  *
  * Bit 0 - Home Rdr Start Lch
@@ -339,13 +339,17 @@ uint16_t    SEL_TAGS[2];         /* Select channel tags. */
 uint16_t    SEL_TI[2];           /* Input tags. */
 
 } cpu_2030; 
+
+uint16_t    end_of_e_cycle;
 uint16_t    store;
 uint16_t    allow_write;
 uint16_t    match;
+uint16_t    t_request;
 uint8_t     allow_man_operation;
 uint8_t     wait;
 uint8_t     test_mode;
 uint8_t     clock_start_lch;
+uint8_t     load_mode;
 
 #define MAIN   1
 #define LOCAL  2

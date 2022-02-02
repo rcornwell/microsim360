@@ -125,6 +125,11 @@ SDL_Texture *on, *off;
 SDL_Texture *lamps;
 SDL_Texture *hex_dials;
 SDL_Texture *store_dials[3];
+int          fps;
+
+SDL_bool over_cycle = SDL_FALSE;     /* Indicates over number of count cycles */
+SDL_mutex  *display_mutex;           /* Lock for display update */
+SDL_cond   *display_wait;            /* Display waiting for update */
 
 #define DIG_LP   17
 #define DIG_CD   18
@@ -272,10 +277,12 @@ int text_entry = -1;
 void
 draw_circle(int x, int y, int radius, SDL_Color color)
 {
+    int w, h;
+
     SDL_SetRenderDrawColor(render, color.r, color.g, color.b, color.a);
-    for (int w = 0; w < radius * 2; w++)
+    for (w = 0; w < radius * 2; w++)
     {
-        for (int h = 0; h < radius * 2; h++)
+        for (h = 0; h < radius * 2; h++)
         {
             int dx = radius - w; // horizontal offset
             int dy = radius - h; // vertical offset
@@ -567,12 +574,11 @@ draw_screen30(int hd, int wd)
         SDL_RenderCopy(render, lamps, &rect, & lamp[i].rect);
     }
 
-    sprintf(buf, "%10d", cpu_2030.count);
-    cpu_2030.count = 0;
+    sprintf(buf, "%10d fps=%d", cpu_2030.count, fps);
     rect.x = 700;
     rect.y = 10;
     rect.h = hd;
-    rect.w = 10*wd;
+    rect.w = 20*wd;
     text = TTF_RenderText_Shaded(font1, buf, c1, c);
     txt = SDL_CreateTextureFromSurface( render, text);
     SDL_FreeSurface(text);
@@ -660,7 +666,7 @@ draw_popup(struct _popup *popup, int hd, int wd)
     /* Draw indicator lights */
     for (i = 0; i < popup->ind_ptr; i++) {
         j = 0;
-        if (popup->ind[i].value != 0 && *popup->ind[i].value)
+        if (popup->ind[i].value != 0 && (*popup->ind[i].value >> popup->ind[i].shift) & 1)
             j = 1;
         SDL_SetRenderDrawColor( popup->render, popup->ind[i].c[j]->r,
                                         popup->ind[i].c[j]->g,
@@ -1868,22 +1874,22 @@ next_row1:
     rect.x += wd;
     pos_data[18] = rect.x;
     rect.y += h2;       /* EX */
-    (void)add_led(0, 7, rect.x, rect.y, hd, wd, 40);
+    (void)add_led(&end_of_e_cycle, 0, rect.x, rect.y, hd, wd, 40);
     rect.x += (wd * 4); /* MATCH */
     (void)add_led(&match, 0, rect.x, rect.y, hd, wd, 41);
     rect.x += (wd * 7);  /* ALLOW WRITE */
     (void)add_led(&allow_write, 0, rect.x, rect.y, hd, wd, 42);
     rect.y += 2*h2 + (hd/2); /* 1050 Intv */
     rect.x = pos_data[18];
-    (void)add_led(0, 4, rect.x, rect.y, hd, wd, 43);
+    (void)add_led(&cpu_2030.TT, 2, rect.x, rect.y, hd, wd, 43);
     rect.x += (wd * 4);
     rect.x += (wd * 7);    /* 1050 req */
-    (void)add_led(0, 3, rect.x, rect.y, hd, wd, 44);
+    (void)add_led(&t_request, 0, rect.x, rect.y, hd, wd, 44);
     rect.y += 2*h2 + (hd/2);
     rect.x = pos_data[18];  /* MPX CHNL */
-    (void)add_led(0, 2, rect.x, rect.y, hd, wd, 45);
+    (void)add_led(&cpu_2030.FT, 5, rect.x, rect.y, hd, wd, 45);
     rect.x += (wd * 4);     /* SELCH */
-    (void)add_led(0, 1, rect.x, rect.y, hd, wd, 46);
+    (void)add_led(&cpu_2030.H_REG, 3, rect.x, rect.y, hd, wd, 46);
     rect.x += (wd * 7);    /* Compute */
     (void)add_led(0, 0, rect.x, rect.y, hd, wd, 47);
     rect.x += (wd * 8);
@@ -2226,8 +2232,8 @@ next_row1:
     lamp[4].rect.h = 15;
     lamp[4].rect.w = 15;
     lamp[4].col = 0;
-    lamp[4].value = &cpu_2030.FT;
-    lamp[4].shift = 3;
+    lamp[4].value = &load_mode;
+    lamp[4].shift = 0;
     lamp_ptr = 5;
 }
 
@@ -2269,12 +2275,17 @@ int main(int argc, char *argv[]) {
     int      mWindowID = -1;
     int      mDeviceID = -1;
     int      mPopID = -1;
+    uint32_t ticks;
 
     /* Start SDL */
     SDL_Init( SDL_INIT_EVERYTHING );
     TTF_Init();
     POWER = 1;
     SYS_RST = 1;  /* Force system reset */
+
+    /* Create display locks */
+    display_mutex = SDL_CreateMutex();
+    display_wait = SDL_CreateCond();
 
     /* Set up screen */
     screen = SDL_CreateWindow("IBM360/30",
@@ -2374,6 +2385,7 @@ int main(int argc, char *argv[]) {
     (void)model2415_init(render2, 0x0c0);
     model1050_init();
     thrd = SDL_CreateThread(process, "CPU", NULL);
+//    thrd = NULL;
     disp_timer = SDL_AddTimer(20, &timer_callback, NULL);
     mWindowID = SDL_GetWindowID( screen );
     mDeviceID = SDL_GetWindowID( screen2 );
@@ -2453,7 +2465,7 @@ int main(int argc, char *argv[]) {
                     break;
                }
             }
-            if (event.window.windowID == mDeviceID) {
+            else if (event.window.windowID == mDeviceID) {
                switch(event.type) {
                case SDL_MOUSEBUTTONDOWN:
                     printf("Dev %d %d\n", event.button.x, event.button.y);
@@ -2479,12 +2491,14 @@ int main(int argc, char *argv[]) {
                     break;
                }
             }
-            if (event.window.windowID == mPopID) {
+            else if (event.window.windowID == mPopID) {
                switch(event.type) {
                case SDL_WINDOWEVENT:
                     switch (event.window.event) {
                     case SDL_WINDOWEVENT_CLOSE:
 printf("Close\n");
+                          if (pop_wind == NULL)
+                              break;
                           /* Draw all labels */
                           for (i = 0; i < pop_wind->ctl_ptr; i++) {
                               SDL_DestroyTexture(pop_wind->ctl_label[i].text);
@@ -2699,8 +2713,10 @@ printf("switch off %d\n", i);
                     break;
                }
             }
+            else { 
             switch(event.type) {
             case SDL_USEREVENT:
+                 ticks = SDL_GetTicks();
                  draw_screen30(hd, wd);
                  /* Clear display */
                  SDL_SetRenderDrawColor( render2, 0x00, 0x00, 0x00, 0xFF);
@@ -2716,6 +2732,14 @@ printf("switch off %d\n", i);
                  if (pop_wind != NULL) {
                     draw_popup(pop_wind, hd, wd);
                  }
+                 SDL_LockMutex(display_mutex);
+                 cpu_2030.count = 0;
+                 SDL_CondSignal(display_wait);
+                 SDL_UnlockMutex(display_mutex);
+                 fps = (int)(SDL_GetTicks() - ticks);
+                 SDL_FlushEvent(SDL_USEREVENT);
+                 if (fps < 18)
+                     SDL_Delay(18 - fps);
                  break;
             case SDL_WINDOWEVENT:
                     switch (event.window.event) {
@@ -2727,9 +2751,11 @@ printf("Close\n");
             case SDL_QUIT:
 printf("Quit\n");
                  POWER = 0;
+                 cpu_2030.count = 0;
                  break;
             default:
                  break;
+            }
             }
         }
     }
@@ -2744,14 +2770,24 @@ printf("Quit\n");
     TTF_Quit();
     SDL_DestroyRenderer(render);
     SDL_DestroyWindow(screen);
+    SDL_DestroyCond(display_wait);
+    SDL_DestroyMutex(display_mutex);
     SDL_Quit(); 
 	return 0;
 } 
 
 
 int process(void *data) {
-printf("Process start\n");
+fprintf(stderr, "Process start %d\n", cpu_2030.count);
     while(POWER) {
+       cpu_2030.count ++;
+       if (cpu_2030.count > 20000) {
+          SDL_LockMutex(display_mutex);
+          while (cpu_2030.count > 20000 && POWER) {
+               SDL_CondWaitTimeout(display_wait, display_mutex, 50);
+          }
+          SDL_UnlockMutex(display_mutex);
+       }
        cycle();
     }
     return 0;

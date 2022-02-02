@@ -32,21 +32,23 @@
 #define TYPE_P7B    2
 #define TAPE_FMT    3                  /* Mask for tape format */
 
-#define WRITE_RING  4
-#define DEN_MASK    8
-#define DEN_1600    8
-#define DEN_800     0
-#define TAPE_EOT    0x10               /* Mark that we are at end of tape */
-#define TAPE_BOT    0x20               /* Mark that we are at load point */
-#define TAPE_MARK   0x40               /* We read a tape mark */
-#define TRACK9      0x80               /* 9 track tape drive */
+#define WRITE_RING  0x004
+#define DEN_MASK    0x008
+#define DEN_1600    0x008
+#define DEN_800     0x000
+#define TAPE_EOT    0x010               /* Mark that we are at end of tape */
+#define TAPE_BOT    0x020               /* Mark that we are at load point */
+#define TAPE_MARK   0x040               /* We read a tape mark */
+#define TRACK9      0x080               /* 9 track tape drive */
+#define SELECTED    0x100               /* Drive selected */
+#define ONLINE      0x200               /* Drive online */
 
 #define FUNC_READ   0
 #define FUNC_WRITE  1
 #define FUNC_REW    2
 #define FUNC_RDBACK 3
 #define FUNC_MARK   4
-#define FUNC_V      8
+#define FUNC_V      12
 #define FUNC_M      7
 
 #define IRG_LEN     1200               /* Number of frames for a IRQ */
@@ -68,6 +70,14 @@ struct _tape_buffer {
      uint8_t       buffer[32*1024];     /* Buffer of current record */
 };
 
+struct _tape_image {
+     int           x;                   /* X position */
+     int           y;                   /* Y position */
+     int           start;               /* Start position tape in frames */
+     int           length;              /* Length of current rotation in frames */
+     int           radius;              /* Current radius of reel */
+} tape_position[1300];
+
 /*
  * Return true if tape at load point.
  */
@@ -88,6 +98,21 @@ int tape_ring(struct _tape_buffer *tape);
  * Determine if a 9 track or 7 track tape
  */
 int tape_9_track(struct _tape_buffer *tape);
+
+/*
+ * Select tape drive.
+ */
+void tape_select(struct _tape_buffer *tape);
+
+/*
+ * Un-Select tape drive.
+ */
+void tape_unselect(struct _tape_buffer *tape);
+
+/*
+ * Is-selected tape drive.
+ */
+int tape_is_selected(struct _tape_buffer *tape);
 
 /*
  * Attach a tape to buffer:
@@ -184,6 +209,21 @@ int tape_start_rewind(struct _tape_buffer *tape);
  */
 
 int tape_rewind_frames(struct _tape_buffer *tape, int frames);
+
+/*
+ * Find the supply reel tape position.
+ */
+
+struct _tape_image *tape_supply_image(struct _tape_buffer *tape, int *rotate);
+
+/*
+ * Find the takup reel tape position.
+ */
+
+struct _tape_image *tape_takeup_image(struct _tape_buffer *tape, int *rotate);
+
+extern int max_tape_length;
+extern int max_tape_pos;
 
 #if 0
                   data rate          Speed     IRG   Start 7tm  9tm/800 9tm/1600    Rewind 

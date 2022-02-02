@@ -96,6 +96,7 @@ struct _device {
 struct _control {
     char *name;
     int  (*create)(char *line);
+    struct _device *(*init)(SDL_Renderer *render, uint16_t addr);
 };
 
 struct _unit {

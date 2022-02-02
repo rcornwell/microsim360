@@ -32,6 +32,7 @@
 #include "card.h"
 #include "model1442.h"
 #include "model1442.xpm"
+#include "xlat.h"
 
 /*
  *  Commands.
@@ -100,9 +101,13 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 {
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
     int      i;
+    static   uint16_t last_tags = 0;
 
- printf("Reader tags: %d ", ctx->state);
-    print_tags(*tags, bus_out);
+    if (last_tags != *tags) {
+        printf("Reader tags: %d ", ctx->state);
+        print_tags(*tags, bus_out);
+        last_tags = *tags;
+    }
     /* Reset device if OPER OUT is dropped */
     if ((*tags & (CHAN_OPR_OUT|CHAN_SUP_OUT)) == 0) {
         if (ctx->selected) {
@@ -319,10 +324,10 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                      model1442_feed(ctx);
                      ctx->delay = 1000;
                      /* Check if hopper empty with eof file flag set */
-                     if ((ctx->cmd & 0x7) == 2 && hopper_size(ctx->feed) == 0 && ctx->eof_flag) {
-                        ctx->status |= SNS_UNITEXP;
-                        ctx->eof_flag = 0;
-                     }
+//                     if ((ctx->cmd & 0x7) == 2 && hopper_size(ctx->feed) == 0 && ctx->eof_flag) {
+ //                       ctx->status |= SNS_UNITEXP;
+  //                      ctx->eof_flag = 0;
+   //                  }
                  }
                  /* If not control, generate data end */
                  if ((ctx->cmd & 0x07) != 3) {
@@ -357,7 +362,12 @@ printf("Write get1\n");
              case 2: /* Read */
                     if (ctx->data_rdy == 0) {
                         if (ctx->rdr_col < 80) {
+                            uint8_t ch;
                             ctx->data = hol_to_ebcdic(ctx->rdr_card[ctx->rdr_col]);
+                            ch = ebcdic_to_ascii[ctx->data];
+                            if (!isprint(ch))
+                               ch = '.';
+printf("Read data %d:%02x '%c'", ctx->rdr_col, ctx->data, ch);
                             ctx->rdr_col++;
                             ctx->data_rdy = 1;
                             ctx->delay = 100;
@@ -367,7 +377,6 @@ printf("Write get1\n");
                         }
                      }
                      ctx->state = STATE_DATA_O;
-printf("Read data %d:%02x\n", ctx->rdr_col, ctx->data);
                      break;
              case 3: /* Control */
                      break;
@@ -463,7 +472,6 @@ printf("Other device\n");
 
     case STATE_DATA_I:    /* Request data from Channel, wait ready */
               if (ctx->delay > 0) {
-printf("Data I %d\n", ctx->delay);
                   break;
               }
 
@@ -505,11 +513,10 @@ printf("Data I %d\n", ctx->delay);
 
     case STATE_DATA_O:    /* Request to send data to channel */
               if (ctx->delay > 0) {
-printf("Data O %d\n", ctx->delay);
                   break;
               }
 
-printf("Data output %02x %d\n", ctx->data, ctx->selected);
+//printf("Data output %02x %d\n", ctx->data, ctx->selected);
               /* If we are not connected, go request bus */
               if (ctx->selected == 0) {
                   ctx->state = STATE_REQ;
@@ -646,7 +653,6 @@ printf("Stacked\n");
 
     case STATE_END:
               if (ctx->delay > 0) {
-printf("End %d\n", ctx->delay);
                   break;
               }
 
@@ -749,7 +755,7 @@ printf("Stacked\n");
              /* Mark channel still in use */
              *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
              *tags |= CHAN_OPR_IN;
-printf("End status ready %02x\n", ctx->status);
+//printf("End status ready %02x\n", ctx->status);
              break;
 
     case STATE_STACK:  /* Stacked status */
@@ -764,7 +770,7 @@ printf("End status ready %02x\n", ctx->status);
                       ctx->sense |= SENSE_BUSCHK;
                   *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
                   *tags |= CHAN_OPR_IN;
- printf("stack selected\n");
+ printf("reader stack selected %02x %03x\n", bus_out & 0xff, ctx->addr );
                   break;
              }
 
@@ -775,7 +781,7 @@ printf("End status ready %02x\n", ctx->status);
                  *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                  /* Put our address on the bus */
-printf("stack address\n");
+printf("reader stack address\n");
                  *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);               /* Clear select out and in */
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;                   /* Put out device on request */
                  *bus_in = ctx->addr | odd_parity[ctx->addr];        /* Put out our address */
@@ -786,7 +792,7 @@ printf("stack address\n");
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN|CHAN_REQ_IN);  /* Clear select out and in */
-printf("stack cmd\n");
+printf("reader stack cmd\n");
                   ctx->selected = 1;
                   ctx->state = STATE_END;                            /* Go return status */
               }
@@ -794,7 +800,7 @@ printf("stack cmd\n");
               /* Bus is idle without Suppress out */
               if (*tags == (CHAN_OPR_OUT)  && (ctx->status & SNS_DEVEND) != 0) {
                   /* Put our address on the bus */
-printf("Send status\n");
+printf("reader Send status\n");
                   *tags |= CHAN_REQ_IN;                               /* Put out device on request */
                   break;
               }
@@ -808,7 +814,7 @@ printf("Send status\n");
               break;
 
     case STATE_WAIT:
- printf("wait %d %d\n", ctx->selected, ctx->delay);
+// printf("wait %d %d\n", ctx->selected, ctx->delay);
              /* If we get select out with address out, reselection */
              if (!ctx->selected &&
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
@@ -998,7 +1004,7 @@ printf("Start reader\n");
               }
               if (ctx->rdr_full) {
                   ctx->state = STATE_END;
-                  ctx->status |= SNS_DEVEND;
+                  ctx->status = SNS_DEVEND;
               }
           }
           break;

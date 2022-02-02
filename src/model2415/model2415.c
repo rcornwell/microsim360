@@ -24,10 +24,19 @@
  */
 
 #include <stdio.h>
+#include <SDL.h>
+#include <SDL_timer.h>
+#include <SDL_thread.h>
+#include <SDL_ttf.h>
+#include <SDL_image.h>
 #include <string.h>
 #include "device.h"
 #include "tape.h"
 #include "model2415.h"
+
+#include "model2415.xpm"
+#include "tape_medium.xpm"
+#include "tape_reel.xpm"
 
 /*
  *  Commands.
@@ -113,7 +122,7 @@
 #define STATE_RDY       13    /* Wait for selection to give status */
 
 #define FRAME_DELAY     33    /* 34 us per frame delay */
-#define REWIND_DELAY    2000
+#define REWIND_DELAY    10000
 #define REW_FRAME       3840  /* Frames per 20ms */
 #define START_DELAY     4000
 
@@ -176,12 +185,58 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     int      i;
     int      r;
 
-    printf("Tape tags %d: ", ctx->state);
-    print_tags(*tags, bus_out);
+//    printf("Tape tags %d: ", ctx->state);
+//    print_tags(*tags, bus_out);
+    /* Reset device if OPER OUT is dropped */
+    if ((*tags & (CHAN_OPR_OUT|CHAN_SUP_OUT)) == 0) {
+ printf("Reset tape\n");
+        if (ctx->selected) {
+           *tags &= ~(CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SRV_IN|CHAN_STA_IN);
+        }
+        ctx->selected = 0;
+        ctx->state = STATE_IDLE;
+        for (i = 0; i < 6; i++) 
+           ctx->sense[i] = 0;
+        ctx->cmd = 0;
+        ctx->delay = 0;
+        ctx->rdy_flags = 0;
+        return;
+    }
 
     if (ctx->delay == 0) {
         ctx->delay = FRAME_DELAY;
-        printf("Tape commnd scan %02x\n", ctx->cmd);
+        if (ctx->rew_flags != 0) {
+            printf("Rewind Low speed %02x %02x\n", ctx->rew_flags, ctx->rdy_flags);
+            for ( i = 0; i < ctx->nunits; i++) {
+                if (ctx->tape[i] == NULL || (ctx->rew_flags & (1 << i)) == 0)
+                   continue;
+                if (ctx->tape[i]->pos_frame > (5 * 12 * 1600))
+                   continue;
+                r = tape_rewind_frames(ctx->tape[i], 1);
+                if (r == 0) {
+                    printf("Rewind done %d\n", i);
+                    ctx->rew_flags &= ~(1 << i);
+                    if (ctx->run_flags & (1 << i)) {
+                        tape_detach(ctx->tape[i]);
+                        ctx->run_flags &= ~(1 << i);
+                    } else if (ctx->chain_flag) {
+                        ctx->state = STATE_END;
+                        ctx->status = SNS_DEVEND|SNS_CHNEND;
+                        ctx->cmd = 0;
+                    } else {
+                        if (ctx->cur_unit == i && ctx->state != STATE_IDLE) {
+                           ctx->status &= ~(SNS_CTLEND|SNS_UNITCHK);
+                           if (ctx->state == STATE_STACK) {
+                               ctx->state = STATE_END;
+                           }
+                        } else {
+                           ctx->rdy_flags |= 1 << i;
+                        }
+                    }
+                }
+            }
+        }
+ //       printf("Tape commnd scan %02x\n", ctx->cmd);
         switch (ctx->cmd & 0xf) {
         case 0: /* Test I/O */
         case 4: /* Sense */
@@ -271,11 +326,10 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                     if (ctx->rew_delay == 0)
                         ctx->rew_delay = REWIND_DELAY;
                     ctx->rew_flags |= 1 << ctx->cur_unit;
-                    if (ctx->chain_flag == 0) {
-                        ctx->state = STATE_END;
-                        ctx->status = SNS_CTLEND|SNS_DEVEND|SNS_UNITCHK;
-                        ctx->cmd = 0;
-                    }
+                    ctx->run_flags |= 1 << ctx->cur_unit;
+                    ctx->state = STATE_END;
+                    ctx->status = SNS_CTLEND|SNS_DEVEND|SNS_UNITCHK;
+                    ctx->cmd = 0;
                     break;
                case 0x07:    /* Rewind */
                     printf("start rewind %d\n", ctx->chain_flag);
@@ -317,12 +371,12 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                          /* Set up read error */
                          ctx->status = SNS_UNITCHK|SNS_DEVEND;
                     } else if (r == 0) {
+                         /* Terminate of record read */
+                         r = tape_finish_rec(ctx->tape[ctx->cur_unit]);
                          /* End of record */
                          if (tape_at_loadpt(ctx->tape[ctx->cur_unit])) {
                              ctx->status = SNS_UNITCHK|SNS_DEVEND;
                          } else {
-                             /* Terminate of record read */
-                             r = tape_finish_rec(ctx->tape[ctx->cur_unit]);
                              if (ctx->cmd & 0x8) {
                                  if (ctx->cmd & 0x10) {
                                     r = tape_read_forw(ctx->tape[ctx->cur_unit]);
@@ -363,11 +417,19 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
             for ( i = 0; i < 6; i++) {
                 if (ctx->tape[i] == NULL || (ctx->rew_flags & (1 << i)) == 0)
                    continue;
+                if (ctx->tape[i]->pos_frame <= (5 * 12 * 1600)) {
+                   if (ctx->delay == 0)
+                       ctx->delay = FRAME_DELAY;
+                   continue;
+                }
                 r = tape_rewind_frames(ctx->tape[i], REW_FRAME);
                 if (r == 0) {
                     printf("Rewind done %d\n", i);
                     ctx->rew_flags &= ~(1 << i);
-                    if (ctx->chain_flag) {
+                    if (ctx->run_flags & (1 << i)) {
+                        tape_detach(ctx->tape[i]);
+                        ctx->run_flags &= ~(1 << i);
+                    } else if (ctx->chain_flag) {
                         ctx->state = STATE_END;
                         ctx->status = SNS_DEVEND|SNS_CHNEND;
                         ctx->cmd = 0;
@@ -448,7 +510,7 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
                  *bus_in = (ctx->addr & 0xf8) | ctx->cur_unit;
                  *bus_in |= odd_parity[*bus_in];
- printf("tape address\n");
+ //printf("tape address\n");
             }
 
             /* Wait for Command out to raise */
@@ -457,14 +519,14 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
- printf("tape command %02x\n", bus_out);
+ //printf("tape command %02x\n", bus_out);
                  ctx->state = STATE_CMD; /* Wait for command out to return
                                              initial status */
                  *tags &= ~(CHAN_ADR_IN);                 /* Clear address in */
                  if (ctx->stat_unit >= 0 && ctx->cur_unit != ctx->stat_unit) {
                      ctx->status = SNS_SMS|SNS_BSY;
                      *tags &= ~(CHAN_SEL_OUT);     /* Clear select out and in */
-printf(" Pending status: %d u=%d\n", ctx->stat_unit, ctx->cur_unit);
+//printf(" Pending status: %d u=%d\n", ctx->stat_unit, ctx->cur_unit);
                      break;
                  }
 
@@ -474,7 +536,7 @@ printf(" Pending status: %d u=%d\n", ctx->stat_unit, ctx->cur_unit);
                      (ctx->sense[3] & (SENSE_VCR|SENSE_LRCR)) != 0)) {
                      ctx->status = SNS_BSY;
                      *tags &= ~(CHAN_SEL_OUT);     /* Clear select out and in */
-printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->sense[1], ctx->sense[3]);
+//printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->sense[1], ctx->sense[3]);
                      break;
                  }
 
@@ -498,6 +560,7 @@ printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->s
                  ctx->delay = START_DELAY;
                  ctx->rdy_flags &= ~(1 << ctx->cur_unit);
                  ctx->stat_unit = -1;
+                 tape_select(ctx->tape[ctx->cur_unit]);
                  switch (ctx->cmd & 07) {
                  case 0: /* Test I/O */
                         break;
@@ -542,19 +605,19 @@ printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->s
                         ctx->sense[3] = 0;
                         ctx->sense[4] = 0;
                         if ((ctx->cmd & 0xfc) != 0) {
-                            printf("Invalid command %x02\n", ctx->cmd);
+                            //printf("Invalid command %x02\n", ctx->cmd);
                             ctx->sense[0] = SENSE_CMDREJ;
                             break;
                         }
                         /* Check if tape attached */
                         if (ctx->tape[ctx->cur_unit] == 0) {
-                            printf("Tape not attached %d\n", ctx->cur_unit);
+                            //printf("Tape not attached %d\n", ctx->cur_unit);
                             ctx->sense[0] = SENSE_INTERV;
                             break;
                         }
                         /* Do a read start */
                         r = tape_read_forw(ctx->tape[ctx->cur_unit]);
-                        printf("Tape read forw %d : %d\n", ctx->cur_unit, r);
+                        //printf("Tape read forw %d : %d\n", ctx->cur_unit, r);
                         if (r < 0) {
                             ctx->sense[0] = SENSE_INTERV;
                         }
@@ -594,7 +657,7 @@ printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->s
                             }
                             /* Do a read start */
                             r = tape_read_back(ctx->tape[ctx->cur_unit]);
-                            printf("Tape read back %d : %d\n", ctx->cur_unit, r);
+                            //printf("Tape read back %d : %d\n", ctx->cur_unit, r);
                             if (r < 0) {
                                 ctx->sense[0] = SENSE_INTERV;
                             }
@@ -678,10 +741,12 @@ printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->s
                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
                      ctx->cmd = 0;
                      ctx->sense[0] |= SENSE_BUSCHK;
+                     tape_unselect(ctx->tape[ctx->cur_unit]);
                  }
                  if (ctx->cmd != 4 && ((ctx->sense[0] & ~(SENSE_WCZERO)) != 0 ||
                                          (ctx->sense[1] & BIT7) != 0)) {
                      ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
+                     tape_unselect(ctx->tape[ctx->cur_unit]);
                      ctx->cmd = 0;
                  }
 //                 if (ctx->sense[0] != 0) {
@@ -704,7 +769,7 @@ printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->s
                   *tags |= CHAN_OPR_IN|CHAN_STA_IN;     /* Wait for acceptance of status */
                  if ((*tags & CHAN_SUP_OUT) != 0)
                      ctx->chain_flag = 1;
- printf("init stat %02x %d\n", ctx->status, ctx->chain_flag);
+ //printf("init stat %02x %d\n", ctx->status, ctx->chain_flag);
              }
 
              /* When we get acknowlegment, go wait for it to go away */
@@ -716,7 +781,7 @@ printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->s
                  if ((*tags & CHAN_SUP_OUT) != 0)
                      ctx->chain_flag = 1;
                  ctx->state = STATE_INIT_STAT;
- printf("init stat 2 %02x\n", ctx->status);
+ //printf("init stat 2 %02x\n", ctx->status);
              }
              /* Return initial status */
              *bus_in = ctx->status | odd_parity[ctx->status];
@@ -748,13 +813,13 @@ printf(" Unit busy: u=%d %02x %02x %02x\n", ctx->cur_unit, ctx->sense[0], ctx->s
                      }
                      ctx->state = STATE_IDLE;
                  }
- printf("state done\n");
+ //printf("state done\n");
              }
              *tags &= ~(CHAN_SEL_OUT);              /* Clear select out and in */
              break;
 
     case STATE_OPR:
- printf("opr %d\n", ctx->selected);
+ //printf("opr %d\n", ctx->selected);
              /* Wait for Command out to drop */
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_CMD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN)) {
@@ -791,7 +856,7 @@ printf("Sense %d:%02x\n", ctx->sense_cnt, ctx->sense[ctx->sense_cnt]);
                 *tags |= CHAN_STA_IN;                  /* Indicate busy status */
                 *bus_in = SNS_SMS|SNS_BSY|0x100;
                 ctx->selected = 0;
-printf("reselect\n");
+//printf("reselect\n");
                 break;
              }
 
@@ -806,7 +871,7 @@ printf("reselect\n");
                   ctx->data_end = 1;
                   ctx->state = STATE_DATA_END;          /* Return busy status */
  //                 ctx->selected = 0;
-printf("Halt i/o\n");
+//printf("Halt i/o\n");
                   break;
              }
 
@@ -835,7 +900,7 @@ printf("Halt i/o\n");
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | ctx->cur_unit;
                  *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-printf("Reselect\n");
+//printf("Reselect\n");
                  break;
              }
 
@@ -846,7 +911,7 @@ printf("Reselect\n");
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | ctx->cur_unit;
                  *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-printf("Address\n");
+//printf("Address\n");
                  break;
              }
 
@@ -856,7 +921,7 @@ printf("Address\n");
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                   ctx->selected = 1;
                   ctx->state = STATE_OPR;              /* Go wait for everything to drop */
-printf("selected\n");
+//printf("selected\n");
               }
 
               /* See if another device got it. */
@@ -921,7 +986,7 @@ printf("Data output %02x %d\n", ctx->data, ctx->selected);
                    *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Clear select out and in */
                    ctx->data_rdy = 0;
                    ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
-printf("Data sent\n");
+//printf("Data sent\n");
               }
 
               /* CMD out indicates that the channel will accept no more data */
@@ -936,7 +1001,7 @@ printf("Data sent\n");
                        ctx->status |= SNS_CHNEND;
                        ctx->state = STATE_OPR;
                    }
-printf("Data End\n");
+//printf("Data End\n");
                    break;
               }
               /* If we are selected clear select in */
@@ -958,13 +1023,13 @@ printf("Data End\n");
                              *bus_in = SNS_BSY;
                              *tags |= CHAN_STA_IN;
                              ctx->selected = 1;
-                             printf("selected other unit\n");
+                     //        printf("selected other unit\n");
                              break;
                          }
                          *tags |= CHAN_OPR_IN;
                          ctx->state = STATE_SEL;
                          ctx->selected = 1;
-                         printf("selected\n");
+                      //   printf("selected\n");
                      }
                      break;
                  }
@@ -978,7 +1043,7 @@ printf("Data End\n");
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                       *bus_in = ctx->addr | ctx->cur_unit;
                       *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-                     printf("Reselect\n");
+//                     printf("Reselect\n");
                      break;
                  }
 
@@ -990,7 +1055,7 @@ printf("Data End\n");
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | ctx->cur_unit;
                      *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-                     printf("Address\n");
+ //                    printf("Address\n");
                      break;
                  }
 
@@ -999,7 +1064,7 @@ printf("Data End\n");
                      *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                       *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                       ctx->selected = 1;
-                      printf("selected\n");
+  //                    printf("selected\n");
                   }
 
                   /* See if another device got it. */
@@ -1045,7 +1110,7 @@ printf("End channel status %02x %02x\n", ctx->status, ctx->cmd);
                      ctx->state = STATE_IDLE;
                  }
                  *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);  /* Clear select out and in */
-printf("Accepted\n");
+//printf("Accepted\n");
                   ctx->status &= ~SNS_CHNEND;
                   ctx->state = STATE_WAIT;            /* Wait for operation to finish */
                   break;
@@ -1173,8 +1238,9 @@ printf("End status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("Accepted\n");
+//printf("Accepted\n");
                   ctx->selected = 0;
+                  tape_unselect(ctx->tape[ctx->cur_unit]);
                   ctx->state = STATE_IDLE;           /* All done, back to idle state */
                   break;
              }
@@ -1435,6 +1501,211 @@ printf("selected\n");
     }
 }
 
+SDL_Texture *model2415_img;
+SDL_Texture *tape_medium_img;
+SDL_Texture *tape_reel_img;
+extern TTF_Font  *font1;
+extern TTF_Font  *font14;
+static SDL_Color cb = {0, 0, 0};
+static SDL_Color cw = {0xff, 0xff, 0xff};
+
+void
+model2415_draw(struct _device *unit, SDL_Renderer *render)
+{
+    struct _2415_context *ctx = (struct _2415_context *)unit->dev;
+    struct _tape_image   *reel;
+    SDL_Rect     rect;
+    SDL_Rect     rect2;
+    SDL_Surface *text;
+    SDL_Texture *txt;
+    int          i, j, k;
+    int          t1, t2;
+    int          x;
+    int          y;
+    char         buf[100];
+    float        p;
+
+    for (i = 0; i < unit->n_units; i++) {
+        x = unit->rect[i].x;
+        y = unit->rect[i].y;
+
+        if (ctx->tape[i]->file_name != NULL) {
+            rect2.x = 0;
+            rect2.y = 0;
+            rect2.w = unit->rect[i].w;
+            rect2.h = unit->rect[i].h;
+            SDL_RenderCopy(render, model2415_img, &rect2, &unit->rect[i]);
+            sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
+            text = TTF_RenderText_Solid(font14, buf, cb);
+            txt = SDL_CreateTextureFromSurface(render, text);
+            SDL_FreeSurface(text);
+            SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
+            rect2.x = x + 52;
+            rect2.y = y + 20;
+            SDL_RenderCopy(render, txt, NULL, &rect2);
+            SDL_DestroyTexture(txt);
+
+            /* Do indicators */
+            rect2.x = x + 85;
+            rect2.y = y + 14;
+            rect2.w = 9;
+            rect2.h = 7;
+            rect.x = 17;
+            rect.y = 230;
+            rect.w = 9;
+            rect.h = 7;
+            /* Draw select */
+            if (tape_is_selected(ctx->tape[i])) {
+                SDL_RenderCopy(render, model2415_img, &rect, &rect2);
+            }
+            rect.x += rect.w;
+            rect2.x += rect.w;
+            /* Draw ready */
+            if (tape_ready(ctx->tape[i])) {
+                SDL_RenderCopy(render, model2415_img, &rect, &rect2);
+            }
+            rect.x += rect.w;
+            rect2.x += rect.w;
+            /* Draw file protect */
+            if (tape_ring(ctx->tape[i]) == 0) {
+               SDL_RenderCopy(render, model2415_img, &rect, &rect2);
+            }
+            /* Draw supply reel */
+            reel = tape_supply_image(ctx->tape[i], &j);
+            rect2.x = x + 34;
+            rect2.y = y + 133;
+            rect2.w = 69;
+            rect2.h = 69;
+            rect.x = reel->x+4;
+            rect.y = reel->y+4;
+            rect.w = 69;
+            rect.h = 69;
+            SDL_RenderCopy(render, tape_medium_img, &rect, &rect2);
+            /* Draw tape to vacuum column */
+            SDL_SetRenderDrawColor(render, 0x37, 0x37, 0x37, 255);
+            SDL_RenderDrawLine(render, x+32, y+127, 
+                    x + (69 - reel->radius), y + 164 + (reel->radius / 2));
+            SDL_RenderDrawLine(render, x+32, y+99, x + 119, y + 77);
+            SDL_RenderDrawLine(render, x+177, y+99, x + 167, y + 85);
+            /* Overlay reel */
+            j = 35 - j;
+            rect.x = 77;
+            rect.y = 5 + (int) (0.5 + (74.75 * (float)j));
+            SDL_RenderCopy(render, tape_reel_img, &rect, &rect2);
+            /* Draw take up reel */
+            reel = tape_takeup_image(ctx->tape[i], &k);
+            rect2.x = x + 107;
+            rect.x = reel->x+4;
+            rect.y = reel->y+4;
+            SDL_RenderCopy(render, tape_medium_img, &rect, &rect2);
+            rect.x = 155;
+            rect.y = 5 + (int) (0.5 + (74.75 * (float)k));
+            SDL_RenderDrawLine(render, x + 177, y + 127, 
+                 x + (141 + reel->radius), y + 164 + (reel->radius / 2));
+            SDL_RenderCopy(render, tape_reel_img, &rect, &rect2);
+#if 0
+            sprintf(buf, "%2d  %2d f=%ld", j, k, ctx->tape[i]->pos_frame);
+            text = TTF_RenderText_Solid(font14, buf, cb);
+            txt = SDL_CreateTextureFromSurface(render, text);
+            SDL_FreeSurface(text);
+            SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
+            rect2.x = x + 37;
+            rect2.y = y + 90;
+            SDL_RenderCopy(render, txt, NULL, &rect2);
+            sprintf(buf, "s=%d l=%d", reel->start, reel->length);
+            text = TTF_RenderText_Solid(font14, buf, cb);
+            txt = SDL_CreateTextureFromSurface(render, text);
+            SDL_FreeSurface(text);
+            SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
+            rect2.x = x + 37;
+            rect2.y = y + 110;
+            SDL_RenderCopy(render, txt, NULL, &rect2);
+#endif
+        } else {
+            rect2.x = 251;
+            rect2.y = 0;
+            rect2.w = unit->rect[i].w;
+            rect2.h = unit->rect[i].h;
+            SDL_RenderCopy(render, model2415_img, &rect2, &unit->rect[i]);
+            sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
+            text = TTF_RenderText_Solid(font14, buf, cb);
+            txt = SDL_CreateTextureFromSurface(render, text);
+            SDL_FreeSurface(text);
+            SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
+            rect2.x = x + 52;
+            rect2.y = y + 20;
+            SDL_RenderCopy(render, txt, NULL, &rect2);
+            SDL_DestroyTexture(txt);
+            /* Draw supply reel */
+            rect2.x = x + 34;
+            rect2.y = y + 133;
+            rect2.w = 69;
+            rect2.h = 69;
+            rect.x = 4;
+            rect.y = 4;
+            rect.w = 69;
+            rect.h = 69;
+            SDL_RenderCopy(render, tape_medium_img, &rect, &rect2);
+            /* Draw take up reel */
+            rect2.x = x + 107;
+            SDL_RenderCopy(render, tape_medium_img, &rect, &rect2);
+            rect.x = 155;
+            rect.y = 6;
+            SDL_RenderCopy(render, tape_reel_img, &rect, &rect2);
+        }
+    }
+}
+
+static void model2415_update(struct _popup *popup, void *device, int index)
+{
+    struct _device *unit = (struct _device *)device;
+    struct _2415_context *ctx = (struct _2415_context *)unit->dev;
+
+fprintf (stderr, "Tape key %d\n", index);
+    switch (index) {
+    case 0:  /* Load Rewind */
+          if ((ctx->tape[popup->unit_num]->format & ONLINE) == 0) {
+              if (ctx->tape[popup->unit_num]->file_name == NULL ||
+                  strcmp(ctx->tape[popup->unit_num]->file_name, popup->text[0].text) != 0) {
+                  tape_detach(ctx->tape[popup->unit_num]);
+                  tape_attach(ctx->tape[popup->unit_num], 
+                                  popup->text[0].text, popup->temp[0],
+                                  popup->temp[3], popup->temp[1]);
+              }
+              tape_start_rewind(ctx->tape[popup->unit_num]);
+              if (ctx->rew_delay == 0)
+                  ctx->rew_delay = REWIND_DELAY;
+              ctx->rew_flags |= 1 << popup->unit_num;
+          }
+          break;
+    case 1:  /* Start */
+          if ((ctx->tape[popup->unit_num]->format & ONLINE) == 0 &&
+              (ctx->tape[popup->unit_num]->fd >= 0)) {
+              ctx->tape[popup->unit_num]->format |= ONLINE;
+              ctx->rdy_flags |= 1 << popup->unit_num;
+          }
+          break;
+    case 2:  /* Unload */
+          if ((ctx->tape[popup->unit_num]->format & ONLINE) == 0) {
+              tape_start_rewind(ctx->tape[popup->unit_num]);
+              if (ctx->rew_delay == 0)
+                  ctx->rew_delay = REWIND_DELAY;
+              ctx->rew_flags |= 1 << popup->unit_num;
+              ctx->run_flags |= 1 << popup->unit_num;
+          }
+          break;
+    case 3:  /* Reset */
+          ctx->tape[popup->unit_num]->format &= ~ONLINE;
+          break;
+
+    case 4:  /* end */
+          ctx->tape[popup->unit_num]->pos_frame = max_tape_length - 1;
+          break;
+    }
+}
+
+extern int textpos(struct _text *text, int pos);
+
 static struct _l {
      char        *top;
      char        *bot;
@@ -1447,20 +1718,270 @@ static struct _l {
 } labels[] = {
      {"SELECT", NULL,    1, 0, 0, {0, 0, 0}, {0x96, 0x8f, 0x85}, {0xfd, 0xfd, 0xfd}},  /* White */
      {"READY", NULL,     1, 1, 0, {0xff, 0xff, 0xff}, {0x7f,0xc0, 0x86}, {0x0c, 0x2e, 0x30}}, /* Green */
-     {"FILE", "PROTECT", 1, 2, 0, {0xff, 0xff, 0xff}, {0x0c, 0x2e, 0x30}, {0,0,0}},  /* Red */
+     {"FILE", "PROTECT", 1, 2, 0, {0xff, 0xff, 0xff}, {0xd0, 0x08, 0x42}, {0xff, 0x00, 0x4a}},  /* Red */
      {"TAPE", "INDICATOR", 1, 3, 0, {0, 0, 0}, {0xff, 0xfd, 0x5e}, {0xdd, 0xdc, 0x8a}}, /* White */
-     {"LOAD", "REWIND",   0, 0, 1, {0, 0, 0}, {0xff, 0xfd, 0x5e}, {0xdd, 0xdc, 0x8a}}, /* Blue */
+     {"LOAD", "REWIND",   0, 0, 1, {0xff, 0xff, 0xff}, {0x0a, 0x52, 0x9a}, {0, 0, 0}}, /* Blue */
      {"START", NULL,      0, 1, 1, {0xff, 0xff, 0xff}, {0x0c, 0x2e, 0x30}, {0, 0, 0}}, /* Green */
      {"UNLOAD", "REWIND", 0, 2, 1, {0xff, 0xff, 0xff}, {0x0a, 0x52, 0x9a}, {0, 0, 0}}, /* Blue */
      {"RESET", NULL,      0, 3, 1, {0xff, 0xff, 0xff}, {0xc8, 0x3a, 0x30}, {0, 0, 0}}, /* Blue */
+     {"EOM", NULL,         0, 8, 2, {0xff, 0xff, 0xff}, {0x0a, 0x052, 0x9a}, {0, 0, 0,}}, 
      { NULL, NULL, 0}
 };
+
+static char *format_type[] = { "SIMH", "E11", "P7B", NULL };
+static char *density_type[] = { "1600", "800", NULL };
+static char *tracks[] = { "9 track", "7 track", NULL };
+static char *ring_mode[] = { "Ring", "No Ring", NULL };
+
+static SDL_Renderer *render;
+struct _popup *
+model2415_control(struct _device *unit, int hd, int wd, int u)
+{
+    struct _popup  *popup;
+    struct _2415_context *ctx = (struct _2415_context *)unit->dev;
+    SDL_Surface *text;
+    int    i, j;
+    int    w, h;
+    char   buffer[100];
+
+    if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
+        return popup;
+    sprintf(buffer, "IBM2415 Dev 0x'%03X'", ctx->addr + u);
+    popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+        1000, 200, SDL_WINDOW_RESIZABLE );
+    popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
+    popup->device = unit;
+    popup->unit_num = u;
+    popup->areas[popup->area_ptr].rect.x = 0;
+    popup->areas[popup->area_ptr].rect.y = 0;
+    popup->areas[popup->area_ptr].rect.h = 200;
+    popup->areas[popup->area_ptr].rect.w = 800;
+    popup->areas[popup->area_ptr].c = &cw;
+    popup->area_ptr++;
+    for (i = 0; labels[i].top != NULL; i++) {
+        if (labels[i].ind) {
+            popup->ind[popup->ind_ptr].lab = labels[i].top;
+            popup->ind[popup->ind_ptr].c[0] = &labels[i].col_off;
+            popup->ind[popup->ind_ptr].c[1] = &labels[i].col_on;
+            popup->ind[popup->ind_ptr].ct = &labels[i].col_t;
+            text = TTF_RenderText_Solid(font1, labels[i].top, labels[i].col_t);
+            popup->ind[popup->ind_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
+            popup->ind[popup->ind_ptr].top_len = strlen(labels[i].top);
+            SDL_FreeSurface(text);
+            if (labels[i].bot != NULL) {
+                text = TTF_RenderText_Solid(font1, labels[i].bot, labels[i].col_t);
+                popup->ind[popup->ind_ptr].bot = SDL_CreateTextureFromSurface( popup->render, text);
+                popup->ind[popup->ind_ptr].bot_len = strlen(labels[i].bot);
+                SDL_FreeSurface(text);
+            }
+            popup->ind[popup->ind_ptr].rect.x = 20 + ((12* wd) * labels[i].x);
+            popup->ind[popup->ind_ptr].rect.y = 20 + ((3 *hd) * labels[i].y);
+            popup->ind[popup->ind_ptr].rect.h = 2 * hd;
+            popup->ind[popup->ind_ptr].rect.w = 10 * wd;
+            popup->ind_ptr++;
+        } else {
+            popup->sws[popup->sws_ptr].lab = labels[i].top;
+            popup->sws[popup->sws_ptr].c[0] = &labels[i].col_on;
+            text = TTF_RenderText_Solid(font1, labels[i].top, labels[i].col_t);
+            popup->sws[popup->sws_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
+            popup->sws[popup->sws_ptr].top_len = strlen(labels[i].top);
+            SDL_FreeSurface(text);
+            if (labels[i].bot != NULL) {
+                text = TTF_RenderText_Solid(font1, labels[i].bot, labels[i].col_t);
+                popup->sws[popup->sws_ptr].bot = SDL_CreateTextureFromSurface( popup->render, text);
+                popup->sws[popup->sws_ptr].bot_len = strlen(labels[i].bot);
+                SDL_FreeSurface(text);
+            }
+            popup->sws[popup->sws_ptr].rect.x = 20 + ((12 *wd) * labels[i].x);
+            popup->sws[popup->sws_ptr].rect.y = 20 + ((3 *hd) * labels[i].y);
+            popup->sws[popup->sws_ptr].rect.h = 2 * hd;
+            popup->sws[popup->sws_ptr].rect.w = 10 * wd;
+            popup->sws_ptr++;
+        }
+    }
+
+    popup->ind[0].value = &ctx->tape[u]->format;
+    popup->ind[0].shift = 8;
+    popup->ind[1].value = &ctx->tape[u]->format;
+    popup->ind[1].shift = 9;
+    popup->ind[2].value = &ctx->tape[u]->format;
+    popup->ind[2].shift = 2;
+    popup->ind[3].value = &ctx->tape[u]->format;
+    popup->ind[3].shift = 3;
+
+    text = TTF_RenderText_Solid(font14, "Tape: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20;
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 5;
+    popup->text[popup->txt_ptr].rect.y = 20;
+    popup->text[popup->txt_ptr].rect.w = 45 * wd;
+    popup->text[popup->txt_ptr].rect.h = h + 5;
+    if (ctx->tape[u]->file_name != NULL)
+        strncpy(popup->text[popup->txt_ptr].text, ctx->tape[u]->file_name, 256);
+    else
+        popup->text[popup->txt_ptr].text[0] = '\0';
+    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
+    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
+    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
+                                        popup->text[popup->txt_ptr].pos);
+    popup->txt_ptr++;
+
+    text = TTF_RenderText_Solid(font14, "Type: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (2 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 5;
+    popup->combo[popup->cmb_ptr].rect.y = 20 + (2 * hd);
+    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
+    popup->combo[popup->cmb_ptr].rect.h = h;
+    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
+    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].urect.h = h;
+    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
+    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].drect.h = h;
+    for (i = 0; format_type[i] != NULL; i++) {
+        text = TTF_RenderText_Solid(font14, format_type[i], cb);
+        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
+                                      text);
+        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
+             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
+    }
+    popup->temp[0] = ctx->tape[u]->format & TAPE_FMT;
+    popup->combo[popup->cmb_ptr].num = popup->temp[0];
+    popup->combo[popup->cmb_ptr].value = &popup->temp[0];
+    popup->combo[popup->cmb_ptr].max = i - 1;
+    popup->cmb_ptr++;
+
+    text = TTF_RenderText_Solid(font14, "Density: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (4 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 5;
+    popup->combo[popup->cmb_ptr].rect.y = 20 + (4 * hd);
+    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
+    popup->combo[popup->cmb_ptr].rect.h = h;
+    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
+    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].urect.h = h;
+    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
+    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].drect.h = h;
+    for (i = 0; density_type[i] != NULL; i++) {
+        text = TTF_RenderText_Solid(font14, density_type[i], cb);
+        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
+                                      text);
+        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
+             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
+    }
+    popup->temp[1] = (ctx->tape[u]->format & DEN_MASK) == DEN_800;
+    popup->combo[popup->cmb_ptr].num = popup->temp[1];
+    popup->combo[popup->cmb_ptr].value = &popup->temp[1];
+    popup->combo[popup->cmb_ptr].max = i - 1;
+    popup->cmb_ptr++;
+
+    text = TTF_RenderText_Solid(font14, "Tracks: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (6 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 5;
+    popup->combo[popup->cmb_ptr].rect.y = 20 + (6 * hd);
+    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
+    popup->combo[popup->cmb_ptr].rect.h = h;
+    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
+    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].urect.h = h;
+    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
+    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].drect.h = h;
+    for (i = 0; tracks[i] != NULL; i++) {
+        text = TTF_RenderText_Solid(font14, tracks[i], cb);
+        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
+                                      text);
+        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
+             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
+    }
+    popup->temp[2] = (ctx->tape[u]->format & TRACK9) == 0;
+    popup->combo[popup->cmb_ptr].num = popup->temp[2];
+    popup->combo[popup->cmb_ptr].value = &popup->temp[2];
+    popup->combo[popup->cmb_ptr].max = i - 1;
+    popup->cmb_ptr++;
+
+    text = TTF_RenderText_Solid(font14, "Write: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (8 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 5;
+    popup->combo[popup->cmb_ptr].rect.y = 20 + (8 * hd);
+    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
+    popup->combo[popup->cmb_ptr].rect.h = h;
+    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
+    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].urect.h = h;
+    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
+    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].drect.h = h;
+    for (i = 0; ring_mode[i] != NULL; i++) {
+        text = TTF_RenderText_Solid(font14, ring_mode[i], cb);
+        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
+                                      text);
+        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
+             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
+    }
+    popup->temp[3] = (ctx->tape[u]->format & WRITE_RING) == 0;
+    popup->combo[popup->cmb_ptr].num = popup->temp[3];
+    popup->combo[popup->cmb_ptr].value = &popup->temp[3];
+    popup->combo[popup->cmb_ptr].max = i - 1;
+    popup->cmb_ptr++;
+    popup->update = &model2415_update;
+    return popup;
+}
 
 struct _device *
 model2415_init(SDL_Renderer *render, uint16_t addr) {
      SDL_Surface *text;
      struct _device *dev2415;
      struct _2415_context *tape;
+     int     i;
 
      if ((dev2415 = calloc(1, sizeof(struct _device))) == NULL)
          return NULL;
@@ -1469,34 +1990,53 @@ model2415_init(SDL_Renderer *render, uint16_t addr) {
          return NULL;
      }
 
+     text = IMG_ReadXPMFromArray(model2415_xpm);
+     model2415_img = SDL_CreateTextureFromSurface(render, text);
+     SDL_SetTextureBlendMode(model2415_img, SDL_BLENDMODE_BLEND);
+     SDL_FreeSurface(text);
+     text = IMG_ReadXPMFromArray(tape_medium_xpm);
+     tape_medium_img = SDL_CreateTextureFromSurface(render, text);
+     SDL_SetTextureBlendMode(tape_medium_img, SDL_BLENDMODE_BLEND);
+     SDL_FreeSurface(text);
+     text = IMG_ReadXPMFromArray(tape_reel_xpm);
+     tape_reel_img = SDL_CreateTextureFromSurface(render, text);
+     SDL_SetTextureBlendMode(tape_reel_img, SDL_BLENDMODE_BLEND);
+     SDL_FreeSurface(text);
+
      dev2415->bus_func = &model2415_dev;
      dev2415->dev = (void *)tape;
-     dev2415->n_units = 0;
+     dev2415->draw_model = (void *)&model2415_draw;
+     dev2415->create_ctrl = (void *)&model2415_control;
+     dev2415->n_units = 6;
+     for (i = 0; i < dev2415->n_units; i++) {
+         dev2415->rect[i].x = 210 * i;
+         dev2415->rect[i].y = 200;
+         dev2415->rect[i].w = 210;
+         dev2415->rect[i].h = 220;
+         if (dev2415->rect[i].x > 800) {
+            dev2415->rect[i].y += dev2415->rect[i].h;
+            dev2415->rect[i].x = 210 * (i - 4);
+         }
+     }
      tape->addr = (addr & 0xf8);
      tape->chan = (addr >> 8) & 0xf;
      tape->state = STATE_IDLE;
      tape->selected = 0;
-     tape->sense[0] = 0;
-     tape->nunits = 6;
-     tape->tape[0] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
-     tape->tape[0]->format = TRACK9;
+     for (i = 0; i < dev2415->n_units; i++) {
+        tape->sense[i] = 0;
+        tape->tape[i] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
+        tape->tape[i]->format = TRACK9;
+     }
+     tape->nunits = dev2415->n_units;
 //     tape_attach(tape->tape[0], "../test_progs/bos.tap", TYPE_E11, 0, 1);
      tape_attach(tape->tape[0], "../test_progs/sysres.tap", TYPE_E11, 0, 1);
-     tape->tape[1] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
-     tape->tape[1]->format = TRACK9;
      tape_attach(tape->tape[1], "sys001.tap", TYPE_E11, 1, 1);
-     tape->tape[2] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
-     tape->tape[2]->format = TRACK9;
      tape_attach(tape->tape[2], "sys002.tap", TYPE_E11, 1, 1);
-     tape->tape[3] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
-     tape->tape[3]->format = TRACK9;
      tape_attach(tape->tape[3], "sys003.tap", TYPE_E11, 1, 1);
-     tape->tape[4] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
-     tape->tape[4]->format = TRACK9;
      tape_attach(tape->tape[4], "sys004.tap", TYPE_E11, 1, 1);
-     tape->tape[5] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
-     tape->tape[5]->format = TRACK9;
      tape_attach(tape->tape[5], "sys005.tap", TYPE_E11, 1, 1);
+     for (i = 0; i < 6; i++)
+         tape->tape[i]->format |= ONLINE;
      add_chan(dev2415, addr);
      return dev2415;
 }

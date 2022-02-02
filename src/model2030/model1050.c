@@ -136,7 +136,6 @@ model1050_out(uint16_t out_char)
      char    ch = ebcdic_to_ascii[out_char & 0xff];
      out_buf = ch;
      out_flg = 1;
-     printf("Cons: out %02x\n", out_char);
 }
 
 void
@@ -149,12 +148,11 @@ model1050_in(uint16_t *in_char)
        *in_char |= odd_parity[*in_char];
        out_ptr &= 0xff;
        in_len--;
-printf("Read %c %d\n", ch, in_len);
    }
 }
 
 void
-model1050_func(uint8_t *tags_out, uint8_t tags_in, int *t_request)
+model1050_func(uint16_t *tags_out, uint16_t tags_in, uint16_t *t_request)
 {
     *t_request = 0;
     *tags_out = 0;
@@ -225,7 +223,7 @@ model1050_func(uint8_t *tags_out, uint8_t tags_in, int *t_request)
           *t_request = 1;
        }
 
-       printf("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
+       //printf("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
     }
 } 
 
@@ -252,14 +250,11 @@ static void
 push_char(char in_char) {
     if (in_char == '\033') {
        attn_flg = 1;
-printf("Set Attn\n");
     } else if (in_flg) {
        if (in_char == '\03') {
            cancel_flg = 1;
-printf("Set Cancel\n");
        } else if (in_char == '\r') {
            eob_flg = 1;
-printf("Set EOB\n");
        } else {
            key_buf[in_ptr++] = in_char;
            in_ptr &= 0xff;
@@ -330,7 +325,6 @@ model1050_thrd(void *data)
             if (out_flg) {
                 send(cons, &out_buf, 1, 0);
                 out_flg = 0;
-   printf("Write %c\n", out_buf);
                 if (out_buf == '\r')
                    send(cons, "\n", 1, 0);
             }
@@ -343,9 +337,8 @@ model1050_thrd(void *data)
         if (FD_ISSET(cons, &read_set)) {
             int j, k;
             j = recv(cons, buffer, 256, 0);
-   printf("Read returned %d\n", j);
             if (j == 0) {
-             printf("Disonnected\n");
+               printf("Disonnected\n");
                FD_CLR(cons, &fds_socks);
                close(cons);
                cons = -1;
@@ -355,7 +348,6 @@ model1050_thrd(void *data)
                char t;
 
                t = buffer[k++];
-               printf("Recieved %o %o\n", in_len, t & 0377);
                switch(t_state) {
                case TNS_NORM:
                     if (t == TN_IAC)

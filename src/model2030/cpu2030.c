@@ -129,7 +129,7 @@ static char *cs_name[] = {
      "", "", "", "", "", "", "GUV>GCD", "GR>GK",
      "GR>GF", "GR>GG", "GR>GU", "GR>GV", "K>GH", "GI>GR", "K>GB", "K>GA"};
 
-static uint8_t   ASCII;                /* Holds ASCII flag */
+static uint8_t    ASCII;                /* Holds ASCII flag */
 static int        suppr_half_trap_lch;  /* Holds Machine check flag 03AA3 */
 static int        start_sw_rst;         /* Reset from start switch 03CA3 */
 static int        e_cy_stop_sample;     /* Cycle Stop sample flag 03CB3 */
@@ -142,9 +142,8 @@ static int        stop_req;
 static int        process_stop;
 static int        read_call;
 static int        proc_stop_loop_active;
-static int        end_of_e_cy_lch;
+static int        protect_loc_cpu_or_mpx;
 static int        interrupt;
-static int        s_reg_i_dlyd;
 static int        any_mach_chk;
 static int        chk_restart;
 static int        priority;
@@ -176,7 +175,6 @@ static int        mpx_cmd_start;
 static int        mpx_start_sel;
 static int        mpx_supr_out_lch;
 static int        chk_or_diag_stop_sw;
-static int        prev_carry;
 static int        even_parity;
 static int        mem_prot;
 static int        timer_update;
@@ -265,7 +263,6 @@ cycle()
    int         i, j;
    struct _device *dev;
 
-   cpu_2030.count++;
    priority = 0;
    chk_or_diag_stop_sw = (CHK_SW == 3);
    /* See if address matches selected switches */
@@ -302,7 +299,6 @@ cycle()
    if ((MATCH_SW == 3 && match && !allow_write) || 
        ((MATCH_SW == 4 || MATCH_SW == 5 || MATCH_SW == 6) && chk_restart) || 
        set_ic_allowed) {
-   printf("Force IJ\n");
        force_ij_req = 1;
        cf_stop = 0;
    }
@@ -356,6 +352,7 @@ printf("Start\n");
    if (LOAD) {
 printf("Load\n");
       cpu_2030.FT |= BIT4;  /* Set load flag. */
+      load_mode = 1;
       cf_stop = 0;
       allow_man_operation = 0;
       suppr_half_trap_lch = 0;
@@ -614,7 +611,7 @@ printf("Set Roar %d\n", allow_man_operation);
            case 0x3c:  cpu_2030.Abus = cpu_2030.FT;               /* FT */  break;
            }
 
-           printf("Display %02x M=%02x N=%02x\n", cpu_2030.Abus, cpu_2030.M_REG, cpu_2030.N_REG);
+//           printf("Display %02x M=%02x N=%02x\n", cpu_2030.Abus, cpu_2030.M_REG, cpu_2030.N_REG);
            DISPLAY = 0;
        }
        if (STORE) {
@@ -671,7 +668,6 @@ printf("Set Roar %d\n", allow_man_operation);
    if (timer_event) {
        timer_event = 0; /* Mark we have done it */
        if (INT_TMR) {
-printf("Timer update %x\n", cpu_2030.C_REG);
            if (cpu_2030.C_REG != 0xf)
                cpu_2030.C_REG ++;
            timer_update = 1;
@@ -689,20 +685,20 @@ printf("Timer update %x\n", cpu_2030.C_REG);
    if ((cpu_2030.MASK & BIT2) && (sel_intrp_lch[1] || (cpu_2030.GF[1] & BIT4) != 0)) {
        interrupt = 1;
    }
-   stop_req = !(process_stop & !s_reg_i_dlyd & !interrupt & end_of_e_cy_lch);
+   stop_req = !(process_stop & !interrupt & end_of_e_cycle);
 
    clock_rst = hard_stop | ((sal->CA != 0xE) & cf_stop);
    clock_stop = (proc_stop_loop_active & !sel_ros_req & !mpx_share_req);
    if (clock_stop || clock_rst) {
-      if (!allow_man_operation)
-         printf("Clock stop %d, clock reset %d hard stop=%d\n", clock_stop, clock_rst, hard_stop);
+//      if (!allow_man_operation)
+ //        printf("Clock stop %d, clock reset %d hard stop=%d\n", clock_stop, clock_rst, hard_stop);
       clock_start_lch = 0;
       e_cy_stop_sample = 0;
       allow_man_operation = 1;
    }
 
    if (e_cy_stop_sample && allow_man_operation) {
-      printf("Clock start %d\n", gate_sw_to_wx);
+//      printf("Clock start %d\n", gate_sw_to_wx);
       allow_man_operation = 0;
       set_ic_allowed = 0;
       force_ij_req = 0;
@@ -714,7 +710,7 @@ printf("Timer update %x\n", cpu_2030.C_REG);
    if (gate_sw_to_wx) {
       cpu_2030.WX = (G_SW << 8) | (H_SW << 4) | (J_SW);
       priority_lch = 0;
-      printf("Set WX=%04x\n", cpu_2030.WX);
+ //     printf("Set WX=%04x\n", cpu_2030.WX);
       gate_sw_to_wx = 0;
       match = 0;
    }
@@ -739,7 +735,7 @@ printf("Timer update %x\n", cpu_2030.C_REG);
            priority_stack_reg &= ~BIT1;
        } else if ((priority_stack_reg & BIT2) != 0 && (cpu_2030.H_REG & BIT4) == 0) {
            priority_bus = BIT7;   /* force_ij_pulse */
- printf("Set priority latch\n");
+ //printf("Set priority latch\n");
            force_ij_req = 0;
            priority_stack_reg &= ~BIT2;
        } else if ((priority_stack_reg & BIT3) != 0 && (cpu_2030.H_REG & BIT2) == 0) {
@@ -770,7 +766,7 @@ printf("Timer update %x\n", cpu_2030.C_REG);
           i = 0;
        else
           i = 1;
-printf("Share cycle %d\n", i);
+//printf("Share cycle %d\n", i);
        /* Read memory from previous request */
        if (sel_read_cycle[i]) {
            cpu_2030.M_REG = cpu_2030.GU[i];
@@ -782,10 +778,10 @@ printf("Share cycle %d\n", i);
            /* Clear flag if count reached zero */
            if (cpu_2030.GHZ == 0 && cpu_2030.GHY == 0) {
                sel_cnt_rdy_not_zero[i] = 0;
-               printf("Set count zero %d\n", i);
+               //printf("Set count zero %d\n", i);
            }
            cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
-printf("Select read %04x GH=%02x%02x\n", cpu_2030.MN_REG, cpu_2030.GHY, cpu_2030.GHZ);
+//printf("Select read %04x GH=%02x%02x\n", cpu_2030.MN_REG, cpu_2030.GHY, cpu_2030.GHZ);
            /* Check if in range of memory */
            if (((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0)
                cpu_2030.GE[i] |= BIT2;;
@@ -793,7 +789,7 @@ printf("Select read %04x GH=%02x%02x\n", cpu_2030.MN_REG, cpu_2030.GHY, cpu_2030
            /* Check validity of M and N registers */
            if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 || 
                  ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
-               printf("Set MN bus\n");
+               //printf("Set MN bus\n");
            }
 
            cpu_2030.GC[i] = cpu_2030.GU[i];
@@ -804,8 +800,10 @@ printf("Select read %04x GH=%02x%02x\n", cpu_2030.MN_REG, cpu_2030.GHY, cpu_2030
            if ((cpu_2030.GG[i] & 1) == 1 && sel_gr_full[i] == 0) {
                cpu_2030.GR[i] = cpu_2030.M[cpu_2030.MN_REG];
                sel_gr_full[i] = 1;
-printf("Mark GR full\n");
+//printf("Mark GR full\n");
            }
+           cpu_2030.Q_REG &= 0xf0;
+           cpu_2030.Q_REG |= cpu_2030.MP[(0xE0) | (cpu_2030.M_REG >> 3)];
            sel_write_cycle[i] = 1;
            sel_read_cycle[i] = 0;
        } else if (sel_write_cycle[i]) {
@@ -826,18 +824,23 @@ printf("Mark GR full\n");
            cpu_2030.GD[i] = cpu_2030.GV[i];
            cpu_2030.GV[i] = cpu_2030.GHZ| odd_parity[cpu_2030.GHZ];
            cpu_2030.GU[i] = cpu_2030.GHY| odd_parity[cpu_2030.GHY];
-printf("Select write %04x GH=%02x%02x\n", cpu_2030.MN_REG, cpu_2030.GHY, cpu_2030.GHZ);
+//printf("Select write %04x GH=%02x%02x\n", cpu_2030.MN_REG, cpu_2030.GHY, cpu_2030.GHZ);
            sel_write_cycle[i] = 0;
            /* If count 0 update other register */
            if (sel_cnt_rdy_not_zero[i] == 0)
                sel_cnt_rdy_zero[i] = 1;
            /* Check if input */
            if (sel_gr_full[i] != 0 && ((cpu_2030.GG[i] & 3) == 2 || (cpu_2030.GG[i] & 5) == 4)) {
+               if ((cpu_2030.Q_REG & 0xf0) != 0 && 
+                         ((cpu_2030.GK[i] ^ cpu_2030.Q_REG) & 0xf) != 0) {
+                   cpu_2030.GE[i] |= BIT3;
+                   cpu_2030.GR[i] = cpu_2030.M[cpu_2030.MN_REG];
+               }
                /* Check skip flag */
                if ((cpu_2030.GF[i] & BIT4) == 0)
                    cpu_2030.M[cpu_2030.MN_REG] = cpu_2030.GR[i];
                sel_gr_full[i] = 0;
-printf("Mark GR empty\n");
+//printf("Mark GR empty\n");
                /* If Service In and count left Acknowledge */
                if (((cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) && 
                     sel_cnt_rdy_not_zero[i])
@@ -847,7 +850,7 @@ printf("Mark GR empty\n");
            /* Check validity of GR register */
            if (((odd_parity[cpu_2030.GR[i]& 0xff] ^ cpu_2030.GR[i]) & 0x100) != 0) {
                cpu_2030.GE[i] |= BIT4;
-               printf("Set GR  bus\n");
+               //printf("Set GR  bus\n");
            }
 
            sel_share_req &= ~(1<< i);
@@ -858,11 +861,11 @@ printf("Mark GR empty\n");
         if (any_priority_pulse) {
            priority_lch = 1;
            clock_start_lch = 1;
-           printf("Set Priorty WX=%04x %d\n", priority_bus, gate_sw_to_wx);
+           //printf("Set Priorty WX=%04x %d\n", priority_bus, gate_sw_to_wx);
            if (mpx_share_pulse) {
               cpu_2030.FWX = nextWX;
               cpu_2030.MPX_STAT = cpu_2030.STAT_REG;
-              if (cpu_2030.t_request == 0) {
+              if (t_request == 0) {
                  cpu_2030.MPX_TAGS |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
                  cpu_2030.FT |= BIT6;
               }
@@ -893,7 +896,7 @@ printf("Mark GR empty\n");
         if (clock_start_lch) {         
            sal = &ros_2030[cpu_2030.WX];
       
-          /* Print instruction and regsiters */
+          /* Print instruction and registers */
           if (cpu_2030.WX == 0x109) {
              uint8_t    mem[6];
 
@@ -901,7 +904,7 @@ printf("Mark GR empty\n");
                  mem[i] = cpu_2030.M[cpu_2030.MN_REG + i] & 0xff;
              }
              print_inst(mem);
-             printf(" IC=%02x%02x CC=%02x\n", cpu_2030.I_REG & 0xff, cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB]);
+             printf(" IC=%02x%02x CC=%02x\n\n", cpu_2030.I_REG & 0xff, cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB]);
 
              for (i = 0; i < 16; i++) {
                  printf(" GR%02d = %02x%02x%02x%02x", i,
@@ -912,9 +915,9 @@ printf("Mark GR empty\n");
                  if ((i & 0x3) == 0x3)
                       printf("\n");
              }
-             printf("\n");
           }
 
+#if 0
           /* Disassemble micro instruction */
            printf ("%s %03X: %02x ", sal->note, cpu_2030.WX, sal->CK);
            if (sal->CK < 0x10) {
@@ -982,66 +985,19 @@ printf("Mark GR empty\n");
            else
                printf("  %s(%s) %02x %s %s ", cm_name[sal->CM], (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU],
                           sal->CN, ch_name[sal->CH], cl_name[sal->CL]);
-       
-           j = sal->CN;
-           if (sal->CM < 3 && sal->CU == 2)
-              j |= (sal->CK & 0xf) << 8;
-           else
-              j |= (cpu_2030.WX & 0xf00);
-           if (sal->CL == 2) {
-              j = ((sal->CA & 0xf) << 8) | (sal->CN) | 1;
-              if (sal->CH > 1) {
-                 printf("%s %03x, ", ros_2030[j].note, j);
-                 j |= 2;
-                 printf("%s %03x", ros_2030[j].note, j);
-              } else {
-                 if (sal->CH > 1) {
-                    if (sal->CH == 1)
-                       j |= 2;
-                    printf("%s %03x", ros_2030[j].note, j);
-                 }
-              }
-           } else if (sal->CH < 2) {
-              if (sal->CH == 1)
-                 j |= 2;
-              if (sal->CL > 1) {
-                 printf("%s %03x, ", ros_2030[j].note, j);
-                 j |= 1;
-                 printf("%s %03x", ros_2030[j].note, j);
-              } else {
-                 if (sal->CL == 1)
-                     j |= 1;
-                 printf("%s %03x", ros_2030[j].note, j);
-              }
-           } else if (sal->CL < 2) {
-                 if (sal->CL == 1)
-                     j |= 1;
-                 if (sal->CH > 1) {
-                     printf("%s %03x, ", ros_2030[j].note, j);
-                     j |= 2;
-                     printf("%s %03x", ros_2030[j].note, j);
-                 } else {
-                    if (sal->CH == 1)
-                       j |= 2;
-                    printf("%s %03x", ros_2030[j].note, j);
-                 }
-           } else {
-                 printf("%s %03x, ", ros_2030[j].note, j);
-                 printf("%s %03x, ", ros_2030[j|1].note, j|1);
-                 printf("%s %03x, ", ros_2030[j|2].note, j|2);
-                 printf("%s %03x", ros_2030[j|3].note, j|3);
-           }
-       
            printf("\n");
+#endif
        
            /* Read memory from previous request */
            if (read_call) {
        
+               protect_loc_cpu_or_mpx = 0;
                mem_prot = 0;
+               stg_prot_req = 0;
                /* Check validity of M and N registers */
                if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 || 
                      ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
-                   printf("Set MN bus\n");
+//                   printf("Set MN bus\n");
                    cpu_2030.MC_REG |= BIT2;
                    mem_prot = 1;
                }
@@ -1049,7 +1005,7 @@ printf("Mark GR empty\n");
                /* Check if in range of memory */
                if (store == MAIN && ((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0) {
                    mem_prot = 1;
-                   printf("set memory prot %04x\n", cpu_2030.MN_REG);
+//                   printf("set memory prot %04x\n", cpu_2030.MN_REG);
                }
                if (sal->CM != 2 && mem_prot == 0) {
                    switch (store) {
@@ -1058,8 +1014,10 @@ printf("Mark GR empty\n");
                             cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.M[cpu_2030.MN_REG];
                         else {
                             cpu_2030.R_REG = cpu_2030.M[cpu_2030.MN_REG];
-                            printf("Read MS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.R_REG);
+//                            printf("Read MS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.R_REG);
                         }
+                        cpu_2030.Q_REG &= 0xf0;
+                        cpu_2030.Q_REG |= cpu_2030.MP[cpu_2030.SA_REG];
                         cpu_2030.M[cpu_2030.MN_REG] = 0x00;
                         break;
                    case LOCAL:
@@ -1067,7 +1025,7 @@ printf("Mark GR empty\n");
                             cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.LS[cpu_2030.MN_REG];
                         else {
                             cpu_2030.R_REG = cpu_2030.LS[cpu_2030.MN_REG];
-                            printf("Read LS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.R_REG);
+//                            printf("Read LS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.R_REG);
                         }
                         cpu_2030.LS[cpu_2030.MN_REG] = 0x00;
                         break;
@@ -1076,7 +1034,7 @@ printf("Mark GR empty\n");
                             cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.LS[cpu_2030.MN_REG + 256];
                         else {
                             cpu_2030.R_REG = cpu_2030.LS[cpu_2030.MN_REG + 256];
-                            printf("Read MPX: %04x %02x\n", cpu_2030.MN_REG + 256, cpu_2030.R_REG);
+//                            printf("Read MPX: %04x %02x\n", cpu_2030.MN_REG + 256, cpu_2030.R_REG);
                         }
                         cpu_2030.LS[cpu_2030.MN_REG + 256] = 0x00;
                         break;
@@ -1086,10 +1044,19 @@ printf("Mark GR empty\n");
                read_call = 0;
            }
        
+
            /* Compute next address */
            switch (sal->CM) {
-           case 0:       /* Write */
            case 2:       /* Store */
+                   if (sal->CD == 7) {
+                       if ((cpu_2030.H_REG & BIT5) != 0 && (cpu_2030.Q_REG & 0xf0) != 0 && 
+                                 (((cpu_2030.Q_REG >> 4) ^ cpu_2030.Q_REG) & 0xf) != 0) {
+                           protect_loc_cpu_or_mpx = 1;
+                           stg_prot_req = 1;
+                       }
+                   }
+                   /* Fall through */
+           case 0:       /* Write */
                   /* Do write to memory from this request */ 
                   if (allow_write) {
                       switch (store) {
@@ -1098,22 +1065,23 @@ printf("Mark GR empty\n");
                                cpu_2030.M[cpu_2030.MN_REG] = cpu_2030.GR[cpu_2030.ch_sel];
                            else
                                cpu_2030.M[cpu_2030.MN_REG] = cpu_2030.R_REG;
-                           printf("Write MS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.M[cpu_2030.MN_REG]);
+                           cpu_2030.MP[cpu_2030.SA_REG] = cpu_2030.Q_REG & 0xf;
+//                           printf("Write MS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.M[cpu_2030.MN_REG]);
                            break;
                       case LOCAL:
                            if (sal->CU == 1) 
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.GR[cpu_2030.ch_sel];
                            else
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.R_REG;
-                           printf("Write LS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.LS[cpu_2030.MN_REG]);
+//                           printf("Write LS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.LS[cpu_2030.MN_REG]);
                            break;
                       case MPX:
                            if (sal->CU == 1) 
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff) + 256] = cpu_2030.GR[cpu_2030.ch_sel];
                            else
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff) + 256] = cpu_2030.R_REG;
-                           printf("Write MPX: %04x %02x\n", cpu_2030.MN_REG + 256, 
-                                                   cpu_2030.LS[cpu_2030.MN_REG + 256]);
+//                           printf("Write MPX: %04x %02x\n", cpu_2030.MN_REG + 256, 
+//                                                   cpu_2030.LS[cpu_2030.MN_REG + 256]);
                            break;
                       }
                       allow_write = 0;
@@ -1149,17 +1117,17 @@ printf("Mark GR empty\n");
                   break;
            }
        
-           /* If load new address, generate SAR and Main/MPX request */
+           /* If load new address, generate SA and Main/MPX request */
            if (sal->CM >= 3) {
                store = MAIN;
-                   mem_wrap_req = 0;
+               mem_wrap_req = 0;
                switch (sal->CU) {
                case 0:
-                   cpu_2030.SA_REG = cpu_2030.M_REG >> 3;
+                   cpu_2030.SA_REG = (0xE0) | (cpu_2030.M_REG >> 3);
                    /* Check if in range of memory */
                    if (((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0) {
                         mem_wrap_req = 1;
-                        printf("Set Memory wrap\n");
+                        //printf("Set Memory wrap\n");
                    }
                    if (i_wrap_cpu && sal->CM == 3 && (cpu_2030.H_REG & BIT6) == 0)
                         mem_wrap_req = 1;
@@ -1194,7 +1162,7 @@ printf("Mark GR empty\n");
                /* Check validity of M and N registers */
                if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 || 
                      ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
-                   printf("Set MN bus\n");
+//                   printf("Set MN bus\n");
                    cpu_2030.MC_REG |= BIT2;
                    mem_prot = 1;
                }
@@ -1269,7 +1237,7 @@ printf("Mark GR empty\n");
                    break;
            }
        
-           end_of_e_cy_lch = 0;
+           end_of_e_cycle = 0;
            /* Decode the X7 bit */
            switch (sal->CL) {
            case 0:
@@ -1292,9 +1260,6 @@ printf("Mark GR empty\n");
                    break;
            case 5: /* VDD */
                    nextWX |= !(((cpu_2030.R_REG | (cpu_2030.R_REG << 1)) & (cpu_2030.R_REG >> 1)) & 0x44);
-//                   if (((cpu_2030.R_REG & 0x8) == 0 || (cpu_2030.R_REG & 0x6) == 0) &&
- //                      ((cpu_2030.R_REG & 0x80) == 0 || (cpu_2030.R_REG & 0x60) == 0))
-  //                    nextWX |= 0x1;
                    break;
            case 6: /* IBC Carry from bit 1 to 0. */
                    if ((cpu_2030.STAT_REG & BIT6) != 0)
@@ -1333,7 +1298,7 @@ printf("Mark GR empty\n");
                       nextWX |= 0x1;
                    break;
            case 15: /* INTR */
-                   end_of_e_cy_lch = 1;
+                   end_of_e_cycle = 1;
                    if (interrupt) {
                       nextWX |= 0x1;
                    }
@@ -1431,6 +1396,7 @@ printf("Mark GR empty\n");
                        break;
            case 0x1d:  /* reset IPL load */
                        cpu_2030.FT &= ~BIT4;
+                       load_mode = 0;
                        even_parity = 0;
                        alu_chk = 0;
                        break;
@@ -1442,32 +1408,33 @@ printf("Mark GR empty\n");
                        break;
            }
     
-           /* Set B Bus input */
-           switch (sal->CB) {
-           case 0:       /* R */
-                  cpu_2030.Bbus = cpu_2030.R_REG;
-                  break;
-           case 1:       /* L */
-                  cpu_2030.Bbus = cpu_2030.L_REG;
-                  break;
-           case 2:       /* D */
-                  cpu_2030.Bbus = cpu_2030.D_REG;
-                  break;
-           case 3:
-                  cpu_2030.Bbus = ((sal->CK << 4) & 0xf0) | (sal->CK & 0xf);
-                  cpu_2030.Bbus |= odd_parity[cpu_2030.Bbus];
-                  break;
-           }
-    
            if (sal->CK == 0x14) {
                cpu_2030.Bbus = (H_SW << 4) | J_SW;
                cpu_2030.Bbus |= odd_parity[cpu_2030.Bbus];
+           } else {
+               /* Set B Bus input */
+               switch (sal->CB) {
+               case 0:       /* R */
+                      cpu_2030.Bbus = cpu_2030.R_REG;
+                      break;
+               case 1:       /* L */
+                      cpu_2030.Bbus = cpu_2030.L_REG;
+                      break;
+               case 2:       /* D */
+                      cpu_2030.Bbus = cpu_2030.D_REG;
+                      break;
+               case 3:
+                      cpu_2030.Bbus = ((sal->CK << 4) & 0xf0) | (sal->CK & 0xf);
+                      cpu_2030.Bbus |= odd_parity[cpu_2030.Bbus];
+                      break;
+               }
            }
+    
     
            /* Check parity on B bus */
            if (!second_err_stop && 
                      ((odd_parity[cpu_2030.Bbus & 0xff] ^ cpu_2030.Bbus) & 0x100) != 0) {
-               printf("Set B bus\n");
+               //printf("Set B bus\n");
                cpu_2030.MC_REG |= BIT1;
            }
     
@@ -1480,7 +1447,6 @@ printf("Mark GR empty\n");
                   break;
            case 0x01:    /* TT */
                   cpu_2030.Abus = cpu_2030.TT;
-                  printf("Read TT %02x\n", cpu_2030.TT);
                   break;
            case 0x02:
            case 0x03:
@@ -1562,6 +1528,7 @@ printf("Mark GR empty\n");
                   break;
            case 0x15:    /* Q */
                   cpu_2030.Abus = cpu_2030.Q_REG;
+                  cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                   allow_a_reg_chk = 1;
                   break;
            case 0x16:    /* JI */
@@ -1570,7 +1537,7 @@ printf("Mark GR empty\n");
            case 0x17:    /* TI */
                   model1050_in(&cpu_2030.TI);
                   cpu_2030.Abus = cpu_2030.TI;
-                  printf("Read TI %02x\n", cpu_2030.TI);
+                  //printf("Read TI %02x\n", cpu_2030.TI);
                   allow_a_reg_chk = 1;
                   break;
            case 0x18:
@@ -1586,7 +1553,7 @@ printf("Mark GR empty\n");
                   cpu_2030.Abus = cpu_2030.GR[cpu_2030.ch_sel];
                   if (((odd_parity[cpu_2030.GR[cpu_2030.ch_sel]& 0xff] ^ cpu_2030.GR[cpu_2030.ch_sel]) & 0x100) != 0) {
                       cpu_2030.GE[cpu_2030.ch_sel] |= BIT5;
-                      printf("Set GR to A bus\n");
+                      //printf("Set GR to A bus\n");
                   }
                   break;
            case 0x1D:    /* GS */
@@ -1709,7 +1676,7 @@ printf("Mark GR empty\n");
     
            if (allow_a_reg_chk && 
                      ((odd_parity[cpu_2030.Abus & 0xff] ^ cpu_2030.Abus) & 0x100) != 0) {
-               printf("Set A bus\n");
+               //printf("Set A bus\n");
                cpu_2030.MC_REG |= BIT0;
            }
     
@@ -1728,7 +1695,7 @@ printf("Mark GR empty\n");
                    abus_f = cpu_2030.Abus & 0xff;
                    break;
            case 4:
-                   printf("stop\n");
+                   //printf("stop\n");
                    if (PROC_SW != 0)
                        cf_stop = 1;
                    abus_f = 0;
@@ -1829,17 +1796,17 @@ printf("Mark GR empty\n");
            case 1:
                    cpu_2030.TE = cpu_2030.Alu_out;
                    model1050_out(cpu_2030.TE);
-                   printf("Write TE: %02x\n", cpu_2030.TE);
+                   //printf("Write TE: %02x\n", cpu_2030.TE);
                    break;
            case 2:
                    cpu_2030.JE = cpu_2030.D_REG & 0xff;
                    break;
            case 3:
-                   cpu_2030.Q_REG = cpu_2030.Alu_out;
+                   cpu_2030.Q_REG = cpu_2030.Alu_out & 0xff;
                    break;
            case 4:
                    cpu_2030.TA = cpu_2030.Alu_out & 0xff;
-                   printf("Write TA: %02x\n", cpu_2030.TA);
+                   //printf("Write TA: %02x\n", cpu_2030.TA);
                    break;
            case 5: 
                    cpu_2030.H_REG = cpu_2030.Alu_out;
@@ -1849,8 +1816,10 @@ printf("Mark GR empty\n");
                    cpu_2030.S_REG = cpu_2030.Alu_out & 0xFF;
                    break;
            case 7: 
-                   if (!mem_prot)
-                       cpu_2030.R_REG = cpu_2030.Alu_out;
+                   /* If protection violation, don't let R get changed */
+                   if (sal->CM == 2 && ((allow_write && protect_loc_cpu_or_mpx) || mem_prot))
+                       break;
+                   cpu_2030.R_REG = cpu_2030.Alu_out;
                    if (((odd_parity[cpu_2030.R_REG & 0xff] ^ cpu_2030.R_REG) & 0x100) != 0) {
                         cpu_2030.MC_REG |= BIT6;
                    }
@@ -1909,13 +1878,13 @@ printf("Mark GR empty\n");
     
            /* Set MC flag for ALU error */
            if (even_parity || alu_chk) {
-               printf("Set ALU Check\n");
+               //printf("Set ALU Check\n");
                cpu_2030.MC_REG |= BIT7;
            }
 
            /* Should be bad parity used for testing */
            if (cpu_2030.WX == 0xba0 || cpu_2030.WX == 0xb60) {
-               printf("Set WX,Sals mismatch\n");
+               //printf("Set WX,Sals mismatch\n");
                cpu_2030.MC_REG |= BIT3|BIT4|BIT5;
            }
 
@@ -1925,7 +1894,7 @@ printf("Mark GR empty\n");
            any_mach_chk = (cpu_2030.MC_REG != 0) | sel_chnl_chk;
     
            if ((CHK_SW == 2) && suppr_half_trap_lch && any_mach_chk) {
-               printf("Set first_mach_chk_req %d\n", CHK_SW);
+               //printf("Set first_mach_chk_req %d\n", CHK_SW);
                first_mach_chk_req = 1;
            }
     
@@ -1956,9 +1925,9 @@ printf("Mark GR empty\n");
            case 0x05: /* Treq */
                    /* If 1050 request set BIT1 */
                    cpu_2030.S_REG &= ~(BIT1);
-                   if (cpu_2030.t_request)
+                   if (t_request)
                       cpu_2030.S_REG |= BIT1;
-                   printf("Set Treq = %d\n", cpu_2030.t_request);
+                   //printf("Set Treq = %d\n", t_request);
                    break;
            case 0x06:   /* 0 -> S0 */
                    cpu_2030.S_REG &= ~(BIT0);
@@ -1986,8 +1955,8 @@ printf("Mark GR empty\n");
                    cpu_2030.S_REG |= BIT7;
                    break;
            case 0x0E:
-                   printf("Set KB %d%d%d%d,%d\n", (sal->CK & 0x8) != 0,
-                         (sal->CK & 0x4) != 0, (sal->CK & 0x2) != 0, (sal->CK & 0x1) != 0, sal->PK);
+                   //printf("Set KB %d%d%d%d,%d\n", (sal->CK & 0x8) != 0,
+                    //     (sal->CK & 0x4) != 0, (sal->CK & 0x2) != 0, (sal->CK & 0x1) != 0, sal->PK);
                    /* Set FB from K, FB is psuedo MPX control register */
                    /* 0011  MPX set reset based on R
                           R<0> MPX mask latch set on.
@@ -2030,7 +1999,7 @@ printf("Mark GR empty\n");
                           mpx_start_sel = 0;
                           if (sal->PK)
                               cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;
-                          printf("Update op out: %d\n", sal->PK);
+                          //printf("Update op out: %d\n", sal->PK);
                    }
                    break;
            case 0x0F:
@@ -2250,38 +2219,38 @@ printf("Mark GR empty\n");
 
            /* Set hard stop if needed */
            if ((second_err_stop && first_mach_chk_req)) {
-              printf("Machine check\n");
+              //printf("Machine check\n");
               hard_stop = 1;
               if (any_priority_lch)
                   priority_lch = 1;
            }
            if (chk_or_diag_stop_sw && (any_mach_chk || alu_chk)) {
-              printf("Alu check\n");
+              //printf("Alu check\n");
               hard_stop = 1;
               if (any_priority_lch)
                   priority_lch = 1;
            }
            if ((CHK_SW == 0) && (sal->CS == 9) && suppr_half_trap_lch &&
                        (cpu_2030.Alu_out & 0xff) != 0) {
-              printf("Z bus != 0\n");
+              //printf("Z bus != 0\n");
               hard_stop = 1;
               if (any_priority_lch)
                   priority_lch = 1;
            }
            if (match && ((MATCH_SW == 2) || (MATCH_SW == 7) || (MATCH_SW == 8))) {
-              printf("Address match\n");
+              //printf("Address match\n");
               hard_stop = 1;
               if (any_priority_lch)
                   priority_lch = 1;
            }
            if (RATE_SW == 0) {
-              printf("single step\n");
+              //printf("single step\n");
               hard_stop = 1;
               if (any_priority_lch)
                   priority_lch = 1;
            }
            if  (RATE_SW == 2 && any_priority_pulse && PROC_SW == 2) {
-              printf("priority\n");
+              //printf("priority\n");
               hard_stop = 1;
               if (any_priority_lch)
                   priority_lch = 1;
@@ -2289,7 +2258,7 @@ printf("Mark GR empty\n");
 
            if (sal->CM == 0 || sal->CM == 2) {
                if (((odd_parity[cpu_2030.R_REG & 0xff] ^ cpu_2030.R_REG) & 0x100) != 0) {
-                   printf("R Invalid parity\n");
+                   //printf("R Invalid parity\n");
                    cpu_2030.MC_REG |= BIT6;
                }
            }
@@ -2303,13 +2272,13 @@ printf("Mark GR empty\n");
            }
            
                
-           printf("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
-                   cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG, cpu_2030.Q_REG, cpu_2030.R_REG,
-                   cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG, cpu_2030.FT, cpu_2030.MASK, abus_f, cc_name[sal->CC], bbus_f, cpu_2030.Alu_out, ASCII);
-           printf("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d\n",
-                   cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG, 
-                   cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX, cpu_2030.STAT_REG,
-                   cpu_2030.O_REG, carries, priority_lch, allow_write, read_call, second_err_stop);
+//           printf("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
+ //                  cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG, cpu_2030.Q_REG, cpu_2030.R_REG,
+ //                  cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG, cpu_2030.FT, cpu_2030.MASK, abus_f, cc_name[sal->CC], bbus_f, cpu_2030.Alu_out, ASCII);
+ //          printf("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d\n",
+ //                  cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG, 
+ //                  cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX, cpu_2030.STAT_REG,
+ //                  cpu_2030.O_REG, carries, priority_lch, allow_write, read_call, second_err_stop);
 
         }
 
@@ -2317,6 +2286,10 @@ chan_scan:
         /* Scan each channel */
         /* Start with MPX channel */
         cpu_2030.FT &= ~BIT3;
+        /* Call out to console first */
+        model1050_func(&cpu_2030.TT, cpu_2030.TA, &t_request);
+        if (t_request)
+            cpu_2030.FT |= BIT3;
         if (mpx_start_sel) {
             cpu_2030.MPX_TAGS |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
             cpu_2030.FT |= BIT3;
@@ -2333,15 +2306,11 @@ chan_scan:
              dev->bus_func(dev, &cpu_2030.MPX_TI, cpu_2030.O_REG, &cpu_2030.FI);
         }
 
-        /* Call out to console first */
-        model1050_func(&cpu_2030.TT, cpu_2030.TA, &cpu_2030.t_request);
-        if (cpu_2030.t_request)
-            cpu_2030.FT |= BIT3;
         /* Check for MPX request */
         if (mpx_cmd_start == 0 && mpx_start_sel == 0 && (cpu_2030.FT & BIT3) == 0 &&
               (cpu_2030.MPX_TI & (CHAN_REQ_IN|CHAN_OPR_IN|CHAN_OPR_OUT)) == (CHAN_REQ_IN|CHAN_OPR_OUT)) {
             mpx_start_sel = 1;
-            printf("Start mpx select\n");
+//            printf("Start mpx select\n");
         }
         /* Pending select? */
         if (cpu_2030.MPX_TI == (CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN))
@@ -2383,8 +2352,8 @@ chan_scan:
              cpu_2030.SEL_TI[i] |= cpu_2030.SEL_TAGS[i];  /* Copy current tags to output */
              if (cpu_2030.SEL_TAGS[i] & (CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_SRV_OUT))
                  cpu_2030.GO[i] = cpu_2030.GR[i];
-             if (cpu_2030.SEL_TAGS[i] & CHAN_SEL_OUT) 
-                 printf (" Sel %d %02x\n", i, cpu_2030.GG[i]);
+//             if (cpu_2030.SEL_TAGS[i] & CHAN_SEL_OUT) 
+ //                printf (" Sel %d %02x\n", i, cpu_2030.GG[i]);
              for (dev = chan[i+1]; dev != NULL; dev = dev->next) {
                   dev->bus_func(dev, &cpu_2030.SEL_TI[i], cpu_2030.GO[i], &cpu_2030.GI[i]);
              }
@@ -2403,17 +2372,17 @@ chan_scan:
                  if (cpu_2030.O_REG & BIT5)  /* Request in */
                     cpu_2030.SEL_TI[i] |= CHAN_REQ_IN;
              }
-             printf("Select %d tags: b=%d p=%d i=%d GF=%02x GG=%02x GR=%02x GCD=%02x %02x GV=%02x %02x\n  ",
-                    i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], cpu_2030.GF[i], 
-                   cpu_2030.GG[i], cpu_2030.GR[i], cpu_2030.GC[i], cpu_2030.GD[i], cpu_2030.GU[i],
-                     cpu_2030.GV[i]);
-             print_tags(cpu_2030.SEL_TI[i], cpu_2030.GI[i]);
+//             printf("Select %d tags: b=%d p=%d i=%d GF=%02x GG=%02x GR=%02x GCD=%02x %02x GV=%02x %02x\n  ",
+ //                   i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], cpu_2030.GF[i], 
+  //                 cpu_2030.GG[i], cpu_2030.GR[i], cpu_2030.GC[i], cpu_2030.GD[i], cpu_2030.GU[i],
+   //                  cpu_2030.GV[i]);
+    //         print_tags(cpu_2030.SEL_TI[i], cpu_2030.GI[i]);
 
              /* If device has acknoweleged address out, drop it */
              if (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN) ||
                  cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN)) {
                  cpu_2030.SEL_TAGS[i] &= ~(CHAN_ADR_OUT);
-                 printf("Ack Addr Out\n");
+//                 printf("Ack Addr Out\n");
              }
 
              if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_OUT)) {
@@ -2422,7 +2391,7 @@ chan_scan:
                     /* If output try and refill GR with next location, or clear flag */
                     if ((cpu_2030.GG[i] & 1) != 0 && sel_gr_full[i] == 0) {
                         if (sel_cnt_rdy_not_zero[i] && !sel_halt_io[i]) {
-                            printf("Fill channel %d\n", i);
+                            //printf("Fill channel %d\n", i);
                             sel_share_req |= 1 << i;
                             sel_read_cycle[i] = 1;
                         }
@@ -2433,9 +2402,9 @@ chan_scan:
              /* If input and has data save it in GR */
              if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_IN) &&
                 ((cpu_2030.GG[i] & 3) == 2 || (cpu_2030.GG[i] & 5) == 4)) {
-                 printf("Get data\n");
+//                 printf("Get data\n");
                  if (sel_gr_full[i] == 0 && sel_cnt_rdy_not_zero[i]) {
-                     printf("Read data %02x\n", cpu_2030.GI[i]);
+ //                    printf("Read data %02x\n", cpu_2030.GI[i]);
                      cpu_2030.GR[i] = cpu_2030.GI[i];
                      sel_share_req |= 1 << i;
                      sel_read_cycle[i] = 1;
@@ -2444,7 +2413,7 @@ chan_scan:
                     /* Check for stop condition */
                     if (sel_cnt_rdy_not_zero[i] == 0 && 
                         (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
-                     printf("Read end\n");
+  //                   printf("Read end\n");
                         cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
                     }
              }
@@ -2452,16 +2421,16 @@ chan_scan:
              /* Output and device requesting service */
              if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_IN) &&
                 (cpu_2030.GG[i] & 1) != 0) {
-                 printf("Send  data\n");
+                 //printf("Send  data\n");
                  if (sel_gr_full[i] != 0 && sel_cnt_rdy_not_zero[i] && !sel_halt_io[i]) {
                     cpu_2030.GO[i] = cpu_2030.GR[i];
-                     printf("Send data %02x\n", cpu_2030.GO[i]);
+                     //printf("Send data %02x\n", cpu_2030.GO[i]);
                  }
                     /* Check for stop condition */
                     if (sel_cnt_rdy_not_zero[i] == 0 && 
                         (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
                         cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
-                     printf("Send end\n");
+                     //printf("Send end\n");
                     }
              }
 
@@ -2472,7 +2441,7 @@ chan_scan:
              /* Check if ack output request */
              if ((cpu_2030.GG[i] & 1) != 0 && sel_cnt_rdy_not_zero[i] && sel_status_stop_cond[i] == 0 &&
                    (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) {
-                      printf("Acknowlege Service in\n");
+                      //printf("Acknowlege Service in\n");
                        cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
              }
 
@@ -2505,7 +2474,7 @@ chan_scan:
                  if ((cpu_2030.GI[i] & 0xff) == (SNS_CHNEND)) {
                      cpu_2030.SEL_TAGS[i] |= CHAN_SUP_OUT|CHAN_SRV_OUT;
                  }
-                 printf("Sel CC %d %03x\n", i, cpu_2030.GI[i]);
+                 //printf("Sel CC %d %03x\n", i, cpu_2030.GI[i]);
              } else if (((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) && 
                    sel_poll_ctrl[i] && (cpu_2030.GF[i] & (BIT0|BIT1)) == (0)) {
                  /* Check if length incomplete */
@@ -2529,27 +2498,27 @@ chan_scan:
                      cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
                  }
 #endif
-                 printf("Sel No CC %d %03x pol=%d cnt=%d busy=%d R=%d\n", i, cpu_2030.GI[i],
-                       sel_poll_ctrl[i], sel_cnt_rdy_not_zero[i], sel_chan_busy[i], sel_ros_req);
+                 //printf("Sel No CC %d %03x pol=%d cnt=%d busy=%d R=%d\n", i, cpu_2030.GI[i],
+                  //     sel_poll_ctrl[i], sel_cnt_rdy_not_zero[i], sel_chan_busy[i], sel_ros_req);
              }
 
              /* Set command chain flag */
              if (sel_chan_busy[i] && ((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) && 
                    sel_cnt_rdy_zero[i] && sel_poll_ctrl[i] && (cpu_2030.GF[i] & (BIT0|BIT1)) == 0) {
                 sel_ros_req |= 1 << i;
-                printf("Sel end channel %d %d\n", i, sel_chan_busy[i]);
+                //printf("Sel end channel %d %d\n", i, sel_chan_busy[i]);
              }
 
              /* If channel not busy watch for Request In */
              if (sel_poll_ctrl[i] == 0) {
                 if (sel_intrp_lch[i] == 0 && cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_REQ_IN)) {
                     cpu_2030.SEL_TAGS[i] |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
-                    printf("Select request\n");
+                    //printf("Select request\n");
                 }
                 if (sel_intrp_lch[i] == 0 &&
                      cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                     sel_ros_req |= 1 << i;
-                    printf("Select addressed\n");
+                    //printf("Select addressed\n");
                 }
                 /* Wait for device to return status in */
 //                if (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
@@ -2560,7 +2529,7 @@ chan_scan:
              }
 
              if (sel_chan_busy[i]  && sel_poll_ctrl[i] == 1 && (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_REQ_IN))) {
-                  printf("Select Poll for service\n");
+                  //printf("Select Poll for service\n");
                   cpu_2030.SEL_TAGS[i] |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
              }
 
@@ -2571,14 +2540,14 @@ chan_scan:
                         sel_chain_req[i] = 1;
                    }
                    sel_ros_req |= 1 << i;
-                   printf("Status interrupt\n");
+                   //printf("Status interrupt\n");
              }
              if (sel_chan_busy[i] && sel_poll_ctrl[i] == 0 && (
                  ((cpu_2030.GE[i] & (BIT1||BIT2|BIT3|BIT5|BIT6)) != 0) || 
                  ((cpu_2030.GE[i] & BIT4) == 0 && sel_cnt_rdy_not_zero[i] == 0) ||
                  ((cpu_2030.GE[i] & BIT4) != 0 && CHK_SW == 0))) {
                  sel_status_stop_cond[i] = 1;
-                 printf("set stop %d %d %02x %d\n", i, sel_poll_ctrl[i], cpu_2030.GF[i], sel_ros_req);
+                 //printf("set stop %d %d %02x %d\n", i, sel_poll_ctrl[i], cpu_2030.GF[i], sel_ros_req);
              }
         }
 
@@ -2627,7 +2596,7 @@ chan_scan:
             if (cpu_2030.FT & BIT4)
                 priority_stack_reg |= BIT1;
             if (force_ij_req) {
-                printf("Set IJ Req Lch\n");
+                //printf("Set IJ Req Lch\n");
                 priority_stack_reg |= BIT2;
             }
             if (mem_wrap_req)
@@ -2639,11 +2608,11 @@ chan_scan:
             /* Select channel request */
             if ((cpu_2030.H_REG & BIT5) == 0 && sel_ros_req) {
                 priority_stack_reg |= BIT6;
-                printf("SEL Share %d\n", sel_ros_req);
+ //               printf("SEL Share %d\n", sel_ros_req);
             }
             /* MPX share request */
             if ((cpu_2030.H_REG & (BIT6|BIT5)) == 0 && (cpu_2030.FT & BIT3) != 0) {
-                printf("MPX Share\n");
+//                printf("MPX Share\n");
                 priority_stack_reg |= BIT7;
             }
         }

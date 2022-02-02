@@ -33,6 +33,8 @@
 #include <fcntl.h>
 #include "tape.h"
 
+#include "tape_position.h"
+
 /*
  * Check it tape at load point.
  */
@@ -48,7 +50,7 @@ tape_at_loadpt(struct _tape_buffer *tape)
 int
 tape_ready(struct _tape_buffer *tape)
 {
-    return (tape->file_name != NULL);
+    return (tape->file_name != NULL && (tape->format & ONLINE) != 0);
 }
 
 /*
@@ -67,6 +69,35 @@ int
 tape_9_track(struct _tape_buffer *tape)
 {
     return ((tape->format & TRACK9) != 0);
+}
+
+/*
+ * Select tape drive.
+ */
+void
+tape_select(struct _tape_buffer *tape)
+{
+    tape->format |= SELECTED;
+}
+
+/*
+ * Un-Select tape drive.
+ */
+void
+tape_unselect(struct _tape_buffer *tape)
+{
+    tape->format &= ~SELECTED;
+}
+
+/*
+ * Select tape drive.
+ */
+int
+tape_is_selected(struct _tape_buffer *tape)
+{
+    if ((tape->format & SELECTED) != 0)
+        return 1;
+    return 0;
 }
 
 /*
@@ -121,7 +152,9 @@ tape_detach(struct _tape_buffer *tape)
     }
     close(tape->fd);
     tape->fd = -1;
+    tape->format &= ~ONLINE;
     free(tape->file_name);
+    tape->file_name = NULL;
 }
 
 /*
@@ -829,6 +862,52 @@ tape_rewind_frames(struct _tape_buffer *tape, int frames)
      tape->pos_frame -= frames;
      printf("Rewinding %ld\n", tape->pos_frame);
      return 1;
+}
+
+/*
+ * Find the supply reel tape position.
+ */
+
+struct _tape_image *
+tape_supply_image(struct _tape_buffer *tape, int *rotate)
+{
+    int top = max_tape_pos - 1;
+    int pos;
+    int len;
+    int index;
+
+    pos = max_tape_length - tape->pos_frame;
+    for (index = top; index >= 0; index--) {
+        if (pos >= tape_position[index].start && pos <= tape_position[index+1].start)
+           break;
+    }
+    len = pos - tape_position[index].start;
+    *rotate = (int)(35.0f * (((float)len) / ((float)tape_position[index].length)));
+    return &tape_position[index];
+}
+
+/*
+ * Find the takup reel tape position.
+ */
+
+struct _tape_image *
+tape_takeup_image(struct _tape_buffer *tape, int *rotate)
+{
+    int top = max_tape_pos - 1;
+    int pos;
+    int len;
+    int index;
+
+    if (tape->file_name == NULL)
+       return &tape_position[0];
+    pos = tape->pos_frame;
+    for (index = 0; index < top; index++) {
+        if (pos >= tape_position[index].start && pos <= tape_position[index+1].start)
+           break;
+    }
+    len = pos - tape_position[index].start;
+    *rotate = (int)(35.0f * (((float)len) / ((float)tape_position[index].length)));
+    return &tape_position[index];
 }
 
 #if 0
