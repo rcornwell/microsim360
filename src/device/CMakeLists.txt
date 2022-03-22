@@ -22,13 +22,4 @@
 target_sources(${PROJECT_NAME} PUBLIC card.c disassem.c device.c tape.c xlat.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-add_dependencies(${PROJECT_NAME} tape_position.h)
-
-
-add_executable(gen_tape_position gen_tape_position.c)
-add_custom_target(tape_position.h
-   COMMAND gen_tape_position tape_position.h
-   BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/tape_position.h
-   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-   DEPENDS gen_tape_position.c)
 

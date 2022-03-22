@@ -35,8 +35,7 @@
 #include "model2415.h"
 
 #include "model2415.xpm"
-#include "tape_medium.xpm"
-#include "tape_reel.xpm"
+#include "tape_images.xpm"
 
 /*
  *  Commands.
@@ -1502,12 +1501,15 @@ printf("selected\n");
 }
 
 SDL_Texture *model2415_img;
-SDL_Texture *tape_medium_img;
-SDL_Texture *tape_reel_img;
+SDL_Texture *tape_images_img;
 extern TTF_Font  *font1;
 extern TTF_Font  *font14;
 static SDL_Color cb = {0, 0, 0};
 static SDL_Color cw = {0xff, 0xff, 0xff};
+static int supply_color[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+static int takeup_color[8] = {2, 2, 2, 2, 2, 2, 2, 2};
+static int supply_label[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+static int takeup_label[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 void
 model2415_draw(struct _device *unit, SDL_Renderer *render)
@@ -1573,14 +1575,14 @@ model2415_draw(struct _device *unit, SDL_Renderer *render)
             /* Draw supply reel */
             reel = tape_supply_image(ctx->tape[i], &j);
             rect2.x = x + 34;
-            rect2.y = y + 133;
+            rect2.y = y + 131;
             rect2.w = 69;
             rect2.h = 69;
             rect.x = reel->x+4;
             rect.y = reel->y+4;
             rect.w = 69;
             rect.h = 69;
-            SDL_RenderCopy(render, tape_medium_img, &rect, &rect2);
+            SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
             /* Draw tape to vacuum column */
             SDL_SetRenderDrawColor(render, 0x37, 0x37, 0x37, 255);
             SDL_RenderDrawLine(render, x+32, y+127, 
@@ -1589,40 +1591,54 @@ model2415_draw(struct _device *unit, SDL_Renderer *render)
             SDL_RenderDrawLine(render, x+177, y+99, x + 167, y + 85);
             /* Overlay reel */
             j = 35 - j;
-            rect.x = 77;
-            rect.y = 5 + (int) (0.5 + (74.75 * (float)j));
-            SDL_RenderCopy(render, tape_reel_img, &rect, &rect2);
+            switch (supply_color[i]) {
+            case 0: rect.x = (75 * 15) + 4; break;
+            case 1: rect.x = (75 * 3) + 4; break;
+            case 2: rect.x = (75 * 7) + 4; break;
+            }
+            if (j > 17) {
+                rect.x += 75;
+                rect.y = (75 * (j - 18)) + 4;
+            } else {
+                rect.y = (75 * (j)) + 4;
+            }
+            SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
+            if (supply_label[i]) {
+                if (rect.x > 1125)
+                    rect.x -= (75 * 2);
+                else
+                    rect.x += (75 * 2);
+                SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
+            }
             /* Draw take up reel */
             reel = tape_takeup_image(ctx->tape[i], &k);
             rect2.x = x + 107;
             rect.x = reel->x+4;
             rect.y = reel->y+4;
-            SDL_RenderCopy(render, tape_medium_img, &rect, &rect2);
-            rect.x = 155;
-            rect.y = 5 + (int) (0.5 + (74.75 * (float)k));
+            SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
+            switch (takeup_color[i]) {
+            case 0: rect.x = (75 * 15) + 4; break;
+            case 1: rect.x = (75 * 3) + 4; break;
+            case 2: rect.x = (75 * 7) + 4; break;
+            }
+            if (k > 17) {
+                rect.x += 75;
+                rect.y = (75 * (k - 18) + 4);
+            } else {
+                rect.y = (75 * (k)) + 4;
+            }
             SDL_RenderDrawLine(render, x + 177, y + 127, 
                  x + (141 + reel->radius), y + 164 + (reel->radius / 2));
-            SDL_RenderCopy(render, tape_reel_img, &rect, &rect2);
-#if 0
-            sprintf(buf, "%2d  %2d f=%ld", j, k, ctx->tape[i]->pos_frame);
-            text = TTF_RenderText_Solid(font14, buf, cb);
-            txt = SDL_CreateTextureFromSurface(render, text);
-            SDL_FreeSurface(text);
-            SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
-            rect2.x = x + 37;
-            rect2.y = y + 90;
-            SDL_RenderCopy(render, txt, NULL, &rect2);
-            sprintf(buf, "s=%d l=%d", reel->start, reel->length);
-            text = TTF_RenderText_Solid(font14, buf, cb);
-            txt = SDL_CreateTextureFromSurface(render, text);
-            SDL_FreeSurface(text);
-            SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
-            rect2.x = x + 37;
-            rect2.y = y + 110;
-            SDL_RenderCopy(render, txt, NULL, &rect2);
-#endif
+            SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
+            if (takeup_label[i]) {
+                if (rect.x > 1125)
+                    rect.x -= (75 * 2);
+                else
+                    rect.x += (75 * 2);
+                SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
+            }
         } else {
-            rect2.x = 251;
+            rect2.x = 250;
             rect2.y = 0;
             rect2.w = unit->rect[i].w;
             rect2.h = unit->rect[i].h;
@@ -1638,20 +1654,45 @@ model2415_draw(struct _device *unit, SDL_Renderer *render)
             SDL_DestroyTexture(txt);
             /* Draw supply reel */
             rect2.x = x + 34;
-            rect2.y = y + 133;
+            rect2.y = y + 131;
             rect2.w = 69;
             rect2.h = 69;
             rect.x = 4;
             rect.y = 4;
             rect.w = 69;
             rect.h = 69;
-            SDL_RenderCopy(render, tape_medium_img, &rect, &rect2);
+            SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
             /* Draw take up reel */
             rect2.x = x + 107;
-            SDL_RenderCopy(render, tape_medium_img, &rect, &rect2);
-            rect.x = 155;
-            rect.y = 6;
-            SDL_RenderCopy(render, tape_reel_img, &rect, &rect2);
+            SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
+            switch (takeup_color[i]) {
+            case 0: rect.x = (75 * 15) + 4; break;
+            case 1: rect.x = (75 * 3) + 4; break;
+            case 2: rect.x = (75 * 7) + 4; break;
+            }
+            rect.y = 4;
+            SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
+            if (takeup_label[i]) {
+                if (rect.x > 1125)
+                    rect.x -= (75 * 2);
+                else
+                    rect.x += (75 * 2);
+                SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
+            }
+            /* Draw empty hub */
+            rect2.x = x + 34 + 15;
+            rect2.y = y + 131 + 15;
+            rect2.w = 40;
+            rect2.h = 40;
+            rect.x = 4 + 15;
+            rect.y = 4 + 15;
+            rect.w = 40;
+            rect.h = 40;
+            rect.x = (75 * 15) + 4 + 15;
+            rect.y = 4 + 15;
+            rect.w = 40;
+            rect.h = 40;
+            SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
         }
     }
 }
@@ -1724,7 +1765,7 @@ static struct _l {
      {"START", NULL,      0, 1, 1, {0xff, 0xff, 0xff}, {0x0c, 0x2e, 0x30}, {0, 0, 0}}, /* Green */
      {"UNLOAD", "REWIND", 0, 2, 1, {0xff, 0xff, 0xff}, {0x0a, 0x52, 0x9a}, {0, 0, 0}}, /* Blue */
      {"RESET", NULL,      0, 3, 1, {0xff, 0xff, 0xff}, {0xc8, 0x3a, 0x30}, {0, 0, 0}}, /* Blue */
-     {"EOM", NULL,         0, 8, 2, {0xff, 0xff, 0xff}, {0x0a, 0x052, 0x9a}, {0, 0, 0,}}, 
+     {"EOM", NULL,         0, 0, 4, {0xff, 0xff, 0xff}, {0x0a, 0x052, 0x9a}, {0, 0, 0,}}, 
      { NULL, NULL, 0}
 };
 
@@ -1732,6 +1773,8 @@ static char *format_type[] = { "SIMH", "E11", "P7B", NULL };
 static char *density_type[] = { "1600", "800", NULL };
 static char *tracks[] = { "9 track", "7 track", NULL };
 static char *ring_mode[] = { "Ring", "No Ring", NULL };
+static char *reel_color[] = { "Clear", "Red", "Blue" };
+static char *label_mode[] = { "No", "Yes" };
 
 static SDL_Renderer *render;
 struct _popup *
@@ -1748,7 +1791,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
         return popup;
     sprintf(buffer, "IBM2415 Dev 0x'%03X'", ctx->addr + u);
     popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-        1000, 200, SDL_WINDOW_RESIZABLE );
+        800, 200, SDL_WINDOW_RESIZABLE );
     popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
     popup->device = unit;
     popup->unit_num = u;
@@ -1972,6 +2015,148 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].value = &popup->temp[3];
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
+    text = TTF_RenderText_Solid(font14, "Color: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (10 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 5;
+    popup->combo[popup->cmb_ptr].rect.y = 20 + (10 * hd);
+    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
+    popup->combo[popup->cmb_ptr].rect.h = h;
+    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
+    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].urect.h = h;
+    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
+    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].drect.h = h;
+    for (i = 0; reel_color[i] != NULL; i++) {
+        text = TTF_RenderText_Solid(font14, reel_color[i], cb);
+        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
+                                      text);
+        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
+             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
+    }
+    popup->combo[popup->cmb_ptr].num = supply_color[u];
+    popup->combo[popup->cmb_ptr].value = &supply_color[u];
+    popup->combo[popup->cmb_ptr].max = i - 1;
+    popup->cmb_ptr++;
+    text = TTF_RenderText_Solid(font14, "Label: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (12 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 5;
+    popup->combo[popup->cmb_ptr].rect.y = 20 + (12 * hd);
+    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
+    popup->combo[popup->cmb_ptr].rect.h = h;
+    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
+    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].urect.h = h;
+    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
+    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].drect.h = h;
+    for (i = 0; label_mode[i] != NULL; i++) {
+        text = TTF_RenderText_Solid(font14, label_mode[i], cb);
+        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
+                                      text);
+        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
+             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
+    }
+    popup->combo[popup->cmb_ptr].num = supply_label[u];
+    popup->combo[popup->cmb_ptr].value = &supply_label[u];
+    popup->combo[popup->cmb_ptr].max = i - 1;
+    popup->cmb_ptr++;
+    text = TTF_RenderText_Solid(font14, "Take Up", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (20 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (8 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    text = TTF_RenderText_Solid(font14, "Color: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (20 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (10 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->combo[popup->cmb_ptr].rect.x = 25 + (20 * wd) * 5;
+    popup->combo[popup->cmb_ptr].rect.y = 20 + (10 * hd);
+    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
+    popup->combo[popup->cmb_ptr].rect.h = h;
+    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
+    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].urect.h = h;
+    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
+    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].drect.h = h;
+    for (i = 0; reel_color[i] != NULL; i++) {
+        text = TTF_RenderText_Solid(font14, reel_color[i], cb);
+        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
+                                      text);
+        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
+             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
+    }
+    popup->combo[popup->cmb_ptr].num = takeup_color[u];
+    popup->combo[popup->cmb_ptr].value = &takeup_color[u];
+    popup->combo[popup->cmb_ptr].max = i - 1;
+    popup->cmb_ptr++;
+    text = TTF_RenderText_Solid(font14, "Label: ", cb);
+
+    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
+    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
+    SDL_FreeSurface(text);
+    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (20 * wd) * 4;
+    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (12 * hd);
+    popup->ctl_label[popup->ctl_ptr].rect.w = w;
+    popup->ctl_label[popup->ctl_ptr].rect.h = h;
+    popup->ctl_ptr++;
+    popup->combo[popup->cmb_ptr].rect.x = 25 + (20 * wd) * 5;
+    popup->combo[popup->cmb_ptr].rect.y = 20 + (12 * hd);
+    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
+    popup->combo[popup->cmb_ptr].rect.h = h;
+    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
+    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].urect.h = h;
+    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
+    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
+    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
+    popup->combo[popup->cmb_ptr].drect.h = h;
+    for (i = 0; label_mode[i] != NULL; i++) {
+        text = TTF_RenderText_Solid(font14, label_mode[i], cb);
+        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
+                                      text);
+        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
+             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
+    }
+    popup->combo[popup->cmb_ptr].num = takeup_label[u];
+    popup->combo[popup->cmb_ptr].value = &takeup_label[u];
+    popup->combo[popup->cmb_ptr].max = i - 1;
+    popup->cmb_ptr++;
     popup->update = &model2415_update;
     return popup;
 }
@@ -1990,17 +2175,14 @@ model2415_init(SDL_Renderer *render, uint16_t addr) {
          return NULL;
      }
 
+     tape_init();
      text = IMG_ReadXPMFromArray(model2415_xpm);
      model2415_img = SDL_CreateTextureFromSurface(render, text);
      SDL_SetTextureBlendMode(model2415_img, SDL_BLENDMODE_BLEND);
      SDL_FreeSurface(text);
-     text = IMG_ReadXPMFromArray(tape_medium_xpm);
-     tape_medium_img = SDL_CreateTextureFromSurface(render, text);
-     SDL_SetTextureBlendMode(tape_medium_img, SDL_BLENDMODE_BLEND);
-     SDL_FreeSurface(text);
-     text = IMG_ReadXPMFromArray(tape_reel_xpm);
-     tape_reel_img = SDL_CreateTextureFromSurface(render, text);
-     SDL_SetTextureBlendMode(tape_reel_img, SDL_BLENDMODE_BLEND);
+     text = IMG_ReadXPMFromArray(tape_images_xpm);
+     tape_images_img = SDL_CreateTextureFromSurface(render, text);
+     SDL_SetTextureBlendMode(tape_images_img, SDL_BLENDMODE_BLEND);
      SDL_FreeSurface(text);
 
      dev2415->bus_func = &model2415_dev;

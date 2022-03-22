@@ -70,13 +70,15 @@ struct _tape_buffer {
      uint8_t       buffer[32*1024];     /* Buffer of current record */
 };
 
-struct _tape_image {
+extern struct _tape_image {
      int           x;                   /* X position */
      int           y;                   /* Y position */
      int           start;               /* Start position tape in frames */
      int           length;              /* Length of current rotation in frames */
      int           radius;              /* Current radius of reel */
 } tape_position[1300];
+
+extern int tape_image_pos[37];
 
 /*
  * Return true if tape at load point.
@@ -221,6 +223,11 @@ struct _tape_image *tape_supply_image(struct _tape_buffer *tape, int *rotate);
  */
 
 struct _tape_image *tape_takeup_image(struct _tape_buffer *tape, int *rotate);
+
+/*
+ * Initialize the tape rotation structures.
+ */
+void tape_init();
 
 extern int max_tape_length;
 extern int max_tape_pos;
