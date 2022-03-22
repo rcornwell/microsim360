@@ -29,37 +29,37 @@
 #ifndef _MODEL30_H_
 #define _MODEL30_H_
 
-int SYS_RST;
-int ROAR_RST;
-int START;
-int SET_IC;
-int CHECK_RST;
-int STOP;
-int INT_TMR;
-int STORE;
-int DISPLAY;
-int LAMP_TEST;
-int POWER;
-int INTR;
-int LOAD;
-int timer_event;
+extern int SYS_RST;
+extern int ROAR_RST;
+extern int START;
+extern int SET_IC;
+extern int CHECK_RST;
+extern int STOP;
+extern int INT_TMR;
+extern int STORE;
+extern int DISPLAY;
+extern int LAMP_TEST;
+extern int POWER;
+extern int INTR;
+extern int LOAD;
+extern int timer_event;
 
-uint8_t  A_SW;
-uint8_t  B_SW;
-uint8_t  C_SW;
-uint8_t  D_SW;
-uint8_t  E_SW;
-uint8_t  F_SW;
-uint8_t  G_SW;
-uint8_t  H_SW;
-uint8_t  J_SW;
+extern uint8_t  A_SW;
+extern uint8_t  B_SW;
+extern uint8_t  C_SW;
+extern uint8_t  D_SW;
+extern uint8_t  E_SW;
+extern uint8_t  F_SW;
+extern uint8_t  G_SW;
+extern uint8_t  H_SW;
+extern uint8_t  J_SW;
 
-uint8_t  PROC_SW;
-uint8_t  RATE_SW;
-uint8_t  CHK_SW;
-uint8_t  MATCH_SW;
+extern uint8_t  PROC_SW;
+extern uint8_t  RATE_SW;
+extern uint8_t  CHK_SW;
+extern uint8_t  MATCH_SW;
 
-struct ROS_2030 {
+extern struct ROS_2030 {
     uint8_t    CN;
     uint8_t    CH;
     uint8_t    CL;
@@ -82,7 +82,7 @@ struct ROS_2030 {
 } ros_2030[4096];
 
 
-struct CPU_2030 {
+extern struct CPU_2030 {
 int         count;
 uint16_t    M[64 * 1024];       /* Main memory */
 uint16_t    LS[2048];           /* Local storage and BUMP storage */
@@ -340,16 +340,16 @@ uint16_t    SEL_TI[2];           /* Input tags. */
 
 } cpu_2030; 
 
-uint16_t    end_of_e_cycle;
-uint16_t    store;
-uint16_t    allow_write;
-uint16_t    match;
-uint16_t    t_request;
-uint8_t     allow_man_operation;
-uint8_t     wait;
-uint8_t     test_mode;
-uint8_t     clock_start_lch;
-uint8_t     load_mode;
+extern uint16_t    end_of_e_cycle;
+extern uint16_t    store;
+extern uint16_t    allow_write;
+extern uint16_t    match;
+extern uint16_t    t_request;
+extern uint8_t     allow_man_operation;
+extern uint8_t     wait;
+extern uint8_t     test_mode;
+extern uint8_t     clock_start_lch;
+extern uint8_t     load_mode;
 
 #define MAIN   1
 #define LOCAL  2

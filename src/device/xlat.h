@@ -28,7 +28,7 @@
 #ifndef _XLAT_H_
 #define _XLAT_H_
 
-const uint8_t ascii_to_ebcdic[128];
-const uint8_t ebcdic_to_ascii[256];
+extern const uint8_t ascii_to_ebcdic[128];
+extern const uint8_t ebcdic_to_ascii[256];
 
 #endif

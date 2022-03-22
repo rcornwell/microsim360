@@ -29,6 +29,8 @@
 
 #include "model2030.h"
 
+struct ROS_2030 ros_2030[4096];
+
 uint16_t const odd_parity[256] = {
     /*    0    1    2    3    4    5    6    7 */
     /* 00x */ 0x100, 0x000, 0x000, 0x100, 0x000, 0x100, 0x100, 0x000,

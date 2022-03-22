@@ -30,6 +30,52 @@
 #include "model2030.h"
 #include "model1050.h"
 
+
+int SYS_RST;
+int ROAR_RST;
+int START;
+int SET_IC;
+int CHECK_RST;
+int STOP;
+int INT_TMR;
+int STORE;
+int DISPLAY;
+int LAMP_TEST;
+int POWER;
+int INTR;
+int LOAD;
+int timer_event;
+
+uint8_t  A_SW;
+uint8_t  B_SW;
+uint8_t  C_SW;
+uint8_t  D_SW;
+uint8_t  E_SW;
+uint8_t  F_SW;
+uint8_t  G_SW;
+uint8_t  H_SW;
+uint8_t  J_SW;
+
+uint8_t  PROC_SW;
+uint8_t  RATE_SW;
+uint8_t  CHK_SW;
+uint8_t  MATCH_SW;
+
+struct CPU_2030 cpu_2030; 
+
+uint16_t    end_of_e_cycle;
+uint16_t    store;
+uint16_t    allow_write;
+uint16_t    match;
+uint16_t    t_request;
+uint8_t     allow_man_operation;
+uint8_t     wait;
+uint8_t     test_mode;
+uint8_t     clock_start_lch;
+uint8_t     load_mode;
+
+struct _device *chan[6];         /* Channels */
+
 /* Machine check bits */
 #define AREG    0x80
 #define BREG    0x40
