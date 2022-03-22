@@ -26,10 +26,12 @@ Planed devices include:
 
 To Build on Linux:
 
+````
    mkdir build 
    cd build
    cmake ..
    make
+````
 
 
 To Build on Windows:
@@ -37,12 +39,14 @@ To Build on Windows:
 
    Under Bash prompt:
 
+````
    mkdir build
    cd build
    cmake .. -G "Visual Studio 16 2019" -DCMAKE_BUILD_TYPE=Debug  -DSDL2_PATH="c:\SDL2" \
      -DSDL2_IMAGE_INCLUDE_DIR="c:\SDL2" -DSDL2_IMAGE_LIBRARY="c:\SDL2\lib\x64\SDL2_image.lib" \
      -DSDL2_TTF_PATH="c:\SDL2"
    cmake --build .
+````
 
 # Instruction
 
@@ -77,5 +81,3 @@ turn on the EOF indicator. Then "Start" the ready light should now light.
 To run stand alone card test programs, Open the card reader, enter the deck name
 in hopper. Change the AUTO to EBCDIC, then press LOAD, End of File, Start. On front
 panel set "Load unit" to 0x00A. Then press "LOAD".
-
-
