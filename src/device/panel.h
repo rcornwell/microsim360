@@ -29,13 +29,13 @@
 #include <stdint.h>
 
 /* Declare an error to be of a give color */
-struct _area {
+extern struct _area {
     SDL_Rect     rect;            /* Area to color */
     SDL_Color    *c;              /* Color to show */
 } areas[100];
 
 /* Draw line */
-struct _mark {
+extern struct _mark {
     int          x1;
     int          y1;
     int          x2;
@@ -44,7 +44,7 @@ struct _mark {
 } marks[1000];
 
 /* Model 2030 ROS bits. */
-struct _ros_bits {
+extern struct _ros_bits {
       SDL_Rect     rect;          /* Area where to show */
       SDL_Texture *digit_on;      /* Digit on and off */
       SDL_Texture *digit_off;
@@ -53,7 +53,7 @@ struct _ros_bits {
 } ros_bits[1000];
 
 /* Generic lamps */
-struct _lamp {
+extern struct _lamp {
     SDL_Rect      rect;           /* Area to show rectangle */
     int           col;            /* Color */
     int           shift;          /* Amount to shift to bit */
@@ -61,7 +61,7 @@ struct _lamp {
 } lamp[8];
 
 /* Two level indicators */
-struct _led_bits {
+extern struct _led_bits {
       SDL_Rect     recth;
       SDL_Rect     rectl;
       SDL_Texture *digith_on;
@@ -74,7 +74,7 @@ struct _led_bits {
 } led_bits[1000];
 
 /* Text label */
-struct _ctl_label {
+extern struct _ctl_label {
     SDL_Rect     rect;
     SDL_Texture  *text;
 } ctl_label[1000];
@@ -85,7 +85,7 @@ struct _ctl_label {
 #define ONOFF 2
 
 /* Push button switch */
-struct _switch {
+extern struct _switch {
     SDL_Rect     rect;           /* Outline of switch */
     SDL_Texture *top;            /* First line of label */
     SDL_Texture *bot;            /* Second line of label */
@@ -100,7 +100,7 @@ struct _switch {
 } sws[100];
 
 /* Indicator button */
-struct _ind {
+extern struct _ind {
     SDL_Rect     rect;           /* Outline of label */
     SDL_Texture *top;            /* First line of label */
     SDL_Texture *bot;            /* Second line of label */
@@ -114,7 +114,7 @@ struct _ind {
 } ind[100];
 
 /* Rotory dail */
-struct _dial {
+extern struct _dial {
     SDL_Rect     boxd;           /* Hit box to move left */
     SDL_Rect     boxu;           /* Hit box to move right */
     int          center_x;       /* Center point */
@@ -128,7 +128,7 @@ struct _dial {
 } dial[4];
 
 /* Hex digit dial */
-struct _hex {
+extern struct _hex {
      SDL_Rect    boxd;
      SDL_Rect    boxu;
      SDL_Rect    rect;
@@ -136,7 +136,7 @@ struct _hex {
 } hex_dial[10];
 
 /* Storage selector for model 2030 */
-struct _store {
+extern struct _store {
      SDL_Rect    boxd;
      SDL_Rect    boxu;
      SDL_Rect    rect;
@@ -180,7 +180,7 @@ struct _number {
 };
 
 /* Structure defining roller display */
-struct _roller {
+extern struct _roller {
     int           sel;                /* Current roller selection */
     SDL_Rect      rect[36];           /* Rectangles to display lights */
     int           col[36];            /* Color */

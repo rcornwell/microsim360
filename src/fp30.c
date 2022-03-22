@@ -46,6 +46,43 @@
 #include "hex_dial_img.xpm"
 #include "store_dials_img.xpm"
 
+
+/* Declare an error to be of a give color */
+struct _area areas[100];
+
+/* Draw line */
+struct _mark marks[1000];
+
+/* Model 2030 ROS bits. */
+struct _ros_bits ros_bits[1000];
+
+/* Generic lamps */
+struct _lamp lamp[8];
+
+/* Two level indicators */
+struct _led_bits led_bits[1000];
+
+/* Text label */
+struct _ctl_label ctl_label[1000];
+
+/* Push button switch */
+struct _switch sws[100];
+
+/* Indicator button */
+struct _ind ind[100];
+
+/* Rotory dail */
+struct _dial dial[4];
+
+/* Hex digit dial */
+struct _hex hex_dial[10];
+
+/* Storage selector for model 2030 */
+struct _store store_dial[2];
+
+/* Structure defining roller display */
+struct _roller roller[6];
+
 int process(void *data);
 uint32_t timer_callback(uint32_t interval, void *param);
 
