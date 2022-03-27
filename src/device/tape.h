@@ -43,11 +43,11 @@
 #define SELECTED    0x100               /* Drive selected */
 #define ONLINE      0x200               /* Drive online */
 
-#define FUNC_READ   0
-#define FUNC_WRITE  1
-#define FUNC_REW    2
-#define FUNC_RDBACK 3
-#define FUNC_MARK   4
+#define FUNC_READ   1
+#define FUNC_WRITE  2
+#define FUNC_REW    3
+#define FUNC_RDBACK 4
+#define FUNC_MARK   5
 #define FUNC_V      12
 #define FUNC_M      7
 
