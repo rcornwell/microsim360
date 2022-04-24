@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 
-target_sources(${PROJECT_NAME} PUBLIC cpu2030.c model1050.c)
+target_sources(${PROJECT_NAME} PUBLIC cpu2030.c model1050.c panel2030.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(${PROJECT_NAME} model2030_ros.h)

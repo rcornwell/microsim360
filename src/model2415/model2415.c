@@ -117,8 +117,11 @@
 #define STATE_DATA_END  9     /* Post end of channel usage */
 #define STATE_END       10    /* Post ending status */
 #define STATE_STACK     11    /* Channel polling */
-#define STATE_WAIT      12    /* After data transfer wait motion */
-#define STATE_RDY       13    /* Wait for selection to give status */
+#define STATE_STACK_SEL 12    /* Stack status select */
+#define STATE_STACK_CMD 13    /* Stack command */
+#define STATE_STACK_HLD 14    /* Stack hold */
+#define STATE_WAIT      15    /* After data transfer wait motion */
+#define STATE_RDY       16    /* Wait for selection to give status */
 
 #define FRAME_DELAY     33    /* 34 us per frame delay */
 #define REWIND_DELAY    10000
@@ -166,6 +169,7 @@ struct _2415_context {
     int                    nunits;       /* Number of units */
     int                    cur_unit;     /* Currently selected unit */
     int                    stat_unit;    /* Unit having pending sense data */
+    int                    stk_unit;     /* Unit that has stacked status */
     int                    t_scan;       /* Tape scanner */
     int                    rew_flags;    /* Units doing rewind */
     int                    run_flags;    /* Units doing unload */
@@ -276,7 +280,7 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                    ctx->state = STATE_END;
                    ctx->status |= SNS_DEVEND|SNS_CHNEND;
                    ctx->cmd = 0;
-          printf("Send end status \n");
+          printf("Tape Send end status \n");
                } else if (ctx->data_end) {
                    r = tape_read_frame(ctx->tape[ctx->cur_unit], &ctx->data);
                    printf("Tape read frame dataend %d\n", r);
@@ -312,7 +316,7 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                    } else {
                        ctx->data_rdy = 1;
                        ctx->state = STATE_DATA_O;
-                       printf("Queued\n");
+                       printf("Tape Queued\n");
                    }
                }
                break;
@@ -471,6 +475,7 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  }
                  ctx->cur_unit = i;
                  ctx->status = 0;
+                 ctx->stk_unit = -1;
                  *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
                  *tags |= CHAN_OPR_IN;
                  ctx->state = STATE_SEL;
@@ -795,9 +800,11 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN)) {
                  /* If SELECT DEVICE */
-                 if ((ctx->status & (SNS_DEVEND|SNS_UNITCHK|SNS_UNITEXP)) != 0)
+                 if ((ctx->status & (SNS_DEVEND|SNS_UNITCHK|SNS_UNITEXP)) != 0) {
+                     *tags &= ~(CHAN_OPR_IN);           /* Clear operation in */
                      ctx->state = STATE_IDLE;
-                 else
+                     ctx->selected = 0;
+                 } else
                      ctx->state = STATE_OPR;
                  if ((ctx->status & SNS_CHNEND) != 0) {
                      *tags &= ~(CHAN_OPR_IN);           /* Clear operation in */
@@ -971,7 +978,7 @@ printf("Sense %d:%02x\n", ctx->sense_cnt, ctx->sense[ctx->sense_cnt]);
               break;
 
     case STATE_DATA_O:    /* Request to send data to channel */
-printf("Data output %02x %d\n", ctx->data, ctx->selected);
+printf("Tape Data output %02x %d\n", ctx->data, ctx->selected);
               /* If we are not connected, go request bus */
               if (ctx->selected == 0) {
                   ctx->state = STATE_REQ;
@@ -1083,7 +1090,7 @@ printf("Data output %02x %d\n", ctx->data, ctx->selected);
              if (ctx->selected && (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                           *tags == (CHAN_OPR_OUT|CHAN_OPR_IN))) {
                  *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-printf("End channel status %02x %02x\n", ctx->status, ctx->cmd);
+printf("Tape End channel status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;
                  *bus_in = ctx->status & SNS_CHNEND;
                  *bus_in |= odd_parity[*bus_in];
@@ -1121,8 +1128,9 @@ printf("End channel status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("Stacked\n");
+printf("Tape Stacked\n");
                   ctx->selected = 0;
+                  ctx->stk_unit = ctx->cur_unit;
                   ctx->state = STATE_STACK;                         /* Stack status */
                   break;
              }
@@ -1153,11 +1161,11 @@ printf("Stacked\n");
                      if (ctx->cur_unit != bus_out & 0x7) {
                          *bus_in = SNS_BSY;
                          *tags |= CHAN_STA_IN;
-                         printf("selected other unit\n");
+                         printf("Tape selected other unit\n");
                          break;
                      }
                      *tags |= CHAN_OPR_IN;
-                     printf("selected\n");
+                     printf("Tape selected\n");
                      break;
                  }
                  if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
@@ -1167,7 +1175,7 @@ printf("Stacked\n");
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | ctx->cur_unit;
                      *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-                     printf("Reselect\n");
+                     printf("Tape Reselect\n");
                      break;
                  }
                  if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_REQ_IN) ||
@@ -1177,7 +1185,7 @@ printf("Stacked\n");
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | ctx->cur_unit;
                      *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-                     printf("Reselect\n");
+                     printf("Tape Reselect\n");
                      break;
                  }
 
@@ -1188,7 +1196,7 @@ printf("Stacked\n");
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | ctx->cur_unit;
                      *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-                     printf("Address\n");
+                     printf("Tape Address\n");
                      break;
                  }
 
@@ -1197,7 +1205,7 @@ printf("Stacked\n");
                      *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                       *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                       ctx->selected = 1;
-                      printf("selected\n");
+                      printf("Tape selected\n");
                   }
 
                   /* See if another device got it. */
@@ -1218,7 +1226,7 @@ printf("Stacked\n");
                           *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                           *tags == (CHAN_OPR_OUT|CHAN_OPR_IN))) {
                  *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-printf("End status %02x %02x\n", ctx->status, ctx->cmd);
+printf("Tape End status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags |= CHAN_STA_IN;
                  *bus_in = ctx->status | odd_parity[ctx->status];
                  ctx->cmd = 0;
@@ -1248,8 +1256,9 @@ printf("End status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("Stacked\n");
+printf("Tape Stacked\n");
                   ctx->selected = 0;
+                  ctx->stk_unit = ctx->cur_unit;
                   ctx->state = STATE_STACK;                         /* Stack status */
                   break;
              }
@@ -1258,116 +1267,103 @@ printf("Stacked\n");
              /* Mark channel still in use */
              *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
              *tags |= CHAN_OPR_IN;
-printf("End status ready\n");
+printf("Tape End status ready\n");
              break;
 
     case STATE_STACK:  /* Stacked status */
-              /* Bus is idle without Suppress out */
-              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_REQ_IN) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN)) {
-                  /* Put our address on the bus */
-                  *tags &= ~CHAN_REQ_IN;                               /* Put out device on request */
-                  break;
-              }
-
              /* Wait until Channels asks for us */
              if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN) ||
                   *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT)) &&
-                  (bus_out & 0xf8) == ctx->addr && (bus_out & 0x7) == ctx->cur_unit) {
+                  (bus_out & 0xf8) == ctx->addr && (bus_out & 0x7) == ctx->stk_unit) {
                   /* Device selected */
                   if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
                       ctx->sense[0] |= SENSE_BUSCHK;
                   *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
                   *tags |= CHAN_OPR_IN;
-//                  ctx->state = STATE_END;
+                  ctx->state = STATE_STACK_SEL;
                   ctx->selected = 1;
- printf("stack selected\n");
+ printf("Tape stack selected\n");
                   break;
              }
+             break;
 
-             /* Channel does select without suppress out */
-             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
-                 /* Put our address on the bus */
-printf("stack address\n");
-                 *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);               /* Clear select out and in */
-                 *tags |= CHAN_OPR_IN|CHAN_ADR_IN;                   /* Put out device on request */
-                 ctx->rdy_flags &= ~(1 << ctx->cur_unit);
-                 *bus_in = ctx->addr | ctx->cur_unit;
-                 *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-                 break;
+    case STATE_STACK_SEL:  /* Stacked status selected */
+            /* Wait until address out drops to put our address on bus */
+            *tags |= CHAN_OPR_IN;
+            /* When address out drops put our address on bus in */
+            if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_SUP_OUT) ||
+                *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SUP_OUT)) {
+                 *tags |= CHAN_ADR_IN;      /* Return address until accepted */
+                 *bus_in = (ctx->addr & 0xf8) | ctx->stk_unit;
+                 *bus_in |= odd_parity[*bus_in];
+printf("tape stacked address\n");
+            }
+
+            /* Wait for Command out to raise */
+            /* Can now drop address in */
+            if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
+ //printf("tape command %02x\n", bus_out);
+                 ctx->state = STATE_STACK_CMD; /* Wait for command out to return
+                                             initial status */
+                 *tags &= ~(CHAN_ADR_IN);                 /* Clear address in */
+             }
+             *tags &= ~(CHAN_SEL_OUT);             /* Clear select out and in */
+             break;
+
+    case STATE_STACK_CMD:
+             /* Wait for Command out to drop */
+             /* On MPX channel select out will drop, along with command */
+             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
+                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;     /* Wait for acceptance of status */
+ printf("tape stack init stat\n");
              }
 
-             /* If we got bus, go and transfer */
-             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
-                  *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);      /* Clear select out and in */
-printf("stack cmd\n");
-                  /* Check if trying to give us a command */
-                  if (bus_out != 0x100) {
-                      *tags |= (CHAN_STA_IN|CHAN_OPR_IN);
-                      *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-                      ctx->selected = 1;
-                      break;
-                  }
-                  ctx->selected = 1;
-                  ctx->state = STATE_END;                            /* Go return status */
-              }
-
-              /* Other device trying to start */
-              if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_STA_IN) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT)) &&
-                  (bus_out & 0xf8) == ctx->addr && (bus_out & 0x7) != ctx->cur_unit) {
-                  /* Device selected */
-                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                      ctx->sense[0] |= SENSE_BUSCHK;
-                  *tags &= ~(CHAN_SEL_OUT);          /* Clear select out and in */
-                  *tags |= CHAN_STA_IN;
-                  *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-                  ctx->selected = 1;
-printf("stack other device pending\n");
-                  break;
+             /* When we get acknowlegment, go wait for it to go away */
+             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_SUP_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
+                 *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                 ctx->state = STATE_IDLE;
+ printf("tape stack init stat\n");
              }
-
-              /* Bus is idle without Suppress out */
-              if (*tags == (CHAN_OPR_OUT) && (ctx->status & SNS_DEVEND) != 0) {
-                  /* Put our address on the bus */
-printf("Send status\n");
-                  *tags |= CHAN_REQ_IN;                               /* Put out device on request */
-                  break;
-              }
-             /* If we are returning short busy keep value on bus */
-             if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN)) {
-                 *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-                 break;
+             /* When we get acknowlegment, go wait for it to go away */
+             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_SUP_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
+                 *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                 ctx->state = STATE_STACK;
+ printf("tape stack init stat\n");
              }
+             *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
+             /* Device selected */
+             *tags &= ~(CHAN_SEL_OUT);                  /* Clear select out and in */
+             break;
 
-             if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_ADR_OUT|CHAN_STA_IN)) {
-                 *tags &= ~(CHAN_STA_IN);      /* Clear Status in */
+    case STATE_STACK_HLD:
+             /* Wait for Service out to drop */
+             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
+                 ctx->stk_unit = -1;
+                 if (ctx->cmd == 0 || (ctx->status & (SNS_UNITCHK|SNS_UNITEXP)) != 0) {
+                     ctx->state = STATE_IDLE;
+                 } else {
+                     ctx->state = STATE_OPR;
+     printf("tape state done\n");
+                 }
+                 *tags &= ~CHAN_OPR_IN;
                  ctx->selected = 0;
-                 break;
              }
-
-#if 0
-              /* If suppres out dropped, try and return status */
-              if (ctx->selected == 0 && *tags == (CHAN_OPR_OUT)) {
-                  *tags |= CHAN_REQ_IN;
-                  break;
-              }
-#endif
-
-
-printf("stacked status %02x %d\n", ctx->status, ctx->cur_unit);
-              break;
+             *tags &= ~(CHAN_SEL_OUT);                 /* Clear select out and in */
+             break;
 
     case STATE_WAIT:
- printf("wait %d\n", ctx->selected);
+ printf("Tape wait %d\n", ctx->selected);
              /* If we get select out with address out, reselection */
              if (!ctx->selected &&
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
@@ -1376,7 +1372,7 @@ printf("stacked status %02x %d\n", ctx->status, ctx->cur_unit);
                 *tags |= CHAN_STA_IN;
                 *bus_in = 0x100 | SNS_SMS | SNS_BSY;
                 ctx->selected = 1;
-printf("wait select attempt %d\n", ctx->cur_unit);
+printf("Tape wait select attempt %d\n", ctx->cur_unit);
              }
 
              /* If we get select out with address out, reselection */
@@ -1384,7 +1380,7 @@ printf("wait select attempt %d\n", ctx->cur_unit);
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN)) {
                 /* Device selected */
                 *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-printf("wait busy status %d\n", ctx->cur_unit);
+printf("Tape wait busy status %d\n", ctx->cur_unit);
              }
 
              /* If selected clear status in when select out drops */
@@ -1395,7 +1391,7 @@ printf("wait busy status %d\n", ctx->cur_unit);
                 /* Device selected */
                 *tags &= ~(CHAN_STA_IN);              /* Clear status in */
                 ctx->selected = 0;
-printf("wait deselect\n");
+printf("Tape wait deselect\n");
              }
              break;
 
@@ -1462,7 +1458,7 @@ printf("wait deselect\n");
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | ctx->cur_unit;
                  *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-printf("Reselect\n");
+printf("Tape Reselect\n");
                  break;
              }
 
@@ -1473,7 +1469,7 @@ printf("Reselect\n");
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | ctx->cur_unit;
                  *bus_in |= odd_parity[*bus_in];              /* Put out our address */
-printf("Address\n");
+printf("Tape Address\n");
                  break;
              }
 
@@ -1484,7 +1480,7 @@ printf("Address\n");
                   ctx->selected = 1;
                   ctx->rdy_flags &= ~(1 << ctx->cur_unit);
                   ctx->state = STATE_END;              /* Go wait for everything to drop */
-printf("selected\n");
+printf("Tape selected\n");
               }
 
               /* See if another device got it. */
@@ -1502,10 +1498,6 @@ printf("selected\n");
 
 SDL_Texture *model2415_img;
 SDL_Texture *tape_images_img;
-extern TTF_Font  *font1;
-extern TTF_Font  *font14;
-static SDL_Color cb = {0, 0, 0};
-static SDL_Color cw = {0xff, 0xff, 0xff};
 static int supply_color[8] = {1, 1, 1, 1, 1, 1, 1, 1};
 static int takeup_color[8] = {2, 2, 2, 2, 2, 2, 2, 2};
 static int supply_label[8] = {1, 1, 1, 1, 1, 1, 1, 1};
@@ -1538,7 +1530,7 @@ model2415_draw(struct _device *unit, SDL_Renderer *render)
             rect2.h = unit->rect[i].h;
             SDL_RenderCopy(render, model2415_img, &rect2, &unit->rect[i]);
             sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
-            text = TTF_RenderText_Solid(font14, buf, cb);
+            text = TTF_RenderText_Solid(font14, buf, c1);
             txt = SDL_CreateTextureFromSurface(render, text);
             SDL_FreeSurface(text);
             SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
@@ -1644,7 +1636,7 @@ model2415_draw(struct _device *unit, SDL_Renderer *render)
             rect2.h = unit->rect[i].h;
             SDL_RenderCopy(render, model2415_img, &rect2, &unit->rect[i]);
             sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
-            text = TTF_RenderText_Solid(font14, buf, cb);
+            text = TTF_RenderText_Solid(font14, buf, c1);
             txt = SDL_CreateTextureFromSurface(render, text);
             SDL_FreeSurface(text);
             SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
@@ -1799,7 +1791,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->areas[popup->area_ptr].rect.y = 0;
     popup->areas[popup->area_ptr].rect.h = 200;
     popup->areas[popup->area_ptr].rect.w = 800;
-    popup->areas[popup->area_ptr].c = &cw;
+    popup->areas[popup->area_ptr].c = &c;
     popup->area_ptr++;
     for (i = 0; labels[i].top != NULL; i++) {
         if (labels[i].ind) {
@@ -1852,7 +1844,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->ind[3].value = &ctx->tape[u]->format;
     popup->ind[3].shift = 3;
 
-    text = TTF_RenderText_Solid(font14, "Tape: ", cb);
+    text = TTF_RenderText_Solid(font14, "Tape: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -1876,7 +1868,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
                                         popup->text[popup->txt_ptr].pos);
     popup->txt_ptr++;
 
-    text = TTF_RenderText_Solid(font14, "Type: ", cb);
+    text = TTF_RenderText_Solid(font14, "Type: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -1899,7 +1891,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
     popup->combo[popup->cmb_ptr].drect.h = h;
     for (i = 0; format_type[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, format_type[i], cb);
+        text = TTF_RenderText_Solid(font14, format_type[i], c1);
         popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
                                       text);
         SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
@@ -1911,7 +1903,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
 
-    text = TTF_RenderText_Solid(font14, "Density: ", cb);
+    text = TTF_RenderText_Solid(font14, "Density: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -1934,7 +1926,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
     popup->combo[popup->cmb_ptr].drect.h = h;
     for (i = 0; density_type[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, density_type[i], cb);
+        text = TTF_RenderText_Solid(font14, density_type[i], c1);
         popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
                                       text);
         SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
@@ -1946,7 +1938,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
 
-    text = TTF_RenderText_Solid(font14, "Tracks: ", cb);
+    text = TTF_RenderText_Solid(font14, "Tracks: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -1969,7 +1961,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
     popup->combo[popup->cmb_ptr].drect.h = h;
     for (i = 0; tracks[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, tracks[i], cb);
+        text = TTF_RenderText_Solid(font14, tracks[i], c1);
         popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
                                       text);
         SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
@@ -1981,7 +1973,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
 
-    text = TTF_RenderText_Solid(font14, "Write: ", cb);
+    text = TTF_RenderText_Solid(font14, "Write: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -2004,7 +1996,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
     popup->combo[popup->cmb_ptr].drect.h = h;
     for (i = 0; ring_mode[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, ring_mode[i], cb);
+        text = TTF_RenderText_Solid(font14, ring_mode[i], c1);
         popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
                                       text);
         SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
@@ -2015,7 +2007,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].value = &popup->temp[3];
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
-    text = TTF_RenderText_Solid(font14, "Color: ", cb);
+    text = TTF_RenderText_Solid(font14, "Color: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -2038,7 +2030,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
     popup->combo[popup->cmb_ptr].drect.h = h;
     for (i = 0; reel_color[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, reel_color[i], cb);
+        text = TTF_RenderText_Solid(font14, reel_color[i], c1);
         popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
                                       text);
         SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
@@ -2048,7 +2040,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].value = &supply_color[u];
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
-    text = TTF_RenderText_Solid(font14, "Label: ", cb);
+    text = TTF_RenderText_Solid(font14, "Label: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -2071,7 +2063,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
     popup->combo[popup->cmb_ptr].drect.h = h;
     for (i = 0; label_mode[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, label_mode[i], cb);
+        text = TTF_RenderText_Solid(font14, label_mode[i], c1);
         popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
                                       text);
         SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
@@ -2081,7 +2073,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].value = &supply_label[u];
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
-    text = TTF_RenderText_Solid(font14, "Take Up", cb);
+    text = TTF_RenderText_Solid(font14, "Take Up", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -2091,7 +2083,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->ctl_label[popup->ctl_ptr].rect.w = w;
     popup->ctl_label[popup->ctl_ptr].rect.h = h;
     popup->ctl_ptr++;
-    text = TTF_RenderText_Solid(font14, "Color: ", cb);
+    text = TTF_RenderText_Solid(font14, "Color: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -2114,7 +2106,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
     popup->combo[popup->cmb_ptr].drect.h = h;
     for (i = 0; reel_color[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, reel_color[i], cb);
+        text = TTF_RenderText_Solid(font14, reel_color[i], c1);
         popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
                                       text);
         SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
@@ -2124,7 +2116,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].value = &takeup_color[u];
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
-    text = TTF_RenderText_Solid(font14, "Label: ", cb);
+    text = TTF_RenderText_Solid(font14, "Label: ", c1);
 
     popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
     SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
@@ -2147,7 +2139,7 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
     popup->combo[popup->cmb_ptr].drect.h = h;
     for (i = 0; label_mode[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, label_mode[i], cb);
+        text = TTF_RenderText_Solid(font14, label_mode[i], c1);
         popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
                                       text);
         SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,

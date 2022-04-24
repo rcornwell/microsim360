@@ -26,6 +26,7 @@
 #ifndef _PANEL_H_
 #define _PANEL_H_
 #include <SDL.h>
+#include <SDL_ttf.h>
 #include <stdint.h>
 
 /* Declare an error to be of a give color */
@@ -58,7 +59,7 @@ extern struct _lamp {
     int           col;            /* Color */
     int           shift;          /* Amount to shift to bit */
     uint8_t      *value;          /* Pointer to value */
-} lamp[8];
+} lamp[1000];
 
 /* Two level indicators */
 extern struct _led_bits {
@@ -72,6 +73,18 @@ extern struct _led_bits {
       uint16_t    *value;
       int          row;
 } led_bits[1000];
+
+#define ON_OFF     0
+#define ON_OFF_MOM 1
+#define THREE      2
+
+/* Toggle switches */
+extern struct _toggle {
+      SDL_Rect     rect;
+      int          type;      /* Type of switch */
+      uint32_t     *value;    /* Pointer to value */
+      int          shift;     /* Shift amount */
+} toggles[1000];
 
 /* Text label */
 extern struct _ctl_label {
@@ -181,30 +194,15 @@ struct _number {
 
 /* Structure defining roller display */
 extern struct _roller {
+    SDL_Texture   *rollers;           /* Image to show */
+    SDL_Rect      pos;                /* Position to show roller */
+    int           ystart;             /* Starting row */
     int           sel;                /* Current roller selection */
-    SDL_Rect      rect[36];           /* Rectangles to display lights */
-    int           col[36];            /* Color */
-    SDL_Rect      blabel[36];         /* Display location for selector */
     struct _disp {
-        SDL_Texture *label[36];       /* Label to display */
         uint32_t    *value[36];       /* Pointer to value */
         int         shift[36];        /* Shift amount */
-        int         a_start;          /* Area start index */
-        int         a_end;            /* Area start index */
-        int         m_start;          /* Mark start index */
-        int         m_end;            /* Mark start index */
-        int         t_start;          /* Text start index */
-        int         t_end;            /* Text start index */
+        int         mask[36];         /* Mask */
     } disp[8];
-    struct _parity {
-        uint32_t   *value;            /* Pointer to value to compute */
-        int        shift;             /* Amount to shift */
-        uint32_t   mask;              /* Mask for parity */
-    } parity[32];                     /* Parity pointers */
-    int            num_par;           /* Number of parities to compute */
-    struct _area   areas[100];        /* List of color areas */
-    struct _mark   marks[100];        /* List of marks */
-    struct _ctl_label label[1000];    /* Text labels */
 } roller[6];
 
 struct _panel {
@@ -268,4 +266,116 @@ struct _popup {
       void       *device;
       void       (*update)(struct _popup *pop, void *device, int index);
 };
+
+struct _labels {
+      char       *upper;
+      char       *lower;
+};
+
+#define ADD_LABEL(x1, y1, ww, t, cf, cb) ctl_label[ctl_ptr].rect.y = (y1); \
+                              text = TTF_RenderText_Shaded(font1, t, cf, cb); \
+                              ctl_label[ctl_ptr].text = \
+                                       SDL_CreateTextureFromSurface(render, text) ; \
+                              SDL_QueryTexture(ctl_label[ctl_ptr].text, &f, &k, &wx, &hx); \
+                              ctl_label[ctl_ptr].rect.x = (x1) + (ww / 2) - (wx/2); \
+                              ctl_label[ctl_ptr].rect.h = hx; \
+                              ctl_label[ctl_ptr].rect.w = wx; \
+                              SDL_FreeSurface(text); ctl_ptr++;
+#define ADD_LABEL1(x1, y1, t) ctl_label[ctl_ptr].rect.x = (x1); \
+                             ctl_label[ctl_ptr].rect.y = (y1); \
+                             ctl_label[ctl_ptr].rect.h = f1_hd; \
+                             ctl_label[ctl_ptr].rect.w = f1_wd * strlen(t); \
+                             text = TTF_RenderText_Shaded(font1, t, c, cl); \
+                             ctl_label[ctl_ptr].text = \
+                                      SDL_CreateTextureFromSurface(render, text) ; \
+                             SDL_FreeSurface(text); ctl_ptr++;
+#define ADD_LABEL2(x1, y1, t) ctl_label[ctl_ptr].rect.x = (x1); \
+                              ctl_label[ctl_ptr].rect.y = (y1); \
+                              ctl_label[ctl_ptr].rect.h = f1_hd; \
+                              ctl_label[ctl_ptr].rect.w = f1_wd * strlen(t); \
+                              text = TTF_RenderText_Shaded(font1, t, c1, cl); \
+                              ctl_label[ctl_ptr].text = \
+                                       SDL_CreateTextureFromSurface(render, text) ; \
+                              SDL_FreeSurface(text); ctl_ptr++;
+#define ADD_LABEL3(x1, y1, t, cf, cb) ctl_label[ctl_ptr].rect.y = (y1); \
+                              text = TTF_RenderText_Shaded(font1, t, cf, cb); \
+                              ctl_label[ctl_ptr].text = \
+                                       SDL_CreateTextureFromSurface(render, text) ; \
+                              SDL_QueryTexture(ctl_label[ctl_ptr].text, &f, &k, &wx, &hx); \
+                              ctl_label[ctl_ptr].rect.x = (x1); \
+                              ctl_label[ctl_ptr].rect.h = hx; \
+                              ctl_label[ctl_ptr].rect.w = wx; \
+                              SDL_FreeSurface(text); ctl_ptr++;
+#define ADD_MARK(x, y, h, col) marks[mrk_ptr].x1 = (x); marks[mrk_ptr].y1 = (y); \
+             marks[mrk_ptr].x2 = (x); marks[mrk_ptr].y2 = (y+h); \
+             marks[mrk_ptr].c = (&col); mrk_ptr++;
+
+#define ADD_LINE(x, y, w, col) marks[mrk_ptr].x1 = (x); marks[mrk_ptr].y1 = (y); \
+             marks[mrk_ptr].x2 = (x+w); marks[mrk_ptr].y2 = (y); \
+             marks[mrk_ptr].c = (&col); mrk_ptr++;
+
+#define ADD_AREA(x1, y1, h1, w1, col) areas[area_ptr].rect.x = x1; areas[area_ptr].rect.y = y1; \
+            areas[area_ptr].rect.h = h1; areas[area_ptr].rect.w = w1; areas[area_ptr++].c = col;
+
+
+extern int ros_ptr;
+extern int lamp_ptr;
+extern int led_ptr;
+extern int area_ptr;
+extern int mrk_ptr;
+extern int ctl_ptr;
+extern int sws_ptr;
+extern int ind_ptr;
+extern int hex_ptr;
+extern int store_ptr;
+extern int roller_ptr;
+extern int toggle_ptr;
+
+extern TTF_Font   *font1;
+extern TTF_Font   *font12;
+extern TTF_Font   *font14;
+
+extern int         f1_hd;   /* Font 1 Height */
+extern int         f1_wd;   /* Font 1 Width */
+
+extern SDL_Color c;       /* White */
+extern SDL_Color c1;      /* Black */
+extern SDL_Color c2;      /* Green */
+extern SDL_Color c3;      /* Blue */
+extern SDL_Color c4;      /* Gray */
+extern SDL_Color c5;      /* Red */
+extern SDL_Color c5o;     /* off Red */
+extern SDL_Color cc;      /* Background */
+extern SDL_Color cb;      /* Outline color */
+extern SDL_Color cl;      /* Label background */
+extern SDL_Color con;     /* On digit */
+extern SDL_Color cof;     /* Off digit */
+
+extern SDL_Texture *digit_on[100];
+extern SDL_Texture *digit_off[100];
+extern SDL_Texture *digit2_on[100];
+extern SDL_Texture *digit2_off[100];
+extern SDL_Texture *on, *off;
+extern SDL_Texture *lamps;
+extern SDL_Texture *hex_dials;
+extern SDL_Texture *store_dials;
+extern SDL_Texture *toggle_pic;
+
+
+void add_switch(int *value, int x, int y, int w, int h, int t, SDL_Color *col,
+                 struct _labels *lab, TTF_Font *font);
+
+void add_toggle(uint32_t *value, int s, int x, int y, int t);
+
+/*
+ * Add in a lamp display.
+ */
+int add_led(struct _labels *lab, uint16_t *value, int shf, int x, int y, int idx);
+
+void setup_fp2030(SDL_Renderer *render);
+
+void setup_fp2050(SDL_Renderer *render);
+
+int textpos(struct _text *text, int pos);
+
 #endif

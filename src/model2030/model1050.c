@@ -223,7 +223,7 @@ model1050_func(uint16_t *tags_out, uint16_t tags_in, uint16_t *t_request)
           *t_request = 1;
        }
 
-       //printf("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
+       printf("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
     }
 } 
 
@@ -259,6 +259,7 @@ push_char(char in_char) {
            key_buf[in_ptr++] = in_char;
            in_ptr &= 0xff;
            in_len++;
+printf("Cons push_char(%02x)\n", in_char);
            send(cons, &in_char, 1, 0);
        }
     }
@@ -303,8 +304,6 @@ model1050_thrd(void *data)
             size = sizeof(client);
             newsock = accept(sock, (struct sockaddr *)&client, &size);
             printf("Accept\n\r");
-//            flags = fcntl(newsock, F_GETFL, 0);
- //           fcntl(newsock, F_SETFL, flags | O_NONBLOCK);
             if (cons == 0) {
                printf("Connected\n");
                cons = newsock;

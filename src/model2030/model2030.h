@@ -85,11 +85,15 @@ extern struct ROS_2030 {
 extern struct CPU_2030 {
 int         count;
 uint16_t    M[64 * 1024];       /* Main memory */
-uint16_t    LS[2048];           /* Local storage and BUMP storage */
+uint16_t    LS[4096];           /* Local storage and BUMP storage */
 uint8_t     MP[256];            /* Protection storage. 4 bits */
 
 int          mem_max;           /* Maximum memory address - 1 */
                                 /* 8K = 0x1FFF, 16K = 0x3FFF, 32K = 0x7FF, 64k = 0xFFFF */
+
+uint32_t    ros_row1;           /* Current ROS values */
+uint32_t    ros_row2;
+uint32_t    ros_row3;
 
 uint16_t    Abus;               /* Holds the input to the A side of ALU. */
 uint16_t    Bbus;               /* Holds the input to the B side of ALU. */
@@ -354,7 +358,6 @@ extern uint8_t     load_mode;
 #define MAIN   1
 #define LOCAL  2
 #define MPX    4
-
 
 void  cycle();
 

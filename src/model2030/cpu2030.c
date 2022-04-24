@@ -299,7 +299,7 @@ cycle()
 {
    uint16_t   nextWX = cpu_2030.WX;
    uint16_t   mask;
-   struct ROS_2030  *sal = &ros_2030[nextWX];
+   struct ROS_2030  *sal;
    int         dec;
    int         carry_in;
    uint16_t   abus_f;
@@ -309,6 +309,10 @@ cycle()
    int         i, j;
    struct _device *dev;
 
+   sal = &ros_2030[nextWX];
+   cpu_2030.ros_row1 = sal->row1;
+   cpu_2030.ros_row2 = sal->row2;
+   cpu_2030.ros_row3 = sal->row3;
    priority = 0;
    chk_or_diag_stop_sw = (CHK_SW == 3);
    /* See if address matches selected switches */
@@ -941,6 +945,9 @@ printf("Set Roar %d\n", allow_man_operation);
         /* Otherwise see if CPU clock is running */
         if (clock_start_lch) {         
            sal = &ros_2030[cpu_2030.WX];
+           cpu_2030.ros_row1 = sal->row1;
+           cpu_2030.ros_row2 = sal->row2;
+           cpu_2030.ros_row3 = sal->row3;
       
           /* Print instruction and registers */
           if (cpu_2030.WX == 0x109) {
@@ -963,7 +970,7 @@ printf("Set Roar %d\n", allow_man_operation);
              }
           }
 
-#if 0
+#if 1
           /* Disassemble micro instruction */
            printf ("%s %03X: %02x ", sal->note, cpu_2030.WX, sal->CK);
            if (sal->CK < 0x10) {
@@ -2318,13 +2325,13 @@ printf("Set Roar %d\n", allow_man_operation);
            }
            
                
-//           printf("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
- //                  cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG, cpu_2030.Q_REG, cpu_2030.R_REG,
- //                  cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG, cpu_2030.FT, cpu_2030.MASK, abus_f, cc_name[sal->CC], bbus_f, cpu_2030.Alu_out, ASCII);
- //          printf("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d\n",
- //                  cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG, 
- //                  cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX, cpu_2030.STAT_REG,
- //                  cpu_2030.O_REG, carries, priority_lch, allow_write, read_call, second_err_stop);
+           printf("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
+                   cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG, cpu_2030.Q_REG, cpu_2030.R_REG,
+                   cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG, cpu_2030.FT, cpu_2030.MASK, abus_f, cc_name[sal->CC], bbus_f, cpu_2030.Alu_out, ASCII);
+           printf("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d\n",
+                   cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG, 
+                   cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX, cpu_2030.STAT_REG,
+                   cpu_2030.O_REG, carries, priority_lch, allow_write, read_call, second_err_stop);
 
         }
 
