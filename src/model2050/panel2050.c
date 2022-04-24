@@ -1,7 +1,7 @@
 /*
- * microsim360 - 2030 Front panel display.
+ * microsim360 - 2050 Front panel display.
  *
- * Copyright 2021, Richard Cornwell
+ * Copyright 2022, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal

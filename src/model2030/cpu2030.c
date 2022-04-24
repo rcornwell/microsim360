@@ -112,10 +112,6 @@ struct _device *chan[6];         /* Channels */
 #define E_SW_SEL_FI   (E_SW == 0x3b)
 #define E_SW_SEL_FT   (E_SW == 0x3c)
 
-struct ROS_2030 ros_2030[4096] = {
-#include "model2030_ros.h"
-};
-
 static char *ch_name[] = {
      "0", "1", "RO", "V67=0", "STI", "OPI", "AC", "S0",
      "S1", "S2", "S4", "S6", "G0", "G2", "G4", "G6"};

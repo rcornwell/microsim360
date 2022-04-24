@@ -1,3 +1,28 @@
+/*
+ * microsim360 - Model 2050 CROS to C converter.
+ *
+ * Copyright 2022, Richard Cornwell
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -5,45 +30,9 @@
 #include <ctype.h>
 
 #include <sys/types.h>
+#include "model2050.h"
 
-struct _ros {
-    int      io;
-    int      lu;
-    int      mv;
-    int      zp;
-    int      zn;
-    int      zf;
-    int      tr;
-    int      zr;
-    int      ws;
-    int      sf;
-    int      iv;
-    int      al;
-    int      wm;
-    int      up;
-    int      md;
-    int      lb;
-    int      mb;
-    int      dg;
-    int      ul;
-    int      ur;
-    int      ce;
-    int      lx;
-    int      tc;
-    int      ry;
-    int      ad;
-    int      ab;
-    int      bb;
-    int      ux;
-    int      ss;
-    int      extra;
-    uint32_t row1;
-    uint32_t row2;
-    uint32_t row3;
-    uint32_t row4;
-    char    note[20];
-} ROS[4096];
-
+struct ROS_2050 ros_2050[4096];
 
 int
 main(int argc, char *argv[])
@@ -152,10 +141,10 @@ loop:
         } else {
             io = 0;
         }
-        ROS[addr1].io = io;
+        ros_2050[addr1].io = io;
         p += 5;
         while (*p == ' ') p++;
-        strcpy(&ROS[addr1].note[0], &note[0]);
+        strcpy(&ros_2050[addr1].note[0], &note[0]);
         /* Grab rest of line */
         j = b = 0;
         parity = 1;
@@ -200,38 +189,38 @@ loop:
         }
         if (addr1 > max)
             max=addr1;
-        ROS[addr1].lu = (bits[0] >> 27) & 7;
-        ROS[addr1].mv = (bits[0] >> 25) & 3;
-        ROS[addr1].zp = ((bits[0] >> 19) & 0x3f) << 6;
-        ROS[addr1].zf = (bits[0] >> 15) & 0xf;
-        ROS[addr1].zn = (bits[0] >> 12) & 7;
-        ROS[addr1].tr = (bits[0] >> 7) & 0x1f;
-        ROS[addr1].zr = (bits[0] >> 6) & 1;
-        ROS[addr1].ws = (bits[0] >> 3) & 7;
-        ROS[addr1].sf = bits[0] & 7;
-        ROS[addr1].row1 = bits[0];
-        ROS[addr1].iv = (bits[1] >> 21) & 7;
-        ROS[addr1].al = (bits[1] >> 16) & 0x1f;
-        ROS[addr1].wm = (bits[1] >> 12) & 0xf;
-        ROS[addr1].up = (bits[1] >> 10) & 0x3;
-        ROS[addr1].md = (bits[1] >> 9) & 1;
-        ROS[addr1].lb = (bits[1] >> 8) & 1;
-        ROS[addr1].mb = (bits[1] >> 7) & 1;
-        ROS[addr1].dg = (bits[1] >> 4) & 7;
-        ROS[addr1].ul = (bits[1] >> 2) & 3;
-        ROS[addr1].ur = bits[1] & 3;
-        ROS[addr1].row2 = bits[1];
-        ROS[addr1].ce = (bits[2] >> 23) & 0xf;
-        ROS[addr1].lx = (bits[2] >> 20) & 0x7;
-        ROS[addr1].tc = (bits[2] >> 19) & 0x1;
-        ROS[addr1].ry = (bits[2] >> 16) & 0x7;
-        ROS[addr1].ad = (bits[2] >> 12) & 0xf;
-        ROS[addr1].ab = (bits[2] >> 6) & 0x3f;
-        ROS[addr1].bb = (bits[2] >> 1) & 0x1f;
-        ROS[addr1].ux = bits[2] & 1;
-        ROS[addr1].row3 = bits[2];
-        ROS[addr1].ss = (bits[3] >> 8) & 0x3f;
-        ROS[addr1].row4 = bits[3];
+        ros_2050[addr1].lu = (bits[0] >> 27) & 7;
+        ros_2050[addr1].mv = (bits[0] >> 25) & 3;
+        ros_2050[addr1].zp = ((bits[0] >> 19) & 0x3f) << 6;
+        ros_2050[addr1].zf = (bits[0] >> 15) & 0xf;
+        ros_2050[addr1].zn = (bits[0] >> 12) & 7;
+        ros_2050[addr1].tr = (bits[0] >> 7) & 0x1f;
+        ros_2050[addr1].zr = (bits[0] >> 6) & 1;
+        ros_2050[addr1].ws = (bits[0] >> 3) & 7;
+        ros_2050[addr1].sf = bits[0] & 7;
+        ros_2050[addr1].row1 = bits[0];
+        ros_2050[addr1].iv = (bits[1] >> 21) & 7;
+        ros_2050[addr1].al = (bits[1] >> 16) & 0x1f;
+        ros_2050[addr1].wm = (bits[1] >> 12) & 0xf;
+        ros_2050[addr1].up = (bits[1] >> 10) & 0x3;
+        ros_2050[addr1].md = (bits[1] >> 9) & 1;
+        ros_2050[addr1].lb = (bits[1] >> 8) & 1;
+        ros_2050[addr1].mb = (bits[1] >> 7) & 1;
+        ros_2050[addr1].dg = (bits[1] >> 4) & 7;
+        ros_2050[addr1].ul = (bits[1] >> 2) & 3;
+        ros_2050[addr1].ur = bits[1] & 3;
+        ros_2050[addr1].row2 = bits[1];
+        ros_2050[addr1].ce = (bits[2] >> 23) & 0xf;
+        ros_2050[addr1].lx = (bits[2] >> 20) & 0x7;
+        ros_2050[addr1].tc = (bits[2] >> 19) & 0x1;
+        ros_2050[addr1].ry = (bits[2] >> 16) & 0x7;
+        ros_2050[addr1].ad = (bits[2] >> 12) & 0xf;
+        ros_2050[addr1].ab = (bits[2] >> 6) & 0x3f;
+        ros_2050[addr1].bb = (bits[2] >> 1) & 0x1f;
+        ros_2050[addr1].ux = bits[2] & 1;
+        ros_2050[addr1].row3 = bits[2];
+        ros_2050[addr1].ss = (bits[3] >> 8) & 0x3f;
+        ros_2050[addr1].row4 = bits[3];
     }
     for (addr1 = 0; addr1 < 4096; addr1++) {
                           /*       io    lu     mv    zp   zn    zf    tr */
@@ -244,18 +233,18 @@ loop:
                      " 0x%x, 0x%x, 0x%x, 0x%x,  0x%x, 0x%08x, 0x%08x, 0x%08x, "
                    /* row4   note */
                      " 0x%08x, \"%s\"},\n",
-                  addr1, ROS[addr1].io, ROS[addr1].lu, ROS[addr1].mv,
-                         ROS[addr1].zp, ROS[addr1].zn, ROS[addr1].zf, 
-                         ROS[addr1].tr, ROS[addr1].zr, ROS[addr1].ws,
-                         ROS[addr1].sf, ROS[addr1].iv, ROS[addr1].al,
-                         ROS[addr1].wm, ROS[addr1].up, ROS[addr1].md,
-                         ROS[addr1].mb, ROS[addr1].lb, ROS[addr1].dg,
-                         ROS[addr1].ul, ROS[addr1].ur, ROS[addr1].ce,
-                         ROS[addr1].lx, ROS[addr1].tc, ROS[addr1].ry,
-                         ROS[addr1].ad, ROS[addr1].ab, ROS[addr1].bb,
-                         ROS[addr1].ux, ROS[addr1].ss, ROS[addr1].extra,
-                         ROS[addr1].row1, ROS[addr1].row2, ROS[addr1].row3,
-                         ROS[addr1].row4, ROS[addr1].note);
+                  addr1, ros_2050[addr1].io, ros_2050[addr1].lu, ros_2050[addr1].mv,
+                         ros_2050[addr1].zp, ros_2050[addr1].zn, ros_2050[addr1].zf, 
+                         ros_2050[addr1].tr, ros_2050[addr1].zr, ros_2050[addr1].ws,
+                         ros_2050[addr1].sf, ros_2050[addr1].iv, ros_2050[addr1].al,
+                         ros_2050[addr1].wm, ros_2050[addr1].up, ros_2050[addr1].md,
+                         ros_2050[addr1].mb, ros_2050[addr1].lb, ros_2050[addr1].dg,
+                         ros_2050[addr1].ul, ros_2050[addr1].ur, ros_2050[addr1].ce,
+                         ros_2050[addr1].lx, ros_2050[addr1].tc, ros_2050[addr1].ry,
+                         ros_2050[addr1].ad, ros_2050[addr1].ab, ros_2050[addr1].bb,
+                         ros_2050[addr1].ux, ros_2050[addr1].ss, ros_2050[addr1].extra,
+                         ros_2050[addr1].row1, ros_2050[addr1].row2, ros_2050[addr1].row3,
+                         ros_2050[addr1].row4, ros_2050[addr1].note);
     }
     return 0;
 }

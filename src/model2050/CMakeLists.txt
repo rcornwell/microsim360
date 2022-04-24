@@ -1,4 +1,4 @@
-# Copyright 2021, Richard Cornwell
+# Copyright 2022, Richard Cornwell
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,6 @@ target_include_directories(cros2050 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 
 add_custom_target(model2050_ros.h
-#   COMMAND cros2030 ${CMAKE_CURRENT_SOURCE_DIR}/ccros20120318.txt model2030_ros.h
    COMMAND cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt model2050_ros.h
    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/model2050_ros.h
    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

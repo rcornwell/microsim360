@@ -1,7 +1,7 @@
 /*
- * microsim360 - Model 2030 definitions.
+ * microsim360 - Model 2050 definitions.
  *
- * Copyright 2021, Richard Cornwell
+ * Copyright 2022, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -98,7 +98,7 @@ extern struct ROS_2050 {
     uint32_t row2;
     uint32_t row3;
     uint32_t row4;
-    char    *note;
+    char     note[20];
 } ros_2050[4096];
 
 #define R1  1                    /* Start of read cycle */
