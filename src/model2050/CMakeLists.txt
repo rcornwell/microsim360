@@ -18,12 +18,20 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(device)
-add_subdirectory(model1442)
-add_subdirectory(model1443)
-add_subdirectory(model2415)
-add_subdirectory(model2030)
-add_subdirectory(model2050)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/image)
-target_sources(${PROJECT_NAME} PUBLIC fp30.c)
 
+target_sources(${PROJECT_NAME} PUBLIC cpu2050.c panel2050.c model2050_ros.c)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/images)
+add_dependencies(${PROJECT_NAME} model2050_ros.h)
+
+add_executable(cros2050 cros2050.c)
+target_include_directories(cros2050 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+                                ${CMAKE_CURRENT_SOURCE_DIR}/../device )
+
+add_custom_target(model2050_ros.h
+#   COMMAND cros2030 ${CMAKE_CURRENT_SOURCE_DIR}/ccros20120318.txt model2030_ros.h
+   COMMAND cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt model2050_ros.h
+   BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/model2050_ros.h
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+   DEPENDS cros2050.c ros.txt)
