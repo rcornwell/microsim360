@@ -926,7 +926,7 @@ printf("Sense %d:%02x\n", ctx->sense_cnt, ctx->sense[ctx->sense_cnt]);
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                   ctx->selected = 1;
-                  ctx->state = STATE_OPR;              /* Go wait for everything to drop */
+                  ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
 //printf("selected\n");
               }
 
@@ -1117,7 +1117,7 @@ printf("Tape End channel status %02x %02x\n", ctx->status, ctx->cmd);
                  }
                  *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);  /* Clear select out and in */
 //printf("Accepted\n");
-                  ctx->status &= ~SNS_CHNEND;
+//                  ctx->status &= ~SNS_CHNEND;
                   ctx->state = STATE_WAIT;            /* Wait for operation to finish */
                   break;
              }

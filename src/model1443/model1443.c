@@ -526,8 +526,9 @@ printf("printer Address\n");
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                   ctx->selected = 1;
-                  ctx->state = STATE_OPR;              /* Go wait for everything to drop */
+                  ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
 printf("printer selected\n");
+                  break;
               }
 
               /* See if another device got it. */
@@ -694,8 +695,8 @@ printf("printer Accepted\n");
                   if ((*tags & CHAN_SUP_OUT) == 0) {
                       ctx->status &= ~SNS_CHNEND;
                   }
-                  ctx->status |= SNS_DEVEND;
-//                  ctx->delay = 150;
+//                  ctx->status |= SNS_DEVEND;
+                  ctx->delay = 150;
                   ctx->state = STATE_WAIT;                    /* All done, back to idle state */
                   break;
              }
@@ -709,7 +710,7 @@ printf("printer Stacked\n");
                   if ((*tags & CHAN_SUP_OUT) == 0) {
                       ctx->status &= ~SNS_CHNEND;
                   }
-                  ctx->status |= SNS_DEVEND;
+//                  ctx->status |= SNS_DEVEND;
                   ctx->state = STATE_WAIT;                         /* Stack status */
                   break;
              }

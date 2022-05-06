@@ -412,6 +412,7 @@ printf("reader reselect\n");
                   *tags &= ~(CHAN_OPR_IN);             /* Clear select out and in */
                   *bus_in = SNS_CHNEND|SNS_DEVEND|0x100;
                   ctx->state = STATE_END;              /* Return busy status */
+                  ctx->data_end = 1;
                   ctx->selected = 0;
 printf("reader Halt i/o\n");
                   break;
@@ -465,8 +466,9 @@ printf("reader Address\n");
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                   ctx->selected = 1;
-                  ctx->state = STATE_OPR;              /* Go wait for everything to drop */
+                  ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O; 
 printf("reader selected\n");
+                  break;
               }
 
               /* See if another device got it. */
@@ -637,7 +639,7 @@ printf("End channel status %02x %02x\n", ctx->status, ctx->cmd);
 printf("reader Accepted data_end\n");
 //                  ctx->selected = 0;
                   ctx->status &= ~SNS_CHNEND;
-                  ctx->status |= SNS_DEVEND;
+//                  ctx->status |= SNS_DEVEND;
                   ctx->state = STATE_WAIT;              /* All done, back to idle state */
                   break;
              }
@@ -649,7 +651,7 @@ printf("reader Accepted data_end\n");
 printf("reader Stacked data_end\n");
                   ctx->selected = 0;
                   ctx->status &= ~SNS_CHNEND;
-                  ctx->status |= SNS_DEVEND;
+ //                 ctx->status |= SNS_DEVEND;
                   ctx->state = STATE_WAIT;            /* Stack status */
                   break;
              }
