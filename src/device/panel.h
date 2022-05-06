@@ -200,6 +200,7 @@ extern struct _roller {
     int           sel;                /* Current roller selection */
     struct _disp {
         uint32_t    *value[36];       /* Pointer to value */
+        uint8_t     *value8[36];      /* Pointer to uint8 value */
         int         shift[36];        /* Shift amount */
         int         mask[36];         /* Mask */
     } disp[8];
@@ -377,5 +378,7 @@ void setup_fp2030(SDL_Renderer *render);
 void setup_fp2050(SDL_Renderer *render);
 
 int textpos(struct _text *text, int pos);
+
+extern uint64_t    step_count;
 
 #endif

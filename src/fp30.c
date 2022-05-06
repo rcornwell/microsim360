@@ -153,6 +153,8 @@ int toggle_ptr = 0;
 int key_state = 0;
 int text_entry = -1;
 
+uint64_t         step_count;
+
 void
 draw_circle(int x, int y, int radius, SDL_Color color)
 {
@@ -491,8 +493,24 @@ draw_screen()
              rect2.y = 0;
              if (roller[i].disp[roller[i].sel].value[j] != 0) {
                  v = *roller[i].disp[roller[i].sel].value[j];
-                 v >>= roller[i].disp[roller[i].sel].shift[j];
-                 v &= 1;
+             }
+             /* Handle uint8_t types as well */
+             if (roller[i].disp[roller[i].sel].value8[j] != 0) {
+                 v = (uint32_t)(*roller[i].disp[roller[i].sel].value8[j]);
+             }
+             v >>= roller[i].disp[roller[i].sel].shift[j];
+             /* If there is a mask, compute parity */
+             if (roller[i].disp[roller[i].sel].mask[j] != 0) {
+                 int k, p = 1;
+                 uint32_t   mask = roller[i].disp[roller[i].sel].mask[j];
+                 for (k = 0; k < 32 && mask != 0; k++) {
+                     uint32_t  m = 1<<k;
+                     if (m & mask) {
+                         p ^= ((v & m) != 0);
+                         mask ^= m;
+                     }
+                 }
+                 v = p;
              }
              if (v)
                 rect2.y = 15;
@@ -993,6 +1011,7 @@ int main(int argc, char *argv[]) {
     int      mPopID = -1;
     uint32_t ticks;
 
+    step_count = 0;
     /* Start SDL */
     SDL_Init( SDL_INIT_EVERYTHING );
     TTF_Init();
@@ -1497,6 +1516,7 @@ int process(void *data) {
 fprintf(stderr, "Process start %d\n", cpu_2030.count);
     while(POWER) {
        cpu_2030.count ++;
+       step_count++;
        if (cpu_2030.count > 20000) {
           SDL_LockMutex(display_mutex);
           while (cpu_2030.count > 20000 && POWER) {

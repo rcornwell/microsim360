@@ -348,25 +348,24 @@ t_opcode        *tab;
 
     for (tab = optab; tab->name != NULL; tab++) {
        if (tab->opbase == val[0]) {
-          printf("%s ", tab->name);
           switch (tab->type & LNMSK) {
           case RR:  /* op, reg1:reg2 */
                     if (tab->type & IMDOP) {
-                        printf("%02x", val[1]);
+                        printf("%s %02x", tab->name, val[1]);
                     } else {
                         if (tab->type & ONEOP)
-                            printf("%d", (val[1] >> 4) & 0xf);
+                            printf("%s %d", tab->name, (val[1] >> 4) & 0xf);
                         else
-                            printf("%d,%d", (val[1] >> 4) & 0xf, val[1] & 0xf);
+                            printf("%s %d,%d", tab->name, (val[1] >> 4) & 0xf, val[1] & 0xf);
                     }
                     break;
           case RX:  /* op, reg1:reg2 reg3:off off */
-                    printf("%d,%01x%02x(%d,%d)", (val[1] >> 4) & 0xf,
+                    printf("%s %d,%01x%02x(%d,%d)", tab->name, (val[1] >> 4) & 0xf,
                                 val[2] & 0xf, val[3] & 0xff, val[1] & 0xf,
                                 (val[2] >> 4) & 0xf);
                     break;
           case RS:  /* op, reg1:reg2 reg3:off off */
-                    printf("%d,", (val[1] >> 4) & 0xf);
+                    printf("%s %d,", tab->name, (val[1] >> 4) & 0xf);
                     if ((tab->type & ZEROOP) == 0)
                         printf( "%d,", val[1] & 0xf);
                     printf("%01x%02x", val[2] & 0xf, val[3] & 0xff);
@@ -374,20 +373,20 @@ t_opcode        *tab;
                         printf( "(%d)", (val[2] >> 4) & 0xf);
                     break;
           case SI:
-                    printf("%01x%02x", val[2] & 0xf, val[3] & 0xff);
+                    printf("%s %01x%02x", tab->name, val[2] & 0xf, val[3] & 0xff);
                     if (val[2] & 0xf0)
                         printf("(%d)", (val[2] >> 4) & 0xf);
                     if ((tab->type & ZEROOP) == 0)
                         printf(",%02x", val[1] & 0xff);
                     break;
           case SS:
-                    printf("%01x%02x", val[2] & 0xf, val[3] & 0xff);
+                    printf("%s %01x%02x", tab->name, val[2] & 0xf, val[3] & 0xff);
                     if (tab->type & TWOOP) {
                        printf("(%d", (val[1] >> 4) & 0xf);
                     } else {
                        printf("(%d", val[1] & 0xff);
                     }
-                    if (val[2] & 0xf000)
+                    if (val[2] & 0xf0)
                         printf(",%d", (val[2] >> 4) & 0xf);
                     printf("),");
                     printf("%01x%02x", val[4] & 0xf, val[5] & 0xff);
