@@ -36,6 +36,7 @@
 #endif
 #include <fcntl.h>
 
+#include "logger.h"
 #include "panel.h"
 #include "model2030.h"
 #include "model1050.h"
@@ -913,7 +914,7 @@ textcutpaste(struct _text *text, int remove, int insert, int copy)
          text->srect.w = textpos(text, text->epos) - text->srect.x;
      }
      text->len = strlen(text->text);
-     printf("Text update (%s)\n", text->text);
+     log_trace("Text update (%s)\n", text->text);
 }
 
 void
@@ -1012,6 +1013,8 @@ int main(int argc, char *argv[]) {
     uint32_t ticks;
 
     step_count = 0;
+    log_init("debug.log");
+    log_level = LOG_TRACE|LOG_ITRACE|LOG_REG|LOG_MICRO|LOG_DEVICE|LOG_TAPE|LOG_CONSOLE;
     /* Start SDL */
     SDL_Init( SDL_INIT_EVERYTHING );
     TTF_Init();
@@ -1203,7 +1206,7 @@ int main(int argc, char *argv[]) {
             else if (event.window.windowID == mDeviceID) {
                switch(event.type) {
                case SDL_MOUSEBUTTONDOWN:
-                    printf("Dev %d %d\n", event.button.x, event.button.y);
+                    log_device("Dev %d %d\n", event.button.x, event.button.y);
                     if (pop_wind != NULL)
                         break;
                     for (i = 0; i < sizeof(chan)/sizeof(struct _device *); i++) {
@@ -1231,7 +1234,7 @@ int main(int argc, char *argv[]) {
                case SDL_WINDOWEVENT:
                     switch (event.window.event) {
                     case SDL_WINDOWEVENT_CLOSE:
-printf("Close\n");
+log_device("Close\n");
                           if (pop_wind == NULL)
                               break;
                           /* Draw all labels */
@@ -1266,7 +1269,7 @@ printf("Close\n");
                     }
                     break;
                case SDL_QUIT:
-                   printf("Quit\n");
+                   log_trace("Quit\n");
                     break;
                case SDL_MOUSEBUTTONDOWN:
                     for (i = 0; i < pop_wind->sws_ptr; i++) {
@@ -1274,7 +1277,7 @@ printf("Close\n");
                             if (pop_wind->sws[i].value != 0) {
                                 *pop_wind->sws[i].value = 1;
                             }
-printf("switch %d\n", i);
+log_trace("switch %d\n", i);
                             pop_wind->sws[i].active = 1;
                             text_entry = -1;
                             if (pop_wind->update != NULL) {
@@ -1289,7 +1292,7 @@ printf("switch %d\n", i);
                             if (pop_wind->combo[i].value != 0) {
                                 *pop_wind->combo[i].value = pop_wind->combo[i].num;
                             }
-printf("combo %d %d\n", i, pop_wind->combo[i].num);
+log_trace("combo %d %d\n", i, pop_wind->combo[i].num);
                         }
                         if (inrect(event.button.x, event.button.y, pop_wind->combo[i].drect)) {
                             if (pop_wind->combo[i].num > 0)
@@ -1297,7 +1300,7 @@ printf("combo %d %d\n", i, pop_wind->combo[i].num);
                             if (pop_wind->combo[i].value != 0) {
                                 *pop_wind->combo[i].value = pop_wind->combo[i].num;
                             }
-printf("combo %d %d\n", i, pop_wind->combo[i].num);
+log_trace("combo %d %d\n", i, pop_wind->combo[i].num);
                         }
                     }
                     for (i = 0; i < pop_wind->txt_ptr; i++) {
@@ -1312,7 +1315,7 @@ printf("combo %d %d\n", i, pop_wind->combo[i].num);
                             pop_wind->text[i].srect.w = 0;
                             pop_wind->text[i].selecting = 1;
                             pop_wind->text[i].sel = 0;
-printf("enable %d %d %d %d\n", i, event.button.x, pop_wind->text[i].pos, pop_wind->text[i].cpos);
+log_trace("enable %d %d %d %d\n", i, event.button.x, pop_wind->text[i].pos, pop_wind->text[i].cpos);
                         }
                     }
                     break;
@@ -1323,7 +1326,7 @@ printf("enable %d %d %d %d\n", i, event.button.x, pop_wind->text[i].pos, pop_win
                             struct _text *t = &pop_wind->text[text_entry];
                             int h, w;
                             TTF_SizeText(font14, t->text, &w, &h);
-printf("Select All %d\n", w);
+log_trace("Select All %d\n", w);
                             t->spos = 0;
                             t->epos = strlen(t->text);;
                             t->sel = 1;
@@ -1333,13 +1336,13 @@ printf("Select All %d\n", w);
                             t->srect.w = w;
                         } else if (event.key.keysym.sym == SDLK_x) {
                             textcutpaste(&pop_wind->text[text_entry], 1, 0, 0);
-        printf("Control x\n");
+        log_trace("Control x\n");
                         } else if (event.key.keysym.sym == SDLK_c) {
                             textcutpaste(&pop_wind->text[text_entry], 0, 0, 1);
-        printf("Control c\n");
+        log_trace("Control c\n");
                         } else if (event.key.keysym.sym == SDLK_v) {
                             textcutpaste(&pop_wind->text[text_entry], 1, 1, 0);
-        printf("Control v\n");
+        log_trace("Control v\n");
                         }
                     }
                     switch (event.key.keysym.scancode) {
@@ -1381,21 +1384,21 @@ printf("Select All %d\n", w);
                     case SDL_SCANCODE_DELETE:
                     case SDL_SCANCODE_BACKSPACE:
                          textdelete(&pop_wind->text[text_entry]);
-        printf("Key %d\n", event.key.keysym.scancode);
+        log_trace("Key %d\n", event.key.keysym.scancode);
                          break;
                     default:
-        printf("Key default %d\n", event.key.keysym.scancode);
+        log_trace("Key default %d\n", event.key.keysym.scancode);
                          break;
                     }
                     break;
 
                case SDL_TEXTINPUT:
                     textinsert(&pop_wind->text[text_entry], event.text.text);
- printf("Text input %s\n", event.text.text);
+ log_trace("Text input %s\n", event.text.text);
                     break;
 
                case SDL_TEXTEDITING:
- printf("Text Editing %s %d %d\n", event.edit.text, event.edit.start, event.edit.length);
+ log_trace("Text Editing %s %d %d\n", event.edit.text, event.edit.start, event.edit.length);
                     break;
 
                case SDL_MOUSEMOTION:
@@ -1404,7 +1407,7 @@ printf("Select All %d\n", w);
                         int cpos = t->pos;
                         int pos;
                         pos = findtextpos(t, event.button.x);
-printf("Motion %d %d pos=%d, %d\n", text_entry, event.button.x, pos, t->pos);
+log_trace("Motion %d %d pos=%d, %d\n", text_entry, event.button.x, pos, t->pos);
                         if (pos < cpos) {
                             t->spos = pos;
                             t->epos = cpos;
@@ -1422,7 +1425,7 @@ printf("Motion %d %d pos=%d, %d\n", text_entry, event.button.x, pos, t->pos);
                         else
                             t->srect.x = 0;
                         t->srect.w = textpos(t, t->epos) - t->srect.x;
-printf("Motion %d %d %d %d\n", t->spos, t->epos, t->sel, t->pos);
+log_trace("Motion %d %d %d %d\n", t->spos, t->epos, t->sel, t->pos);
                     }
                     break;
 
@@ -1433,14 +1436,14 @@ printf("Motion %d %d %d %d\n", t->spos, t->epos, t->sel, t->pos);
                         pop_wind->text[text_entry].cpos = pop_wind->text[text_entry].srect.x +
                                                           pop_wind->text[text_entry].srect.w;
                     }
-printf("mouse up %d %d %d %d\n", i, event.button.x, pop_wind->text[i].pos, pop_wind->text[i].cpos);
+log_trace("mouse up %d %d %d %d\n", i, event.button.x, pop_wind->text[i].pos, pop_wind->text[i].cpos);
                     for (i = 0; i < pop_wind->sws_ptr; i++) {
                         if (inrect(event.button.x, event.button.y, pop_wind->sws[i].rect)) {
                             if (pop_wind->sws[i].value != 0) {
                                 *pop_wind->sws[i].value = 0;
                             }
                             pop_wind->sws[i].active = 0;
-printf("switch off %d\n", i);
+log_trace("switch off %d\n", i);
                         }
                     }
                     break;
@@ -1479,12 +1482,12 @@ printf("switch off %d\n", i);
             case SDL_WINDOWEVENT:
                     switch (event.window.event) {
                     case SDL_WINDOWEVENT_CLOSE:
-printf("Close\n");
+log_trace("Close\n");
                          break;
                     }
                  break;
             case SDL_QUIT:
-printf("Quit\n");
+log_trace("Quit\n");
                  POWER = 0;
                  cpu_2030.count = 0;
                  break;
@@ -1495,7 +1498,7 @@ printf("Quit\n");
         }
     }
   done:
-	printf("Done\n");
+	log_trace("Done\n");
     SDL_WaitThread(thrd, NULL);
     model1050_done();
     SDL_RemoveTimer(disp_timer);
@@ -1513,7 +1516,7 @@ printf("Quit\n");
 
 
 int process(void *data) {
-fprintf(stderr, "Process start %d\n", cpu_2030.count);
+    log_info("Process start %d\n", cpu_2030.count);
     while(POWER) {
        cpu_2030.count ++;
        step_count++;

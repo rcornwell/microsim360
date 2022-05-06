@@ -29,6 +29,7 @@
 #include <SDL_ttf.h>
 #include <SDL_image.h>
 #include <string.h>
+#include "logger.h"
 #include "card.h"
 #include "model1442.h"
 #include "model1442.xpm"
@@ -107,8 +108,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     static   uint16_t last_tags = 0;
 
     if (last_tags != *tags) {
-        printf("Reader tags: %d ", ctx->state);
-        print_tags(*tags, bus_out);
+        print_tags("Reader", ctx->state, *tags, bus_out);
         last_tags = *tags;
     }
     /* Reset device if OPER OUT is dropped */
@@ -141,7 +141,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags |= CHAN_OPR_IN;
                  ctx->state = STATE_SEL;
                  ctx->selected = 1;
- printf("reader selected\n");
+                 log_device("reader selected\n");
              }
              break;
 
@@ -155,7 +155,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SUP_OUT)) {
                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
                  *bus_in = ctx->addr | odd_parity[ctx->addr];
- printf("reader address\n");
+                 log_device("reader address\n");
             }
 
             /* Wait for Command out to raise */
@@ -164,7 +164,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
- printf("reader command %02x\n", bus_out);
+                 log_device("reader command %02x\n", bus_out);
                  ctx->cmd = bus_out & 0xff;
                  ctx->data_rdy = 0;
                  ctx->data_end = 0;
@@ -266,7 +266,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
                   *tags |= CHAN_OPR_IN|CHAN_STA_IN;     /* Wait for acceptance of status */
- printf("reader init stat\n");
+                 log_device("reader init stat\n");
              }
 
              /* When we get acknowlegment, go wait for it to go away */
@@ -275,7 +275,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~CHAN_STA_IN;
                  ctx->state = STATE_INIT_STAT;
- printf("reader init stat\n");
+                 log_device("reader init stat\n");
              }
              *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
              /* Device selected */
@@ -303,14 +303,14 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                      *tags &= ~(CHAN_OPR_IN);           /* Clear select out and in */
                      ctx->selected = 0;
                  }
- printf("reader state done\n");
+                 log_device("reader state done\n");
                  break;
              }
              *tags &= ~(CHAN_SEL_OUT);                 /* Clear select out and in */
              break;
 
     case STATE_OPR:
- printf("reader opr %d\n", ctx->selected);
+             log_device("reader opr %d\n", ctx->selected);
 #if 0
              /* Wait for Command out to drop */
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN) || 
@@ -353,7 +353,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                     ctx->data_rdy = 1;
                     ctx->data_end = 1;
                     ctx->state = STATE_DATA_O;
-printf("reader Sense %02x\n", ctx->sense);
+                    log_device("reader Sense %02x\n", ctx->sense);
                     break;
              case 1: /* Write */
                     /* Wait for data to be available */
@@ -366,7 +366,7 @@ printf("reader Sense %02x\n", ctx->sense);
                         ctx->data_rdy = 0;
                     }
                     ctx->state = STATE_DATA_I;
-printf("reader Write get1\n");
+                    log_device("reader Write get1\n");
                     break;
              case 2: /* Read */
                     if (ctx->data_rdy == 0) {
@@ -376,7 +376,7 @@ printf("reader Write get1\n");
                             ch = ebcdic_to_ascii[ctx->data];
                             if (!isprint(ch))
                                ch = '.';
-printf("Read data %d:%02x '%c'", ctx->rdr_col, ctx->data, ch);
+                            log_device("Read data %d:%02x '%c'", ctx->rdr_col, ctx->data, ch);
                             ctx->rdr_col++;
                             ctx->data_rdy = 1;
                             ctx->delay = 100;
@@ -399,7 +399,7 @@ printf("Read data %d:%02x '%c'", ctx->rdr_col, ctx->data, ch);
                 *tags |= CHAN_STA_IN;                  /* Indicate busy status */
                 *bus_in = SNS_BSY;
                 ctx->selected = 1;
-printf("reader reselect\n");
+                log_device("reader reselect\n");
                 break;
              }
             
@@ -414,7 +414,7 @@ printf("reader reselect\n");
                   ctx->state = STATE_END;              /* Return busy status */
                   ctx->data_end = 1;
                   ctx->selected = 0;
-printf("reader Halt i/o\n");
+                  log_device("reader Halt i/o\n");
                   break;
              }
 
@@ -432,7 +432,7 @@ printf("reader Halt i/o\n");
              if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_STA_IN)) {
                   *tags &= ~(CHAN_STA_IN);             /* Clear select out and in */
                   ctx->selected = 0;
-printf("reader deselected\n");
+                  log_device("reader deselected\n");
                   break;
              }
 
@@ -440,14 +440,14 @@ printf("reader deselected\n");
              break;
 
     case STATE_REQ:   /* Data available and we are not talking on channel */
-printf("reader Request\n");
+             log_device("reader Request\n");
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_REQ_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_REQ_IN)) {
                  /* Put our address on the bus */
                  *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);        /* Clear select out and in */
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-printf("reader Reselect\n");
+                 log_device("reader Reselect\n");
                  break;
              }
 
@@ -457,7 +457,7 @@ printf("reader Reselect\n");
                  *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-printf("reader Address\n");
+                 log_device("reader Address\n");
                  break;
              }
 
@@ -467,14 +467,14 @@ printf("reader Address\n");
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                   ctx->selected = 1;
                   ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O; 
-printf("reader selected\n");
+                  log_device("reader selected\n");
                   break;
               }
 
               /* See if another device got it. */
               if ((*tags & (CHAN_OPR_IN|CHAN_STA_IN)) != 0) {
                   /* Drop request out until channel free again */
-printf("reader Other device\n");
+                  log_device("reader Other device\n");
                   break;
               }
               /* Put request in up */
@@ -527,7 +527,7 @@ printf("reader Other device\n");
                   break;
               }
 
-//printf("Data output %02x %d\n", ctx->data, ctx->selected);
+//              log_device("Data output %02x %d\n", ctx->data, ctx->selected);
               /* If we are not connected, go request bus */
               if (ctx->selected == 0) {
                   ctx->state = STATE_REQ;
@@ -541,7 +541,7 @@ printf("reader Other device\n");
                    *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Clear select out and in */
                    ctx->data_rdy = 0;
                    ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
-printf("reader Data sent\n");
+                   log_device("reader Data sent\n");
                    break;
               }
               if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_SRV_IN) ||
@@ -549,7 +549,7 @@ printf("reader Data sent\n");
                    *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Count reached zero, no more accepted */
                    ctx->data_end = 1;
                    ctx->state = STATE_DATA_END;           /* Back to operation. */
-printf("reader Data End\n");
+                   log_device("reader Data End\n");
                    break;
               }
               /* If we are selected clear select in */
@@ -570,7 +570,7 @@ printf("reader Data End\n");
                          *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
                          *tags |= CHAN_OPR_IN;
                          ctx->selected = 1;
- printf("reader selected data_end\n");
+                         log_device("reader selected data_end\n");
                      }
                      break;
                  }
@@ -582,7 +582,7 @@ printf("reader Data End\n");
                      *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);        /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("reader Reselect data_end\n");
+                     log_device("reader Reselect data_end\n");
                      break;
                  }
                 
@@ -592,7 +592,7 @@ printf("reader Data End\n");
                      *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("reader Address data_end\n");
+                     log_device("reader Address data_end\n");
                      break;
                  }
                 
@@ -601,7 +601,7 @@ printf("reader Data End\n");
                      *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                       *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                       ctx->selected = 1;
-                      printf("reader selected data_end\n");
+                      log_device("reader selected data_end\n");
                   }
                 
                   /* See if another device got it. */
@@ -620,7 +620,7 @@ printf("reader Data End\n");
              if (ctx->selected && (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                           *tags == (CHAN_OPR_OUT|CHAN_OPR_IN))) {
                  *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-printf("End channel status %02x %02x\n", ctx->status, ctx->cmd);
+                 log_device("End channel status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;
                  *bus_in = ctx->status | odd_parity[ctx->status];
                  break;
@@ -636,7 +636,7 @@ printf("End channel status %02x %02x\n", ctx->status, ctx->cmd);
                       *tags &= ~(CHAN_OPR_IN);          /* Clear Operation in if not selected */
                  }
                  *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);  /* Clear select out and in */
-printf("reader Accepted data_end\n");
+                 log_device("reader Accepted data_end\n");
 //                  ctx->selected = 0;
                   ctx->status &= ~SNS_CHNEND;
 //                  ctx->status |= SNS_DEVEND;
@@ -648,7 +648,7 @@ printf("reader Accepted data_end\n");
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("reader Stacked data_end\n");
+                  log_device("reader Stacked data_end\n");
                   ctx->selected = 0;
                   ctx->status &= ~SNS_CHNEND;
  //                 ctx->status |= SNS_DEVEND;
@@ -676,7 +676,7 @@ printf("reader Stacked data_end\n");
                          ctx->sense |= SENSE_BUSCHK;
                      *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);      /* Clear select out and in */
                      *tags |= CHAN_OPR_IN;
-                     printf("reader selected end\n");
+                     log_device("reader selected end\n");
                      break;
                  }
                  if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
@@ -685,7 +685,7 @@ printf("reader Stacked data_end\n");
                      *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("reader Reselect end\n");
+                     log_device("reader Reselect end\n");
                      break;
                  }
                  if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_REQ_IN) ||
@@ -694,7 +694,7 @@ printf("reader Stacked data_end\n");
                      *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);        /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("reader Reselect end\n");
+                     log_device("reader Reselect end\n");
                      break;
                  }
                 
@@ -704,7 +704,7 @@ printf("reader Stacked data_end\n");
                      *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("reader Address end\n");
+                     log_device("reader Address end\n");
                      break;
                  }
                 
@@ -713,7 +713,7 @@ printf("reader Stacked data_end\n");
                      *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                       *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                       ctx->selected = 1;
-                      printf("reader selected end\n");
+                      log_device("reader selected end\n");
                   }
                 
                   /* See if another device got it. */
@@ -733,7 +733,7 @@ printf("reader Stacked data_end\n");
                           *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                           *tags == (CHAN_OPR_OUT|CHAN_OPR_IN))) {
                  *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-printf("End status %02x %02x\n", ctx->status, ctx->cmd);
+                 log_device("End status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;
                  *bus_in = ctx->status | odd_parity[ctx->status];
                  ctx->cmd = 0;
@@ -746,7 +746,7 @@ printf("End status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("reader Accepted end\n");
+                 log_device("reader Accepted end\n");
                   ctx->selected = 0;
                   ctx->state = STATE_IDLE;                          /* All done, back to idle state */
                   break;
@@ -756,7 +756,7 @@ printf("reader Accepted end\n");
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("reader Stacked\n");
+                  log_device("reader Stacked\n");
                   ctx->selected = 0;
                   ctx->state = STATE_STACK;                         /* Stack status */
                   break;
@@ -766,7 +766,7 @@ printf("reader Stacked\n");
              /* Mark channel still in use */
              *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
              *tags |= CHAN_OPR_IN;
-//printf("End status ready %02x\n", ctx->status);
+//           log_device("End status ready %02x\n", ctx->status);
              break;
 
     case STATE_STACK:
@@ -781,7 +781,7 @@ printf("reader Stacked\n");
                  *tags |= CHAN_OPR_IN;
                  ctx->state = STATE_STACK_SEL;
                  ctx->selected = 1;
- printf("reader stack selected\n");
+                 log_device("reader stack selected\n");
              }
              break;
 
@@ -796,14 +796,14 @@ printf("reader Stacked\n");
                  *tags &= ~(CHAN_SEL_OUT);             /* Clear select out and in */
                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
                  *bus_in = ctx->addr | odd_parity[ctx->addr];
- printf("reader stack address\n");
+                 log_device("reader stack address\n");
             }
 
             /* Wait for Command out to raise */
             /* Can now drop address in */
             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
- printf("reader stack command %02x\n", bus_out);
+                 log_device("reader stack command %02x\n", bus_out);
                  ctx->state = STATE_STACK_CMD;
                  *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);                 /* Clear address in */
                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
@@ -819,7 +819,7 @@ printf("reader Stacked\n");
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
                   *tags |= CHAN_OPR_IN|CHAN_STA_IN;     /* Wait for acceptance of status */
- printf("reader stack init stat %02x\n", ctx->status);
+                  log_device("reader stack init stat %02x\n", ctx->status);
              }
 
              /* When we get acknowlegment, go wait for it to go away */
@@ -828,7 +828,7 @@ printf("reader Stacked\n");
                  *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_STA_IN|CHAN_SEL_OUT);
                  ctx->state = STATE_STACK_HLD;
- printf("reader stack init stat %02x done\n", ctx->status);
+                 log_device("reader stack init stat %02x done\n", ctx->status);
                  break;
              }
              /* When we get acknowlegment, go wait for it to go away */
@@ -838,7 +838,7 @@ printf("reader Stacked\n");
                  *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
                  ctx->state = STATE_STACK;
                  ctx->selected = 0;
- printf("reader stack init stat %02x\n", ctx->status);
+                 log_device("reader stack init stat %02x\n", ctx->status);
              }
              *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
              /* Device selected */
@@ -852,13 +852,13 @@ printf("reader Stacked\n");
                  ctx->state = STATE_IDLE;
                  *tags &= ~CHAN_OPR_IN;
                  ctx->selected = 0;
-  printf("reader stack done\n");
+                 log_device("reader stack done\n");
              }
              *tags &= ~(CHAN_SEL_OUT);                 /* Clear select out and in */
              break;
 
     case STATE_WAIT:
-// printf("wait %d %d\n", ctx->selected, ctx->delay);
+//            log_device("wait %d %d\n", ctx->selected, ctx->delay);
              /* If we get select out with address out, reselection */
              if (!ctx->selected &&
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
@@ -867,7 +867,7 @@ printf("reader Stacked\n");
                 *tags |= CHAN_STA_IN;
                 *bus_in = SNS_BSY;
                 ctx->selected = 1;
-printf("wait select attempt\n");
+                log_device("wait select attempt\n");
              }
 
              /* If selected clear status in when select out drops */
@@ -875,7 +875,7 @@ printf("wait select attempt\n");
                 /* Device selected */
                 *tags &= ~(CHAN_STA_IN);              /* Clear status in */
                 ctx->selected = 0;
-printf("wait deselect\n");
+                log_device("wait deselect\n");
              }
 
              /* Count delay until finished */
@@ -1035,9 +1035,9 @@ static void model1442_update(struct _popup *popup, void *device, int index)
           break;
 
     case 1:  /* Start Key */
-printf("Start key\n");
+          log_device("Start key\n");
           if (ctx->state == STATE_IDLE) {
-printf("Start reader\n");
+              log_device("Start reader\n");
               if (ctx->rdr_full == 0) {
                   model1442_feed(ctx);
               }

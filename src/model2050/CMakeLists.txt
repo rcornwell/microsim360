@@ -28,9 +28,10 @@ add_dependencies(${PROJECT_NAME} model2050_ros.h)
 add_executable(cros2050 cros2050.c)
 target_include_directories(cros2050 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
-
-add_custom_target(model2050_ros.h
+add_custom_command(
+   OUTPUT model2050_ros.h
    COMMAND cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt model2050_ros.h
-   BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/model2050_ros.h
    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-   DEPENDS cros2050.c ros.txt)
+   DEPENDS cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt)
+
+add_custom_target(model2050_ros.h DEPENDS cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt)

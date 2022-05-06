@@ -19,11 +19,14 @@
 # SOFTWARE.
 
 add_subdirectory(device)
+#add_subdirectory(model1050)
 add_subdirectory(model1442)
 add_subdirectory(model1443)
-add_subdirectory(model2415)
 add_subdirectory(model2030)
 add_subdirectory(model2050)
+add_subdirectory(model2415)
+#add_subdirectory(model2841)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/image)
-target_sources(${PROJECT_NAME} PUBLIC fp30.c)
+target_sources(${PROJECT_NAME} PUBLIC fp30.c logger.c)
 

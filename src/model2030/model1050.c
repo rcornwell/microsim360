@@ -34,6 +34,7 @@
 #else
 #include <winsock.h>
 #endif
+#include "logger.h"
 #include "device.h"
 #include "model1050.h"
 #include "xlat.h"
@@ -100,7 +101,7 @@ model1050_init()
 
 	i = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (i != 0) {
-		printf("WSAStartup failed: %d\n", i);
+		log_console("WSAStartup failed: %d\n", i);
 		return;
 	}
 #endif
@@ -124,10 +125,10 @@ model1050_init()
     }
     FD_SET(sock, &fds_socks);
     listen(sock, 1);
-    printf("socket open\n");
+    log_console("socket open\n");
     running = 1;
     thrd = SDL_CreateThread(model1050_thrd, "Console", NULL);
-    printf("listern created\n");
+    log_console("listern created\n");
 } 
 
 void
@@ -223,7 +224,7 @@ model1050_func(uint16_t *tags_out, uint16_t tags_in, uint16_t *t_request)
           *t_request = 1;
        }
 
-       printf("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
+       log_console("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
     }
 } 
 
@@ -232,7 +233,7 @@ model1050_done()
 {
 
     if (running) {
-printf("Kill console\n");
+        log_console("Kill console\n");
         running = 0;
         SDL_WaitThread(thrd, NULL);
     }
@@ -259,7 +260,7 @@ push_char(char in_char) {
            key_buf[in_ptr++] = in_char;
            in_ptr &= 0xff;
            in_len++;
-printf("Cons push_char(%02x)\n", in_char);
+           log_console("Cons push_char(%02x)\n", in_char);
            send(cons, &in_char, 1, 0);
        }
     }
@@ -287,7 +288,8 @@ model1050_thrd(void *data)
     SOCKET         newsock;
     char           buffer[256];
     int            flags;
-        printf("Console started\n");
+
+    log_console("Console started\n");
 
     while(running) {
         maxfd = sock;
@@ -303,9 +305,9 @@ model1050_thrd(void *data)
         if (FD_ISSET(sock, &read_set)) {
             size = sizeof(client);
             newsock = accept(sock, (struct sockaddr *)&client, &size);
-            printf("Accept\n\r");
+            log_console("Accept\n\r");
             if (cons == 0) {
-               printf("Connected\n");
+               log_console("Connected\n");
                cons = newsock;
                FD_SET(newsock, &fds_socks);
                send(newsock, init_string, 15, 0);
@@ -337,7 +339,7 @@ model1050_thrd(void *data)
             int j, k;
             j = recv(cons, buffer, 256, 0);
             if (j == 0) {
-               printf("Disonnected\n");
+               log_console("Disonnected\n");
                FD_CLR(cons, &fds_socks);
                close(cons);
                cons = -1;

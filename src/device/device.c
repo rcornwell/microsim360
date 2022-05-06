@@ -25,6 +25,8 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
+#include "logger.h"
 #include "device.h"
 
 uint16_t const odd_parity[256] = {
@@ -69,22 +71,26 @@ char *bus_tags[] = {
 
 
 void
-print_tags(uint16_t tags, uint16_t bus_out)
+print_tags(char *name, int state, uint16_t tags, uint16_t bus_out)
 {
+    char   buffer[1024];
     int i;
 
     if ((tags & 0xf8ff) != 0) {
-        printf("Tags: %04x ", tags);
+        sprintf(buffer, "%s state=%d Tags: bus=%03x %04x ", name, state, bus_out, tags);
         for (i = 0; i < 16; i++) {
             if (bus_tags[i] != NULL) {
-              if ((tags & (0x8000 >> i)) != 0)
-                  printf("%s", bus_tags[i]);
+              if ((tags & (0x8000 >> i)) != 0) {
+                  strcat(buffer, bus_tags[i]);
+                  strcat(buffer, " ");
+              } else {
+                  strcat(buffer, "    ");
+              }
             }
-            printf(" ");
         }
-        printf("%03x", bus_out);
+    strcat(buffer, "\n");
+    log_device(buffer);
     }
-    printf("\n");
 }
 
 void

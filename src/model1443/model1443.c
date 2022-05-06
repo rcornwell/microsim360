@@ -30,6 +30,7 @@
 #include <SDL_image.h>
 #include <stdio.h>
 #include <string.h>
+#include "logger.h"
 #include "xlat.h"
 #include "model1443.h"
 #include "model1443.xpm"
@@ -189,14 +190,13 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     static   uint16_t last_tags = 0;
 
     if (last_tags != *tags) {
-        printf("Printer tags: %d ", ctx->state);
-        print_tags(*tags, bus_out);
+        print_tags("Printer", ctx->state, *tags, bus_out);
         last_tags = *tags;
     }
 
     /* Reset device if OPER OUT is dropped */
     if ((*tags & (CHAN_OPR_OUT|CHAN_SUP_OUT)) == 0) {
- printf("Reset printer\n");
+        log_device("Reset printer\n");
         if (ctx->selected) {
            *tags &= ~(CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SRV_IN|CHAN_STA_IN);
         }
@@ -225,7 +225,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags |= CHAN_OPR_IN;
                  ctx->state = STATE_SEL;
                  ctx->selected = 1;
- printf("printer selected\n");
+                 log_device("printer selected\n");
              }
              break;
 
@@ -240,7 +240,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags &= ~(CHAN_SEL_OUT);             /* Clear select out and in */
                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
                  *bus_in = ctx->addr | odd_parity[ctx->addr];
- printf("printer address\n");
+                  log_device("printer address\n");
             }
 
             /* Wait for Command out to raise */
@@ -249,7 +249,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
- printf("printer command %02x\n", bus_out);
+                log_device("printer command %02x\n", bus_out);
                  ctx->cmd = bus_out & 0xff;
                  ctx->data_rdy = 0;
                  ctx->data_end = 0;
@@ -337,7 +337,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
                   *tags |= CHAN_OPR_IN|CHAN_STA_IN;     /* Wait for acceptance of status */
- printf("printer init stat\n");
+                 log_device("printer init stat\n");
              }
 
              /* When we get acknowlegment, go wait for it to go away */
@@ -346,7 +346,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~CHAN_STA_IN;
                  ctx->state = STATE_INIT_STAT;
- printf("printer init stat\n");
+                 log_device("printer init stat\n");
              }
              *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
              /* Device selected */
@@ -363,7 +363,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                      *tags &= ~CHAN_OPR_IN;
                  } else {
                      ctx->state = STATE_OPR;
-     printf("printer state done\n");
+                     log_device("printer state done\n");
                  }
                  if (ctx->data_end && (*tags & CHAN_SEL_OUT) == 0) {
                      *tags &= ~CHAN_OPR_IN;
@@ -375,12 +375,12 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              break;
 
     case STATE_OPR:
- printf("printer opr %d %d\n", ctx->selected, ctx->delay);
+              log_device("printer opr %d %d\n", ctx->selected, ctx->delay);
 #if 0
              /* Wait for Command out to drop */
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN) || 
                  *tags == (CHAN_CMD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN)) {
- printf("Opr wait\n");
+                  log_device("Opr wait\n");
                  break;
              }
 #endif
@@ -390,7 +390,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags &= ~CHAN_SEL_OUT;
 
              if (ctx->data_end) {
-printf("Oper Data end\n");
+                log_device("Oper Data end\n");
                 if (ctx->cmd == 0x4) {   /* If sense, end command */
                     ctx->status = SNS_CHNEND|SNS_DEVEND;
                     ctx->state = STATE_END;
@@ -418,19 +418,19 @@ printf("Oper Data end\n");
                  break;
              }
 
-printf("Oper comand %02x\n", ctx->cmd);
+             log_device("Oper comand %02x\n", ctx->cmd);
              switch (ctx->cmd & 0x7) {
              case 4:  /* Sense */
                     ctx->data = ctx->sense;
                     ctx->data_rdy = 1;
                     ctx->data_end = 1;
                     ctx->state = STATE_DATA_O;
-printf("printer Sense %02x\n", ctx->sense);
+                    log_device("printer Sense %02x\n", ctx->sense);
                     break;
              case 1: /* Write */
                     /* Wait for data to be available */
                     if (ctx->data_rdy) {
-printf("printer get %02x\n", ctx->data);
+                        log_device("printer get %02x\n", ctx->data);
                         if (ctx->cnt == 4) {
                            ctx->delay = 10;
                            ctx->cnt = 0;
@@ -449,7 +449,7 @@ printf("printer get %02x\n", ctx->data);
                     }
                     ctx->data_rdy = 0;
                     ctx->state = STATE_DATA_I;
-printf("printer Write get1\n");
+                    log_device("printer Write get1\n");
                     break;
              default: 
                     break;
@@ -463,7 +463,7 @@ printf("printer Write get1\n");
                 *tags |= CHAN_STA_IN;                  /* Indicate busy status */
                 *bus_in = SNS_BSY;
                 ctx->selected = 1;
-printf("printer reselect\n");
+                log_device("printer reselect\n");
                 break;
              }
             
@@ -476,7 +476,7 @@ printf("printer reselect\n");
                   *tags &= ~(CHAN_OPR_IN);             /* Clear select out and in */
                   ctx->data_end = 1; 
                   ctx->selected = 0;
-printf("printer Halt i/o\n");
+                  log_device("printer Halt i/o\n");
                   break;
              }
 
@@ -494,20 +494,20 @@ printf("printer Halt i/o\n");
              if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_STA_IN)) {
                   *tags &= ~(CHAN_STA_IN);             /* Clear select out and in */
                   ctx->selected = 0;
-printf("printer deselected\n");
+                  log_device("printer deselected\n");
                   break;
              }
              break;
 
     case STATE_REQ:   /* Data available and we are not talking on channel */
-printf("printer Request\n");
+             log_device("printer Request\n");
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_REQ_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_REQ_IN)) {
                  /* Put our address on the bus */
                  *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);        /* Clear select out and in */
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-printf("printer Reselect\n");
+                  log_device("printer Reselect\n");
                  break;
              }
 
@@ -517,7 +517,7 @@ printf("printer Reselect\n");
                  *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-printf("printer Address\n");
+                 log_device("printer Address\n");
                  break;
              }
 
@@ -527,14 +527,14 @@ printf("printer Address\n");
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                   ctx->selected = 1;
                   ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
-printf("printer selected\n");
+                  log_device("printer selected\n");
                   break;
               }
 
               /* See if another device got it. */
               if ((*tags & (CHAN_OPR_IN|CHAN_STA_IN)) != 0) {
                   /* Drop request out until channel free again */
-printf("printer Other device\n");
+                  log_device("printer Other device\n");
                   break;
               }
               /* Put request in up */
@@ -547,13 +547,13 @@ printf("printer Other device\n");
                   ctx->state = STATE_REQ;
                   break;
               }
-printf("printer data in\n");
+              log_device("printer data in\n");
               /* Wait for command out to drop */
               if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_SRV_IN) || 
                   *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_SRV_IN)) {
                    *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Clear select out and in */
                    /* Device selected */
-printf("Data %02x\n", bus_out);
+                   log_device("Data %02x\n", bus_out);
                    if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
                        ctx->sense |= SENSE_BUSCHK;
                        ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
@@ -568,7 +568,7 @@ printf("Data %02x\n", bus_out);
               if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_SRV_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_SRV_IN)) {
                    *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Count reached zero, no more accepted */
-printf("printer Data End\n");
+                    log_device("printer Data End\n");
                    ctx->data_end = 1;
                    ctx->state = STATE_INIT_STAT;           /* Back to operation. */
                    break;
@@ -582,7 +582,7 @@ printf("printer Data End\n");
               break;
 
     case STATE_DATA_O:    /* Request to send data to channel */
-printf("Printer Data output %02x %d\n", ctx->data, ctx->selected);
+               log_device("Printer Data output %02x %d\n", ctx->data, ctx->selected);
               /* If we are not connected, go request bus */
               if (ctx->selected == 0) {
                   ctx->state = STATE_REQ;
@@ -596,14 +596,14 @@ printf("Printer Data output %02x %d\n", ctx->data, ctx->selected);
                    *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Clear select out and in */
                    ctx->data_rdy = 0;
                    ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
-printf("Printer Data sent\n");
+                   log_device("Printer Data sent\n");
               }
               if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_SRV_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_SRV_IN)) {
                    *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Count reached zero, no more accepted */
                    ctx->data_end = 1;
                    ctx->state = STATE_INIT_STAT;           /* Back to operation. */
-printf("printer Data End\n");
+                   log_device("printer Data End\n");
                    break;
               }
               /* If we are selected clear select in */
@@ -624,7 +624,7 @@ printf("printer Data End\n");
                          *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
                          *tags |= CHAN_OPR_IN;
                          ctx->selected = 1;
- printf("printer selected data_end\n");
+                         log_device("printer selected data_end\n");
                      }
                      break;
                  }
@@ -636,7 +636,7 @@ printf("printer Data End\n");
                      *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);        /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("printer Reselect data_end\n");
+                     log_device("printer Reselect data_end\n");
                      break;
                  }
                 
@@ -646,7 +646,7 @@ printf("printer Data End\n");
                      *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("printer Address data_end\n");
+                     log_device("printer Address data_end\n");
                      break;
                  }
                 
@@ -655,7 +655,7 @@ printf("printer Data End\n");
                      *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                       *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                       ctx->selected = 1;
-                      printf("printer selected data_end\n");
+                      log_device("printer selected data_end\n");
                   }
                 
                   /* See if another device got it. */
@@ -677,7 +677,7 @@ printf("printer Data End\n");
                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;
                  *bus_in = ctx->status & SNS_CHNEND;
                  *bus_in |= odd_parity[*bus_in];
-printf("printer End channel status %02x %02x %03x\n", ctx->status, ctx->cmd, *bus_in);
+                  log_device("printer End channel status %02x %02x %03x\n", ctx->status, ctx->cmd, *bus_in);
                  break;
              }
 
@@ -691,7 +691,7 @@ printf("printer End channel status %02x %02x %03x\n", ctx->status, ctx->cmd, *bu
                       *tags &= ~(CHAN_OPR_IN);          /* Clear Operation in if not selected */
                  }
                  *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);  /* Clear select out and in */
-printf("printer Accepted\n");
+                 log_device("printer Accepted\n");
                   if ((*tags & CHAN_SUP_OUT) == 0) {
                       ctx->status &= ~SNS_CHNEND;
                   }
@@ -705,7 +705,7 @@ printf("printer Accepted\n");
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("printer Stacked\n");
+                  log_device("printer Stacked\n");
                   ctx->selected = 0;
                   if ((*tags & CHAN_SUP_OUT) == 0) {
                       ctx->status &= ~SNS_CHNEND;
@@ -732,7 +732,7 @@ printf("printer Stacked\n");
                          ctx->sense |= SENSE_BUSCHK;
                      *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);      /* Clear select out and in */
                      *tags |= CHAN_OPR_IN;
-                     printf("printer selected end\n");
+                     log_device("printer selected end\n");
                      break;
                  }
                  if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
@@ -743,7 +743,7 @@ printf("printer Stacked\n");
                      *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("printer Reselect end\n");
+                     log_device("printer Reselect end\n");
                      break;
                  }
                  if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_REQ_IN) ||
@@ -752,7 +752,7 @@ printf("printer Stacked\n");
                      *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);        /* Clear select out and in */
                      *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                      *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                     printf("printer Reselect end\n");
+                     log_device("printer Reselect end\n");
                      break;
                  }
                 
@@ -761,7 +761,7 @@ printf("printer Stacked\n");
                      *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                       *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                       ctx->selected = 1;
-                      printf("printer selected end\n");
+                      log_device("printer selected end\n");
                   }
                 
                   /* See if another device got it. */
@@ -781,7 +781,7 @@ printf("printer Stacked\n");
                           *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                           *tags == (CHAN_OPR_OUT|CHAN_OPR_IN))) {
                  *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-printf("printer End status %02x %02x\n", ctx->status, ctx->cmd);
+                 log_device("printer End status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;
                  if (ctx->sense != 0) {
                      ctx->status |= SNS_UNITCHK;
@@ -797,7 +797,7 @@ printf("printer End status %02x %02x\n", ctx->status, ctx->cmd);
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("printer Accepted end\n");
+                 log_device("printer Accepted end\n");
                   ctx->selected = 0;
                   ctx->state = STATE_IDLE;                          /* All done, back to idle state */
                   break;
@@ -807,7 +807,7 @@ printf("printer Accepted end\n");
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-printf("printer Stacked end\n");
+                  log_device("printer Stacked end\n");
                   ctx->selected = 0;
                   ctx->state = STATE_STACK;                         /* Stack status */
                   break;
@@ -817,7 +817,7 @@ printf("printer Stacked end\n");
              /* Mark channel still in use */
              *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
              *tags |= CHAN_OPR_IN;
-printf("printer End status ready\n");
+             log_device("printer End status ready\n");
              break;
 
     case STATE_STACK:
@@ -831,7 +831,7 @@ printf("printer End status ready\n");
                  *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);        /* Clear select out and in */
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-printf("printer stack Reselect\n");
+                 log_device("printer stack Reselect\n");
                  ctx->state = STATE_STACK_SEL;
                  break;
              }
@@ -839,7 +839,7 @@ printf("printer stack Reselect\n");
              /* See if another device got it. */
              if ((*tags & (CHAN_OPR_IN|CHAN_STA_IN)) != 0) {
                  /* Drop request out until channel free again */
-printf("printer Other device\n");
+                 log_device("printer Other device\n");
                  break;
              }
              /* Wait until Channels asks for us */
@@ -853,7 +853,7 @@ printf("printer Other device\n");
                   *tags |= CHAN_OPR_IN;
                   ctx->state = STATE_STACK_SEL;
                   ctx->selected = 1;
- printf("printer stack selected\n");
+                  log_device("printer stack selected\n");
              }
              break;
 
@@ -866,14 +866,14 @@ printf("printer Other device\n");
                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SUP_OUT)) {
                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
- printf("printer stack address\n");
+                 log_device("printer stack address\n");
             }
 
             /* Wait for Command out to raise */
             /* Can now drop address in */
             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
- printf("printer stack command %02x\n", bus_out);
+                log_device("printer stack command %02x\n", bus_out);
                  ctx->state = STATE_STACK_CMD;
                  *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);                 /* Clear address in */
                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
@@ -891,7 +891,7 @@ printf("printer Other device\n");
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
                   *tags |= CHAN_OPR_IN|CHAN_STA_IN;     /* Wait for acceptance of status */
- printf("printer stack init stat\n");
+                  log_device("printer stack init stat\n");
              }
 
              /* When we get acknowlegment, go wait for it to go away */
@@ -900,7 +900,7 @@ printf("printer Other device\n");
                  *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
                  ctx->state = STATE_STACK_HLD;
- printf("printer stack init stat accept\n");
+                 log_device("printer stack init stat accept\n");
                  ctx->selected = 0;
              }
              /* When we get acknowlegment, go wait for it to go away */
@@ -909,7 +909,7 @@ printf("printer Other device\n");
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
                  ctx->state = STATE_STACK_HLD;
- printf("printer stack init stat stacked\n");
+                 log_device("printer stack init stat stacked\n");
              }
              *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
              /* Device selected */
@@ -922,14 +922,14 @@ printf("printer Other device\n");
                  *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT) ||
                  *tags == (CHAN_OPR_OUT|CHAN_REQ_IN)) {
                  ctx->state = ctx->selected ? STATE_STACK : STATE_IDLE;
-     printf("printer state done\n");
+                 log_device("printer state done\n");
                  *tags &= ~CHAN_OPR_IN;
                  ctx->selected = 0;
              }
              break;
 
     case STATE_WAIT:
-// printf("wait %d %d\n", ctx->selected, ctx->delay);
+// log_device("wait %d %d\n", ctx->selected, ctx->delay);
              /* If we get select out with address out, reselection */
              if (!ctx->selected &&
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
@@ -938,7 +938,7 @@ printf("printer Other device\n");
                 *tags |= CHAN_STA_IN;
                 *bus_in = SNS_BSY;
                 ctx->selected = 1;
-printf("printer wait select attempt\n");
+                log_device("printer wait select attempt\n");
              }
 
              /* If selected clear status in when select out drops */
@@ -946,7 +946,7 @@ printf("printer wait select attempt\n");
                 /* Device selected */
                 *tags &= ~(CHAN_STA_IN);              /* Clear status in */
                 ctx->selected = 0;
-printf("printer wait deselect\n");
+                log_device("printer wait deselect\n");
              }
 
              /* Count delay until finished */
@@ -1000,7 +1000,7 @@ print_line(struct _1443_context *ctx)
 
         /* Print out buffer */
         fwrite(&out, 1, i, ctx->file);
-        printf( " Printer: %s\n", out);
+        log_device( " Printer: %s\n", out);
         memset(ctx->buf, 0x40, sizeof(ctx->buf));
     }
     fflush(ctx->file);
@@ -1047,7 +1047,7 @@ print_line(struct _1443_context *ctx)
          l++;
          r++;
          if (i > ctx->lpp) {
-printf("printer skip2 %d > %d\n", i, ctx->lpp);
+             log_device("printer skip2 %d > %d\n", i, ctx->lpp);
              fwrite("\r\n\f", 1, 3, ctx->file);
              memcpy(&ctx->output[0][0], &ctx->output[1][0], 14 * 120);
              memset(&ctx->output[14][0], 0, 120);
@@ -1068,7 +1068,7 @@ printf("printer skip2 %d > %d\n", i, ctx->lpp);
            memset(&ctx->output[14][0], 0, 120);
            ctx->row++;
            if (ctx->row > ctx->lpp) {
-printf("printer skip %d > %d\n", ctx->row, ctx->lpp);
+               log_device("printer skip %d > %d\n", ctx->row, ctx->lpp);
                fwrite("\f", 1, 1, ctx->file);
                ctx->row = 0;
            }

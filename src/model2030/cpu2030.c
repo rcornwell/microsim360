@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "logger.h"
 #include "device.h"
 #include "model2030.h"
 #include "model1050.h"
@@ -61,7 +62,7 @@ uint8_t  RATE_SW;
 uint8_t  CHK_SW;
 uint8_t  MATCH_SW;
 
-struct CPU_2030 cpu_2030; 
+struct CPU_2030 cpu_2030;
 
 uint16_t    end_of_e_cycle;
 uint16_t    store;
@@ -256,19 +257,19 @@ static int        sel_chain_det[2];
 
 static int        cg_mask[4] = { 0x00, 0x0f, 0xf0, 0xff };
 
-/* MATCH_SW 
+/* MATCH_SW
 
    0     PROCESS  MN
-   1     SAR DELAYED MN 
-   2     SAR STOP  MN 
-   3     SAR RESTART MN 
+   1     SAR DELAYED MN
+   2     SAR STOP  MN
+   3     SAR RESTART MN
    4     ROAR RESTART STORE BYPASS  WX
-   5     ROAR RESTART  WX 
+   5     ROAR RESTART  WX
    6     ROAR RESTART WITHOUT RESET WX
-   7     EARLY ROAR STOP  WX 
-   8     ROAR STOP  WX 
-   9     ROAR SYNC  WX 
-  */ 
+   7     EARLY ROAR STOP  WX
+   8     ROAR STOP  WX
+   9     ROAR SYNC  WX
+  */
 
 /* CHK_SW
 
@@ -284,7 +285,7 @@ static int        cg_mask[4] = { 0x00, 0x0f, 0xf0, 0xff };
    0     INSTRUCTION STEP
    1     PROCESS
    2     SINGLE CYCLE
-*/ 
+*/
 
 /* PROC_SW
 
@@ -346,20 +347,20 @@ cycle()
        chk_restart = 0;
 
    /* SAR Restart SW */
-   if ((MATCH_SW == 3 && match && !allow_write) || 
-       ((MATCH_SW == 4 || MATCH_SW == 5 || MATCH_SW == 6) && chk_restart) || 
+   if ((MATCH_SW == 3 && match && !allow_write) ||
+       ((MATCH_SW == 4 || MATCH_SW == 5 || MATCH_SW == 6) && chk_restart) ||
        set_ic_allowed) {
        force_ij_req = 1;
        cf_stop = 0;
    }
 
-   if ((match && (MATCH_SW == 4)) || 
+   if ((match && (MATCH_SW == 4)) ||
        (match && allow_write && (MATCH_SW == 5 || MATCH_SW == 6)))
       gate_sw_to_wx = 1;
 
    if ((((cpu_2030.FT & BIT3) != 0 || sel_ros_req) && proc_stop_loop_active) ||
         set_ic_start) {
-      printf("CY start %d\n", allow_man_operation);
+      log_trace("CY start %d\n", allow_man_operation);
       e_cy_stop_sample = 1;
    }
 
@@ -377,12 +378,12 @@ cycle()
    if (INTR) {
        cpu_2030.F_REG |= BIT1;
        INTR = 0;
- printf("Set interrupt\n");
+       log_trace("Set interrupt\n");
    }
 
    if (START) {
       if (allow_man_operation) {
-printf("Start\n");
+          log_trace("Start\n");
           start_sw_rst = 1;
           process_stop = 0;
           suppr_half_trap_lch = 0;
@@ -400,7 +401,7 @@ printf("Start\n");
    }
 
    if (LOAD) {
-printf("Load\n");
+      log_trace("Load\n");
       cpu_2030.FT |= BIT4;  /* Set load flag. */
       load_mode = 1;
       cf_stop = 0;
@@ -415,14 +416,14 @@ printf("Load\n");
 
    if (SET_IC) {
       if (allow_man_operation) {
-printf("Set IC %d\n", allow_man_operation);
+         log_trace("Set IC %d\n", allow_man_operation);
          set_ic_allowed = 1;
       }
       SET_IC = 0;
    }
 
    if (ROAR_RST) {
-printf("Set Roar %d\n", allow_man_operation);
+       log_trace("Set Roar %d\n", allow_man_operation);
        if (allow_man_operation) {
           gate_sw_to_wx = 1;
           priority_stack_reg = 0;
@@ -500,31 +501,31 @@ printf("Set Roar %d\n", allow_man_operation);
                        if (sel_chain_det[0])
                            cpu_2030.Abus |= BIT1;
                        /* Interrupt condition */
-                       if ((cpu_2030.SEL_TAGS[0] & CHAN_ADR_OUT) != 0) 
+                       if ((cpu_2030.SEL_TAGS[0] & CHAN_ADR_OUT) != 0)
                            cpu_2030.Abus |= BIT3;
                        /* CD */
-                       if ((cpu_2030.GF[0] & BIT0) != 0) 
+                       if ((cpu_2030.GF[0] & BIT0) != 0)
                            cpu_2030.Abus |= BIT4;
                        /* Channel select. */
-                       if (0 == 0) 
+                       if (0 == 0)
                            cpu_2030.Abus |= BIT5;
                        /* Chain Request */
-                       if ((cpu_2030.GF[0] & BIT3) != 0) 
+                       if ((cpu_2030.GF[0] & BIT3) != 0)
                            cpu_2030.Abus |= BIT7;
                        cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                        allow_a_reg_chk = 1;
                        break;
-           case 0x17:  
+           case 0x17:
                        /* GT Virtual register */
                        cpu_2030.Abus = 0;
                        /* Select in */
                        if ((cpu_2030.SEL_TI[0] & CHAN_SEL_IN) != 0)
                            cpu_2030.Abus |= BIT0;
                        /* Service In & Not Service Out */
-                       if ((cpu_2030.SEL_TI[0] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) 
+                       if ((cpu_2030.SEL_TI[0] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN))
                            cpu_2030.Abus |= BIT1;
                        /* Poll control */
-                       if (sel_poll_ctrl[0]) 
+                       if (sel_poll_ctrl[0])
                            cpu_2030.Abus |= BIT2;
                        /* Channel Busy */
                        if (sel_chan_busy[0])
@@ -543,7 +544,7 @@ printf("Set Roar %d\n", allow_man_operation);
                            cpu_2030.Abus |= BIT7;
                        cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                        break;
-           case 0x18:   /* GUV */  
+           case 0x18:   /* GUV */
                        cpu_2030.M_REG = cpu_2030.GU[0];
                        cpu_2030.N_REG = cpu_2030.GV[0];
                        cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) |
@@ -558,16 +559,16 @@ printf("Set Roar %d\n", allow_man_operation);
                        if (sel_chain_det[1])
                            cpu_2030.Abus |= BIT1;
                        /* Interrupt condition */
-                       if ((cpu_2030.SEL_TAGS[1] & CHAN_ADR_OUT) != 0) 
+                       if ((cpu_2030.SEL_TAGS[1] & CHAN_ADR_OUT) != 0)
                            cpu_2030.Abus |= BIT3;
                        /* CD */
-                       if ((cpu_2030.GF[1] & BIT0) != 0) 
+                       if ((cpu_2030.GF[1] & BIT0) != 0)
                            cpu_2030.Abus |= BIT4;
                        /* Channel select. */
-                       if (0 == 0) 
+                       if (0 == 0)
                            cpu_2030.Abus |= BIT5;
                        /* Chain Request */
-                       if ((cpu_2030.GF[1] & BIT3) != 0) 
+                       if ((cpu_2030.GF[1] & BIT3) != 0)
                            cpu_2030.Abus |= BIT7;
                        cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                        allow_a_reg_chk = 1;
@@ -578,10 +579,10 @@ printf("Set Roar %d\n", allow_man_operation);
                        if ((cpu_2030.SEL_TI[1] & CHAN_SEL_IN) != 0)
                            cpu_2030.Abus |= BIT0;
                        /* Service In & Not Service Out */
-                       if ((cpu_2030.SEL_TI[1] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) 
+                       if ((cpu_2030.SEL_TI[1] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN))
                            cpu_2030.Abus |= BIT1;
                        /* Poll control */
-                       if (sel_poll_ctrl[1]) 
+                       if (sel_poll_ctrl[1])
                            cpu_2030.Abus |= BIT2;
                        /* Channel Busy */
                        if (sel_chan_busy[1])
@@ -600,7 +601,7 @@ printf("Set Roar %d\n", allow_man_operation);
                            cpu_2030.Abus |= BIT7;
                        cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                        break;
-           case 0x1b:   /* HUV */  
+           case 0x1b:   /* HUV */
                        cpu_2030.M_REG = cpu_2030.GU[1];
                        cpu_2030.N_REG = cpu_2030.GV[1];
                        cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) |
@@ -621,30 +622,30 @@ printf("Set Roar %d\n", allow_man_operation);
                        store = MAIN;
                    }
                    if (E_SW == 0x21) {
-                       cpu_2030.R_REG = cpu_2030.LS[((cpu_2030.M_REG << 8) & 0xf00) | 
+                       cpu_2030.R_REG = cpu_2030.LS[((cpu_2030.M_REG << 8) & 0xf00) |
                                         (cpu_2030.N_REG & 0xff)] ^ 0x100;
                        store = LOCAL;
                    }
                    break;
-           case 0x30:  cpu_2030.Abus = cpu_2030.I_REG;  /* I */  
+           case 0x30:  cpu_2030.Abus = cpu_2030.I_REG;  /* I */
                     if (allow_write == 0) {
                        cpu_2030.M_REG = cpu_2030.I_REG;
                        cpu_2030.N_REG = cpu_2030.J_REG;
                     }
                     break;
-           case 0x31:  cpu_2030.Abus = cpu_2030.J_REG;         /* J */  
+           case 0x31:  cpu_2030.Abus = cpu_2030.J_REG;         /* J */
                     if (allow_write == 0) {
                        cpu_2030.M_REG = cpu_2030.I_REG;
                        cpu_2030.N_REG = cpu_2030.J_REG;
                     }
                     break;
-           case 0x32:  cpu_2030.Abus = cpu_2030.U_REG;  /* U */  
+           case 0x32:  cpu_2030.Abus = cpu_2030.U_REG;  /* U */
                     if (allow_write == 0) {
                        cpu_2030.M_REG = cpu_2030.U_REG;
                        cpu_2030.N_REG = cpu_2030.V_REG;
                     }
                     break;
-           case 0x33:  cpu_2030.Abus = cpu_2030.V_REG;         /* V */  
+           case 0x33:  cpu_2030.Abus = cpu_2030.V_REG;         /* V */
                     if (allow_write == 0) {
                        cpu_2030.M_REG = cpu_2030.U_REG;
                        cpu_2030.N_REG = cpu_2030.V_REG;
@@ -686,7 +687,7 @@ printf("Set Roar %d\n", allow_man_operation);
                        store = MAIN;
                    }
                    if (E_SW == 0x21) {
-                       cpu_2030.LS[((cpu_2030.M_REG << 8) & 0xf00) | (cpu_2030.N_REG & 0xff)] = cpu_2030.R_REG ^ 0x100; 
+                       cpu_2030.LS[((cpu_2030.M_REG << 8) & 0xf00) | (cpu_2030.N_REG & 0xff)] = cpu_2030.R_REG ^ 0x100;
                        store = LOCAL;
                    }
                    cpu_2030.Abus = cpu_2030.R_REG;
@@ -837,7 +838,7 @@ printf("Set Roar %d\n", allow_man_operation);
                cpu_2030.GE[i] |= BIT2;;
 
            /* Check validity of M and N registers */
-           if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 || 
+           if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 ||
                  ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
                //printf("Set MN bus\n");
            }
@@ -881,7 +882,7 @@ printf("Set Roar %d\n", allow_man_operation);
                sel_cnt_rdy_zero[i] = 1;
            /* Check if input */
            if (sel_gr_full[i] != 0 && ((cpu_2030.GG[i] & 3) == 2 || (cpu_2030.GG[i] & 5) == 4)) {
-               if ((cpu_2030.Q_REG & 0xf0) != 0 && 
+               if ((cpu_2030.Q_REG & 0xf0) != 0 &&
                          ((cpu_2030.GK[i] ^ cpu_2030.Q_REG) & 0xf) != 0) {
                    cpu_2030.GE[i] |= BIT3;
                    cpu_2030.GR[i] = cpu_2030.M[cpu_2030.MN_REG];
@@ -892,7 +893,7 @@ printf("Set Roar %d\n", allow_man_operation);
                sel_gr_full[i] = 0;
 //printf("Mark GR empty\n");
                /* If Service In and count left Acknowledge */
-               if (((cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) && 
+               if (((cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) &&
                     sel_cnt_rdy_not_zero[i])
                    cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
            }
@@ -921,7 +922,7 @@ printf("Set Roar %d\n", allow_man_operation);
               }
               mpx_share_pulse = 0;
            }
-       
+
            if (sel_chain_pulse) {
               cpu_2030.GWX = nextWX;
               cpu_2030.SEL_STAT = cpu_2030.STAT_REG;
@@ -943,174 +944,172 @@ printf("Set Roar %d\n", allow_man_operation);
            goto chan_scan;
         }
         /* Otherwise see if CPU clock is running */
-        if (clock_start_lch) {         
+        if (clock_start_lch) {
            sal = &ros_2030[cpu_2030.WX];
            cpu_2030.ros_row1 = sal->row1;
            cpu_2030.ros_row2 = sal->row2;
            cpu_2030.ros_row3 = sal->row3;
-      
+
           /* Print instruction and registers */
-          if (cpu_2030.WX == 0x109) {
+          if (cpu_2030.WX == 0x109 && (log_level & LOG_ITRACE) != 0) {
              uint8_t    mem[6];
 
              for (i = 0; i < 6; i++) {
                  mem[i] = cpu_2030.M[cpu_2030.MN_REG + i] & 0xff;
              }
              print_inst(mem);
-             printf(" IC=%02x%02x CC=%02x\n\n", cpu_2030.I_REG & 0xff, cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB]);
+             log_trace(" IC=%02x%02x CC=%02x\n\n", cpu_2030.I_REG & 0xff, cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB]);
 
              for (i = 0; i < 16; i++) {
-                 printf(" GR%02d = %02x%02x%02x%02x", i,
+                 log_itrace(" GR%02d = %02x%02x%02x%02x", i,
                       cpu_2030.LS[(i << 4) + 0] & 0xff,
                       cpu_2030.LS[(i << 4) + 1] & 0xff,
                       cpu_2030.LS[(i << 4) + 2] & 0xff,
                       cpu_2030.LS[(i << 4) + 3] & 0xff);
                  if ((i & 0x3) == 0x3)
-                      printf("\n");
+                      log_itrace("\n");
              }
           }
 
-#if 1
           /* Disassemble micro instruction */
-           sprintf (dis_buffer, "%s %03X: %02x ", sal->note, cpu_2030.WX, sal->CK);
-           if (sal->CK < 0x10) {
-               if (sal->PK != 0 || sal->CB == 3 || sal->CU == 2) {
-                   char buf[3];
-                   strcat(dis_buffer, ckb_name[sal->CK]);
-                   buf[0] = ',';
-                   buf[1] = '0'+sal->PK;
-                   buf[2] = '\0';
-                   strcat(dis_buffer, buf);
-               }
-           } else {
-               strcat(dis_buffer, ck_name[sal->CK]);
-               if (sal->PK != 0)
-                  strcat(dis_buffer, ",1");
-           }
-           if (sal->CF == 4) {
-               strcat(dis_buffer, " STP");
-           } else if (sal->CF == 0 && sal->CA == 0) {
-               strcat(dis_buffer, " 0");
-           } else {
-               strcat(dis_buffer, " ");
-               strcat(dis_buffer, ca_name[sal->CA]);
-               strcat(dis_buffer, cf_name[sal->CF]);
-           }
-       
-           if (sal->CG == 0 && sal->CV == 0 && sal->CC == 0) {
-           } else {
-               switch (sal->CC) {
-               case 0:
-               case 1:
-               case 4:
-               case 5:
-               case 6:  strcat(dis_buffer, "+"); break;
-               case 2:  strcat(dis_buffer, "&"); break;
-               case 3:  strcat(dis_buffer, "|"); break;
-               case 7:  strcat(dis_buffer, "^"); break;
-               }
-               if (sal->CV == 1)
-                   strcat(dis_buffer, "-");
-               if (sal->CG == 0 && sal->CB == 0) {
-                  strcat(dis_buffer, "0");
-               } else {
-                  strcat(dis_buffer, cb_name[sal->CB]);
-                  if (sal->CG == 0)
+          if ((log_level & LOG_MICRO) != 0) {
+              sprintf (dis_buffer, "%s %03X: %02x ", sal->note, cpu_2030.WX, sal->CK);
+              if (sal->CK < 0x10) {
+                  if (sal->PK != 0 || sal->CB == 3 || sal->CU == 2) {
+                      char buf[3];
+                      strcat(dis_buffer, ckb_name[sal->CK]);
+                      buf[0] = ',';
+                      buf[1] = '0'+sal->PK;
+                      buf[2] = '\0';
+                      strcat(dis_buffer, buf);
+                  }
+              } else {
+                  strcat(dis_buffer, ck_name[sal->CK]);
+                  if (sal->PK != 0)
+                     strcat(dis_buffer, ",1");
+              }
+              if (sal->CF == 4) {
+                  strcat(dis_buffer, " STP");
+              } else if (sal->CF == 0 && sal->CA == 0) {
+                  strcat(dis_buffer, " 0");
+              } else {
+                  strcat(dis_buffer, " ");
+                  strcat(dis_buffer, ca_name[sal->CA]);
+                  strcat(dis_buffer, cf_name[sal->CF]);
+              }
+
+              if (sal->CG == 0 && sal->CV == 0 && sal->CC == 0) {
+              } else {
+                  switch (sal->CC) {
+                  case 0:
+                  case 1:
+                  case 4:
+                  case 5:
+                  case 6:  strcat(dis_buffer, "+"); break;
+                  case 2:  strcat(dis_buffer, "&"); break;
+                  case 3:  strcat(dis_buffer, "|"); break;
+                  case 7:  strcat(dis_buffer, "^"); break;
+                  }
+                  if (sal->CV == 1)
+                      strcat(dis_buffer, "-");
+                  if (sal->CG == 0 && sal->CB == 0) {
                      strcat(dis_buffer, "0");
-               }
-                  
+                  } else {
+                     strcat(dis_buffer, cb_name[sal->CB]);
+                     if (sal->CG == 0)
+                        strcat(dis_buffer, "0");
+                  }
+
+              }
+              if (sal->CG != 0)
+                 strcat(dis_buffer, cg_name[sal->CG]);
+              switch (sal->CC) {
+              case 5:
+              case 1:  strcat(dis_buffer, "+1");  break;
+              case 6:  strcat(dis_buffer, "+C"); break;
+              }
+              strcat(dis_buffer, ">");
+              strcat(dis_buffer, cd_name[sal->CD]);
+              if (sal->CC >= 4 && sal->CC < 7)
+                 strcat(dis_buffer, "C");
+
+              if (sal->CV > 1)
+                 strcat(dis_buffer, (sal->CV & 1) ? " DEC": " BIN");
+
+              if (sal->CS != 0) {
+                  strcat(dis_buffer, " ");
+                  strcat(dis_buffer, cs_name[sal->CS]);
+              }
+              strcat(dis_buffer, "  ");
+              if (sal->CM < 3 && sal->CU == 2) {
+                  char buf[10];
+                  strcat(dis_buffer, cm_name[sal->CM]);
+                  buf[0] = '(';
+                  buf[1] = hex[sal->CK];
+                  buf[2] = '>';
+                  buf[3] = 'W';
+                  buf[4] = ')';
+                  buf[5] = ' ';
+                  buf[6] = hex[(sal->CN >> 4) & 0xf];
+                  buf[7] = hex[sal->CN & 0xf];
+                  buf[8] = ' ';
+                  buf[9] = '\0';;
+                  strcat(dis_buffer, buf);
+                  strcat(dis_buffer, ch_name[sal->CH]);
+                  strcat(dis_buffer, " ");
+                  strcat(dis_buffer, cl_name[sal->CL]);
+              } else if (sal->CM == 6) {
+                  char buf[10];
+                  int val =  0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) | (sal->CK & 0x7);
+                  buf[0] = hex[(val >> 4) & 0xf];
+                  buf[1] = hex[val & 0xf];
+                  buf[2] = '(';
+                  buf[3] = '\0';
+                  strcat(dis_buffer, buf);
+                  strcat(dis_buffer, (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU]);
+                  buf[0] = ')';
+                  buf[1] = ' ';
+                  buf[2] = hex[(sal->CN >> 4) & 0xf];
+                  buf[3] = hex[sal->CN & 0xf];
+                  buf[4] = ' ';
+                  buf[5] = '\0';;
+                  strcat(dis_buffer, buf);
+                  strcat(dis_buffer, ch_name[sal->CH]);
+                  strcat(dis_buffer, " ");
+                  strcat(dis_buffer, cl_name[sal->CL]);
+              } else {
+                  char buf[10];
+                  strcat(dis_buffer, cm_name[sal->CM]);
+                  strcat(dis_buffer, "(");
+                  strcat(dis_buffer, (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU]);
+                  buf[0] = ' ';
+                  buf[1] = hex[(sal->CN >> 4) & 0xf];
+                  buf[2] = hex[sal->CN & 0xf];
+                  buf[3] = ' ';
+                  buf[4] = '\0';;
+                  strcat(dis_buffer, buf);
+                  strcat(dis_buffer, ch_name[sal->CH]);
+                  strcat(dis_buffer, " ");
+                  strcat(dis_buffer, cl_name[sal->CL]);
+              }
+              strcat(dis_buffer, "\n");
+              log_micro(dis_buffer);
            }
-           if (sal->CG != 0)
-              strcat(dis_buffer, cg_name[sal->CG]);
-           switch (sal->CC) {
-           case 5:
-           case 1:  strcat(dis_buffer, "+1");  break;
-           case 6:  strcat(dis_buffer, "+C"); break;
-           }
-           strcat(dis_buffer, ">");
-           strcat(dis_buffer, cd_name[sal->CD]);
-           if (sal->CC >= 4 && sal->CC < 7)
-              strcat(dis_buffer, "C");
-       
-           if (sal->CV > 1) 
-              strcat(dis_buffer, (sal->CV & 1) ? " DEC": " BIN");
-       
-           if (sal->CS != 0) {
-               strcat(dis_buffer, " ");
-               strcat(dis_buffer, cs_name[sal->CS]);
-           }
-           strcat(dis_buffer, "  ");
-           if (sal->CM < 3 && sal->CU == 2) {
-               char buf[10];
-               strcat(dis_buffer, cm_name[sal->CM]);
-               buf[0] = '(';
-               buf[1] = hex[sal->CK];
-               buf[2] = '>';
-               buf[3] = 'W';
-               buf[4] = ')';
-               buf[5] = ' ';
-               buf[6] = hex[(sal->CN >> 4) & 0xf];
-               buf[7] = hex[sal->CN & 0xf];
-               buf[8] = ' ';
-               buf[9] = '\0';;
-               strcat(dis_buffer, buf);
-               strcat(dis_buffer, ch_name[sal->CH]);
-               strcat(dis_buffer, " ");
-               strcat(dis_buffer, cl_name[sal->CL]);
-           } else if (sal->CM == 6) {
-               char buf[10];
-               int val =  0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) | (sal->CK & 0x7);
-               buf[0] = hex[(val >> 4) & 0xf];
-               buf[1] = hex[val & 0xf];
-               buf[2] = '(';
-               buf[3] = '\0';
-               strcat(dis_buffer, buf);
-               strcat(dis_buffer, (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU]);
-               buf[0] = ')';
-               buf[1] = ' ';
-               buf[2] = hex[(sal->CN >> 4) & 0xf];
-               buf[3] = hex[sal->CN & 0xf];
-               buf[4] = ' ';
-               buf[5] = '\0';;
-               strcat(dis_buffer, buf);
-               strcat(dis_buffer, ch_name[sal->CH]);
-               strcat(dis_buffer, " ");
-               strcat(dis_buffer, cl_name[sal->CL]);
-               printf("  %x(%s) %02x %s %s ", 0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) |
-                    (sal->CK & 0x7), (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU],
-                          sal->CN, ch_name[sal->CH], cl_name[sal->CL]);
-           } else {
-               char buf[10];
-               strcat(dis_buffer, cm_name[sal->CM]);
-               strcat(dis_buffer, "(");
-               strcat(dis_buffer, (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU]);
-               buf[0] = ' ';
-               buf[1] = hex[(sal->CN >> 4) & 0xf];
-               buf[2] = hex[sal->CN & 0xf];
-               buf[3] = ' ';
-               buf[4] = '\0';;
-               strcat(dis_buffer, buf);
-               strcat(dis_buffer, ch_name[sal->CH]);
-               strcat(dis_buffer, " ");
-               strcat(dis_buffer, cl_name[sal->CL]);
-           }
-           strcat(dis_buffer, "\n");
-#endif
-       
+
            /* Read memory from previous request */
            if (read_call) {
-       
+
                protect_loc_cpu_or_mpx = 0;
                mem_prot = 0;
                stg_prot_req = 0;
                /* Check validity of M and N registers */
-               if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 || 
+               if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 ||
                      ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
 //                   printf("Set MN bus\n");
                    cpu_2030.MC_REG |= BIT2;
                    mem_prot = 1;
                }
-       
+
                /* Check if in range of memory */
                if (store == MAIN && ((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0) {
                    mem_prot = 1;
@@ -1152,13 +1151,13 @@ printf("Set Roar %d\n", allow_man_operation);
                allow_write = 1;
                read_call = 0;
            }
-       
+
 
            /* Compute next address */
            switch (sal->CM) {
            case 2:       /* Store */
                    if (sal->CD == 7) {
-                       if ((cpu_2030.H_REG & BIT5) != 0 && (cpu_2030.Q_REG & 0xf0) != 0 && 
+                       if ((cpu_2030.H_REG & BIT5) != 0 && (cpu_2030.Q_REG & 0xf0) != 0 &&
                                  (((cpu_2030.Q_REG >> 4) ^ cpu_2030.Q_REG) & 0xf) != 0) {
                            protect_loc_cpu_or_mpx = 1;
                            stg_prot_req = 1;
@@ -1166,7 +1165,7 @@ printf("Set Roar %d\n", allow_man_operation);
                    }
                    /* Fall through */
            case 0:       /* Write */
-                  /* Do write to memory from this request */ 
+                  /* Do write to memory from this request */
                   if (allow_write) {
                       switch (store) {
                       case MAIN:
@@ -1178,18 +1177,18 @@ printf("Set Roar %d\n", allow_man_operation);
 //                           printf("Write MS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.M[cpu_2030.MN_REG]);
                            break;
                       case LOCAL:
-                           if (sal->CU == 1) 
+                           if (sal->CU == 1)
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.GR[cpu_2030.ch_sel];
                            else
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.R_REG;
 //                           printf("Write LS: %04x %02x\n", cpu_2030.MN_REG, cpu_2030.LS[cpu_2030.MN_REG]);
                            break;
                       case MPX:
-                           if (sal->CU == 1) 
+                           if (sal->CU == 1)
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff) + 256] = cpu_2030.GR[cpu_2030.ch_sel];
                            else
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff) + 256] = cpu_2030.R_REG;
-//                           printf("Write MPX: %04x %02x\n", cpu_2030.MN_REG + 256, 
+//                           printf("Write MPX: %04x %02x\n", cpu_2030.MN_REG + 256,
 //                                                   cpu_2030.LS[cpu_2030.MN_REG + 256]);
                            break;
                       }
@@ -1213,7 +1212,7 @@ printf("Set Roar %d\n", allow_man_operation);
                   break;
            case 6:          /* Read CK */
                   cpu_2030.M_REG = 0x100;
-                  cpu_2030.N_REG = 0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) | 
+                  cpu_2030.N_REG = 0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) |
                          (sal->CK & 0x7);
                   /* Use selector channel 2 */
                   if (cpu_2030.ch_sel && ((sal->CK & 0x1e) == 06 || sal->CK == 05))
@@ -1225,7 +1224,7 @@ printf("Set Roar %d\n", allow_man_operation);
                   cpu_2030.N_REG = cpu_2030.GV[cpu_2030.ch_sel];
                   break;
            }
-       
+
            /* If load new address, generate SA and Main/MPX request */
            if (sal->CM >= 3) {
                store = MAIN;
@@ -1264,23 +1263,23 @@ printf("Set Roar %d\n", allow_man_operation);
                if (!allow_write && !mem_wrap_req) {
                    read_call = 1;
                }
-               if (store == MAIN) 
+               if (store == MAIN)
                    cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
                else
                    cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xf0) << 4) | (cpu_2030.N_REG & 0xff);
                /* Check validity of M and N registers */
-               if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 || 
+               if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 ||
                      ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
 //                   printf("Set MN bus\n");
                    cpu_2030.MC_REG |= BIT2;
                    mem_prot = 1;
                }
-       
+
            }
-       
+
            /* Base next address. */
            nextWX = (cpu_2030.WX & 0xf00) | sal->CN;
-       
+
            /* Decode the X6 bit */
            switch (sal->CH) {
            case 0:
@@ -1345,7 +1344,7 @@ printf("Set Roar %d\n", allow_man_operation);
                       nextWX |= 0x2;
                    break;
            }
-       
+
            end_of_e_cycle = 0;
            /* Decode the X7 bit */
            switch (sal->CL) {
@@ -1413,7 +1412,7 @@ printf("Set Roar %d\n", allow_man_operation);
                    }
                    break;
            }
-       
+
            /* Handle alternate CK thst change branch address */
            switch(sal->CK) {
            case 0x11:  nextWX = ((cpu_2030.U_REG & 0xff) << 8) | (cpu_2030.V_REG & 0xff);
@@ -1443,9 +1442,9 @@ printf("Set Roar %d\n", allow_man_operation);
                           nextWX &= 0xffd;  /* Clear X6 if set */
                        break;
            case 0x1A: /* Select interrupt SEL1 -> 0,x SEL2 -> x,0, timer -> 0,0 */
-                       if ((cpu_2030.MASK & BIT1) && sel_intrp_lch[0]) 
+                       if ((cpu_2030.MASK & BIT1) && sel_intrp_lch[0])
                           nextWX &= 0xffe;
-                       else if ((cpu_2030.MASK & BIT2) && sel_intrp_lch[1]) 
+                       else if ((cpu_2030.MASK & BIT2) && sel_intrp_lch[1])
                           nextWX &= 0xffd;
                        else if (((cpu_2030.MASK & BIT7) && cpu_2030.F_REG != 0) || timer_update)
                           nextWX &= 0xffc;
@@ -1461,14 +1460,14 @@ printf("Set Roar %d\n", allow_man_operation);
            case 0x1f:  /* Set external interrupt */
                        break;
            }
-    
+
            if (sal->CM < 3 && sal->CU == 2) {
                nextWX &= 0xff;
                nextWX |= (sal->CK & 0xF) << 8;
            }
-    
+
            cpu_2030.WX = nextWX;
-    
+
            /* Handle alternate CK that don't change branch address */
            switch(sal->CK) {
            case 0x11:  break;
@@ -1483,10 +1482,10 @@ printf("Set Roar %d\n", allow_man_operation);
            case 0x15: /* If previous carry force X to 0 */
                        break;
            case 0x16: /* Reset 1050 home loop */
-                       printf("Reset 1050 Home Loop\n");
+                       log_console("Reset 1050 Home Loop\n");
                        break;
            case 0x17: /* set 1050 home loop */
-                       printf("Set 1050 Home Loop\n");
+                       log_console("Set 1050 Home Loop\n");
                        break;
            case 0x18: /* Set even parity */
                        if (even_parity != 0)
@@ -1516,7 +1515,7 @@ printf("Set Roar %d\n", allow_man_operation);
                        cpu_2030.F_REG |= 0x80;
                        break;
            }
-    
+
            if (sal->CK == 0x14) {
                cpu_2030.Bbus = (H_SW << 4) | J_SW;
                cpu_2030.Bbus |= odd_parity[cpu_2030.Bbus];
@@ -1538,15 +1537,15 @@ printf("Set Roar %d\n", allow_man_operation);
                       break;
                }
            }
-    
-    
+
+
            /* Check parity on B bus */
-           if (!second_err_stop && 
+           if (!second_err_stop &&
                      ((odd_parity[cpu_2030.Bbus & 0xff] ^ cpu_2030.Bbus) & 0x100) != 0) {
                //printf("Set B bus\n");
                cpu_2030.MC_REG |= BIT1;
            }
-    
+
            allow_a_reg_chk = 0;
            /* Gate register to A Bus */
            switch (sal->CA) {
@@ -1650,7 +1649,7 @@ printf("Set Roar %d\n", allow_man_operation);
                   allow_a_reg_chk = 1;
                   break;
            case 0x18:
-           case 0x19: 
+           case 0x19:
            case 0x1A:
            case 0x1B:
                   cpu_2030.Abus = 0x100;
@@ -1672,19 +1671,19 @@ printf("Set Roar %d\n", allow_man_operation);
                   if (sel_gr_full[cpu_2030.ch_sel])
                       cpu_2030.Abus |= BIT0;
                   /* Chain detect. */
-                  if (sel_chain_det[cpu_2030.ch_sel]) 
+                  if (sel_chain_det[cpu_2030.ch_sel])
                       cpu_2030.Abus |= BIT1;
                   /* Interrupt condition */
-                  if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_ADR_OUT) != 0) 
+                  if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_ADR_OUT) != 0)
                       cpu_2030.Abus |= BIT3;
                   /* CD */
-                  if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT0) != 0) 
+                  if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT0) != 0)
                       cpu_2030.Abus |= BIT4;
                   /* Channel select. */
-                  if (cpu_2030.ch_sel == 0) 
+                  if (cpu_2030.ch_sel == 0)
                       cpu_2030.Abus |= BIT5;
                   /* Chain Request */
-                  if ((cpu_2030.GF[cpu_2030.ch_sel] & (BIT0|BIT1)) != 0) 
+                  if ((cpu_2030.GF[cpu_2030.ch_sel] & (BIT0|BIT1)) != 0)
                       cpu_2030.Abus |= BIT7;
                   cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                   allow_a_reg_chk = 1;
@@ -1696,10 +1695,10 @@ printf("Set Roar %d\n", allow_man_operation);
                   if ((cpu_2030.SEL_TI[cpu_2030.ch_sel] & CHAN_SEL_IN) != 0)
                       cpu_2030.Abus |= BIT0;
                   /* Service In & Not Service Out */
-                  if ((cpu_2030.SEL_TI[cpu_2030.ch_sel] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) 
+                  if ((cpu_2030.SEL_TI[cpu_2030.ch_sel] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN))
                       cpu_2030.Abus |= BIT1;
                   /* Poll control */
-                  if (sel_poll_ctrl[cpu_2030.ch_sel]) 
+                  if (sel_poll_ctrl[cpu_2030.ch_sel])
                       cpu_2030.Abus |= BIT2;
                   /* Channel Busy */
                   if (sel_chan_busy[cpu_2030.ch_sel])
@@ -1730,65 +1729,65 @@ printf("Set Roar %d\n", allow_man_operation);
                   case 6:
                           cpu_2030.Abus = 0;
                           /* SX CNT Ready and Not Zero */
-                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_OPR_OUT) != 0) 
+                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_OPR_OUT) != 0)
                               cpu_2030.Abus |= BIT0;
                           /* SLI */
-                          if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT2) != 0) 
+                          if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT2) != 0)
                               cpu_2030.Abus |= BIT1;
                           /* Com 7 bit output */
-                          if ((cpu_2030.GG[cpu_2030.ch_sel] & BIT7) != 0) 
+                          if ((cpu_2030.GG[cpu_2030.ch_sel] & BIT7) != 0)
                               cpu_2030.Abus |= BIT2;
                           /* Count ready and zero */
-                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_ADR_OUT) != 0) 
+                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_ADR_OUT) != 0)
                               cpu_2030.Abus |= BIT3;
                           /* CC */
-                          if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT1) != 0) 
+                          if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT1) != 0)
                               cpu_2030.Abus |= BIT5;
                           /* Read backwards */
-                          if (cpu_2030.GG[cpu_2030.ch_sel] == 0xc) 
+                          if (cpu_2030.GG[cpu_2030.ch_sel] == 0xc)
                               cpu_2030.Abus |= BIT6;
                           /* Skip */
-                          if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT3) != 0) 
+                          if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT3) != 0)
                               cpu_2030.Abus |= BIT7;
                           cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                           break;
-    
+
                   case 7:
                           cpu_2030.Abus = 0;
-                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_OPR_OUT) != 0) 
+                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_OPR_OUT) != 0)
                               cpu_2030.Abus |= BIT7;
                           /* Bus out ctrl */
-                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_SRV_OUT) != 0) 
+                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_SRV_OUT) != 0)
                               cpu_2030.Abus |= BIT6;
-                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_SRV_OUT) != 0) 
+                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_SRV_OUT) != 0)
                               cpu_2030.Abus |= BIT5;
-                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_CMD_OUT) != 0) 
+                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_CMD_OUT) != 0)
                               cpu_2030.Abus |= BIT4;
-                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_ADR_OUT) != 0) 
+                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_ADR_OUT) != 0)
                               cpu_2030.Abus |= BIT3;
                           /* SX1 ROS req */
-                          if (sel_ros_req) 
+                          if (sel_ros_req)
                               cpu_2030.Abus |= BIT2;
-                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_SUP_OUT) != 0) 
+                          if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_SUP_OUT) != 0)
                               cpu_2030.Abus |= BIT1;
                           /* Input command */
-                          if ((cpu_2030.GF[cpu_2030.ch_sel] & 3) == 2 || (cpu_2030.GF[cpu_2030.ch_sel] & 5) == 4) 
+                          if ((cpu_2030.GF[cpu_2030.ch_sel] & 3) == 2 || (cpu_2030.GF[cpu_2030.ch_sel] & 5) == 4)
                               cpu_2030.Abus |= BIT0;
                           cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                           break;
                   }
                   break;
            }
-    
+
            if (sal->CL == 2 || any_priority_lch || suppr_a_reg_chk)
                allow_a_reg_chk = 0;
-    
-           if (allow_a_reg_chk && 
+
+           if (allow_a_reg_chk &&
                      ((odd_parity[cpu_2030.Abus & 0xff] ^ cpu_2030.Abus) & 0x100) != 0) {
                //printf("Set A bus\n");
                cpu_2030.MC_REG |= BIT0;
            }
-    
+
            /* Set up Alu A input */
            switch (sal->CF) {
            case 0:
@@ -1819,7 +1818,7 @@ printf("Set Roar %d\n", allow_man_operation);
                    abus_f = ((cpu_2030.Abus >> 4) & 0xf) | ((cpu_2030.Abus << 4) & 0xf0);
                    break;
            }
-    
+
            dec = (sal->CV == 3);
            /* Set up B alu input. */
            bbus_f = cpu_2030.Bbus & cg_mask[sal->CG];
@@ -1827,11 +1826,11 @@ printf("Set Roar %d\n", allow_man_operation);
               bbus_f ^= 0xff;
               tc = 1;
            } else {
-              if (dec) 
+              if (dec)
                  bbus_f = ((bbus_f + 0x60) & 0xf0) | ((bbus_f + 0x6) & 0x0f);
               tc = 0;
            }
-    
+
            /* Carry into Alu */
            carry_in = 0;
            switch (sal->CC) {
@@ -1850,8 +1849,8 @@ printf("Set Roar %d\n", allow_man_operation);
                    carry_in = (cpu_2030.S_REG & BIT3) != 0;
                    break;
            }
-         
-           /* Do Alu operation */ 
+
+           /* Do Alu operation */
            carries = 0;
            switch (sal->CC) {
            case 0:
@@ -1876,7 +1875,7 @@ printf("Set Roar %d\n", allow_man_operation);
                    cpu_2030.Alu_out = abus_f ^ bbus_f;
                    break;
            }
-    
+
            /* Fix up if decimal mode */
            if (dec) {
                if ((carries & BIT4) == 0)
@@ -1895,10 +1894,10 @@ printf("Set Roar %d\n", allow_man_operation);
 //               printf(" corr %02x o %02x -> %02x\n", abus_f, bbus_f, cpu_2030.Alu_out);
            }
            cpu_2030.Alu_out |= odd_parity[cpu_2030.Alu_out] ^ even_parity;
-    
-    
-    
-           /* Save results into destination */ 
+
+
+
+           /* Save results into destination */
            switch (sal->CD) {
            case 0:
                    break;
@@ -1917,14 +1916,14 @@ printf("Set Roar %d\n", allow_man_operation);
                    cpu_2030.TA = cpu_2030.Alu_out & 0xff;
                    //printf("Write TA: %02x\n", cpu_2030.TA);
                    break;
-           case 5: 
+           case 5:
                    cpu_2030.H_REG = cpu_2030.Alu_out;
                    priority_lch = 0;
                    break;
-           case 6: 
+           case 6:
                    cpu_2030.S_REG = cpu_2030.Alu_out & 0xFF;
                    break;
-           case 7: 
+           case 7:
                    /* If protection violation, don't let R get changed */
                    if (sal->CM == 2 && ((allow_write && protect_loc_cpu_or_mpx) || mem_prot))
                        break;
@@ -1933,22 +1932,22 @@ printf("Set Roar %d\n", allow_man_operation);
                         cpu_2030.MC_REG |= BIT6;
                    }
                    break;
-           case 8: 
+           case 8:
                    cpu_2030.D_REG = cpu_2030.Alu_out;
                    break;
-           case 9: 
+           case 9:
                    cpu_2030.L_REG = cpu_2030.Alu_out;
                    break;
            case 10:
                    cpu_2030.G_REG = cpu_2030.Alu_out;
                    break;
-           case 11: 
+           case 11:
                    cpu_2030.T_REG = cpu_2030.Alu_out;
                    break;
-           case 12: 
+           case 12:
                    cpu_2030.V_REG = cpu_2030.Alu_out;
                    break;
-           case 13: 
+           case 13:
                    cpu_2030.U_REG = cpu_2030.Alu_out;
                    if (sal->CG == 3 && ((((tc) ? 0 : 0x80) ^ carries) & 0x80) == 0) {
                        if ((cpu_2030.H_REG & (BIT5|BIT6)) == BIT5)
@@ -1962,10 +1961,10 @@ printf("Set Roar %d\n", allow_man_operation);
                            u_wrap_cpu = 0;
                    }
                    break;
-           case 14: 
+           case 14:
                    cpu_2030.J_REG = cpu_2030.Alu_out;
                    break;
-           case 15: 
+           case 15:
                    cpu_2030.I_REG = cpu_2030.Alu_out;
                    if (sal->CG == 3 && ((((tc) ? 0 : 0x80) ^ carries) & 0x80) == 0) {
                        if ((cpu_2030.H_REG & (BIT5|BIT6)) != (BIT5|BIT6))
@@ -1976,15 +1975,15 @@ printf("Set Roar %d\n", allow_man_operation);
                    }
                    break;
            }
-    
+
            /* Save carry from AC if requested */
            if ((sal->CC & 0x4) != 0 && sal->CC != 7) {
-               if ((carries & BIT0) != 0) 
+               if ((carries & BIT0) != 0)
                    cpu_2030.S_REG |= BIT3;
                else
                    cpu_2030.S_REG &= ~BIT3;
            }
-    
+
            /* Set MC flag for ALU error */
            if (even_parity || alu_chk) {
                //printf("Set ALU Check\n");
@@ -1997,16 +1996,16 @@ printf("Set Roar %d\n", allow_man_operation);
                cpu_2030.MC_REG |= BIT3|BIT4|BIT5;
            }
 
-    
-    
+
+
            /* Check if there are any machine checks */
            any_mach_chk = (cpu_2030.MC_REG != 0) | sel_chnl_chk;
-    
+
            if ((CHK_SW == 2) && suppr_half_trap_lch && any_mach_chk) {
                //printf("Set first_mach_chk_req %d\n", CHK_SW);
                first_mach_chk_req = 1;
            }
-    
+
            /* Update static flags */
            switch (sal->CS) {
            case 0x00:
@@ -2076,7 +2075,7 @@ printf("Set Roar %d\n", allow_man_operation);
                           /* Set interrupt mask */
                           cpu_2030.MASK = (BIT0|BIT1|BIT2|BIT7) & cpu_2030.R_REG;
                    }
-                   /* 1001 Set or reset based on S<0,1,2> 
+                   /* 1001 Set or reset based on S<0,1,2>
                          S<0> set XX high latch on.
                          S<1> Sets X high latch on.
                          S<2> Sets X low latch on.
@@ -2112,7 +2111,7 @@ printf("Set Roar %d\n", allow_man_operation);
                    }
                    break;
            case 0x0F:
-                  
+
                    /* 10000 PI Sets command-start latch on */
                    /* 01000 PO set bus out register from R. */
                    /* 00100 PO set address-out line on. */
@@ -2171,7 +2170,7 @@ printf("Set Roar %d\n", allow_man_operation);
                    /* K > GH */
                    switch (sal->CK & 0xf) {
                    /* k = 0, selector channel 1 & 2 reset */
-                   case 0:   
+                   case 0:
                             sel_chan_busy[0] = 0;
                             sel_intrp_lch[0] = 0;
                             sel_gr_full[0] = 0;
@@ -2203,7 +2202,7 @@ printf("Set Roar %d\n", allow_man_operation);
            case 0x1d:
                    /* Selector bus in to GR */
                    cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.GI[cpu_2030.ch_sel];
-//                   if (sel_poll_ctrl[cpu_2030.ch_sel] == 0 && 
+//                   if (sel_poll_ctrl[cpu_2030.ch_sel] == 0 &&
  //                      (cpu_2030.SEL_TI[cpu_2030.ch_sel] & CHAN_STA_IN) != 0) {
   //                     cpu_2030.SEL_TAGS[cpu_2030.ch_sel] |= CHAN_SRV_OUT;
    //                }
@@ -2260,13 +2259,14 @@ printf("Set Roar %d\n", allow_man_operation);
                    /* Set Poll control */
                    case 0xb: sel_poll_ctrl[cpu_2030.ch_sel] = sal->PK; break;
                    /* Reset select out */
-                   case 0xc: 
-                            cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT); 
+                   case 0xc:
+                            cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                             if (sel_poll_ctrl[cpu_2030.ch_sel] == 0)
                                 cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~(CHAN_ADR_OUT);
                             break;
                    /* Set channel busy */
-                   case 0xd: sel_chan_busy[cpu_2030.ch_sel] = 1; printf("Set channel busy\n"); break;
+                   case 0xd: sel_chan_busy[cpu_2030.ch_sel] = 1;
+                             log_selchn("Set channel busy\n"); break;
                    /* Set Halt IO */
                    case 0xe: sel_halt_io[cpu_2030.ch_sel] = 1; break;
                    /* Set Interface check */
@@ -2280,13 +2280,13 @@ printf("Set Roar %d\n", allow_man_operation);
                       K = 2 operational out reset
                       K = 3 PCI flag reset
                       K = 4 selector channel interrupt is set
-                      K = 5 channel control check 
+                      K = 5 channel control check
                       K = 6 GR to zero is set
                       K = 7 CPU stored.
                       K = 8 and KP = 0, count ready is reset.
                                 KP = 1, count ready is set.
                       K = 9 and KP = 0, channel reset.
-                                KP = 1, poll controll reset and channel reset 
+                                KP = 1, poll controll reset and channel reset
                       K = A and KP = 0, suppress out reset.
                                 KP = 1, suppress out set.
                       K = B and KP = 0, poll control reset.
@@ -2371,7 +2371,7 @@ printf("Set Roar %d\n", allow_man_operation);
                    cpu_2030.MC_REG |= BIT6;
                }
            }
-           
+
            /* Save status of flags for next cycle to check */
            /* But don't update if doing a restore cycle */
            if (sal->CM >= 3 || sal->CU != 3) {
@@ -2379,13 +2379,13 @@ printf("Set Roar %d\n", allow_man_operation);
                                     (((carries & BIT1) != 0) ? BIT6 : 0) |
                                     (((cpu_2030.Alu_out & 0xff)== 0) ? BIT4 : 0);
            }
-           
-               
-           printf("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
+
+
+           log_reg("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
                    cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG, cpu_2030.Q_REG, cpu_2030.R_REG,
                    cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG, cpu_2030.FT, cpu_2030.MASK, abus_f, cc_name[sal->CC], bbus_f, cpu_2030.Alu_out, ASCII);
-           printf("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d\n",
-                   cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG, 
+           log_reg("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d\n",
+                   cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG,
                    cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX, cpu_2030.STAT_REG,
                    cpu_2030.O_REG, carries, priority_lch, allow_write, read_call, second_err_stop);
 
@@ -2404,7 +2404,7 @@ chan_scan:
             cpu_2030.FT |= BIT3;
         }
         cpu_2030.MPX_TAGS &= ~CHAN_SUP_OUT;
-        if (mpx_supr_out_lch || ((cpu_2030.MPX_TI & CHAN_OPR_IN) == 0 && 
+        if (mpx_supr_out_lch || ((cpu_2030.MPX_TI & CHAN_OPR_IN) == 0 &&
                                  (cpu_2030.FT & BIT7) != 0)) {
            cpu_2030.MPX_TAGS |= CHAN_SUP_OUT;
         }
@@ -2419,7 +2419,7 @@ chan_scan:
         if (mpx_cmd_start == 0 && mpx_start_sel == 0 && (cpu_2030.FT & BIT3) == 0 &&
               (cpu_2030.MPX_TI & (CHAN_REQ_IN|CHAN_OPR_IN|CHAN_OPR_OUT)) == (CHAN_REQ_IN|CHAN_OPR_OUT)) {
             mpx_start_sel = 1;
-//            printf("Start mpx select\n");
+//            log_mpxchn("Start mpx select\n");
         }
         /* Pending select? */
         if (cpu_2030.MPX_TI == (CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN))
@@ -2449,7 +2449,7 @@ chan_scan:
             cpu_2030.FT &= ~BIT6;
             cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
         }
-     
+
         /* Handle Selector channels */
         for (i = 0; i < 2; i++) {
              if (sel_diag_mode[i] || (sal->CS == 0x1E && sal->CK == 0x2)) {
@@ -2461,8 +2461,8 @@ chan_scan:
              cpu_2030.SEL_TI[i] |= cpu_2030.SEL_TAGS[i];  /* Copy current tags to output */
              if (cpu_2030.SEL_TAGS[i] & (CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_SRV_OUT))
                  cpu_2030.GO[i] = cpu_2030.GR[i];
-//             if (cpu_2030.SEL_TAGS[i] & CHAN_SEL_OUT) 
- //                printf (" Sel %d %02x\n", i, cpu_2030.GG[i]);
+//             if (cpu_2030.SEL_TAGS[i] & CHAN_SEL_OUT)
+ //                log_selchn (" Sel %d %02x\n", i, cpu_2030.GG[i]);
              for (dev = chan[i+1]; dev != NULL; dev = dev->next) {
                   dev->bus_func(dev, &cpu_2030.SEL_TI[i], cpu_2030.GO[i], &cpu_2030.GI[i]);
              }
@@ -2481,17 +2481,17 @@ chan_scan:
                  if (cpu_2030.O_REG & BIT5)  /* Request in */
                     cpu_2030.SEL_TI[i] |= CHAN_REQ_IN;
              }
-//             printf("Select %d tags: b=%d p=%d i=%d GF=%02x GG=%02x GR=%02x GCD=%02x %02x GV=%02x %02x\n  ",
- //                   i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], cpu_2030.GF[i], 
+//             log_selchn("Select %d tags: b=%d p=%d i=%d GF=%02x GG=%02x GR=%02x GCD=%02x %02x GV=%02x %02x\n  ",
+ //                   i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], cpu_2030.GF[i],
   //                 cpu_2030.GG[i], cpu_2030.GR[i], cpu_2030.GC[i], cpu_2030.GD[i], cpu_2030.GU[i],
    //                  cpu_2030.GV[i]);
-    //         print_tags(cpu_2030.SEL_TI[i], cpu_2030.GI[i]);
+    //         log_selchn(cpu_2030.SEL_TI[i], cpu_2030.GI[i]);
 
              /* If device has acknoweleged address out, drop it */
              if (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN) ||
                  cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN)) {
                  cpu_2030.SEL_TAGS[i] &= ~(CHAN_ADR_OUT);
-//                 printf("Ack Addr Out\n");
+//                 log_selchn("Ack Addr Out\n");
              }
 
              if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_OUT)) {
@@ -2500,7 +2500,7 @@ chan_scan:
                     /* If output try and refill GR with next location, or clear flag */
                     if ((cpu_2030.GG[i] & 1) != 0 && sel_gr_full[i] == 0) {
                         if (sel_cnt_rdy_not_zero[i] && !sel_halt_io[i]) {
-                            //printf("Fill channel %d\n", i);
+                            //log_selchn("Fill channel %d\n", i);
                             sel_share_req |= 1 << i;
                             sel_read_cycle[i] = 1;
                         }
@@ -2511,18 +2511,18 @@ chan_scan:
              /* If input and has data save it in GR */
              if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_IN) &&
                 ((cpu_2030.GG[i] & 3) == 2 || (cpu_2030.GG[i] & 5) == 4)) {
-//                 printf("Get data\n");
+//                 log_selchn("Get data\n");
                  if (sel_gr_full[i] == 0 && sel_cnt_rdy_not_zero[i]) {
- //                    printf("Read data %02x\n", cpu_2030.GI[i]);
+ //                    log_selchn("Read data %02x\n", cpu_2030.GI[i]);
                      cpu_2030.GR[i] = cpu_2030.GI[i];
                      sel_share_req |= 1 << i;
                      sel_read_cycle[i] = 1;
                      sel_gr_full[i] = 1;
                  }
                     /* Check for stop condition */
-                    if (sel_cnt_rdy_not_zero[i] == 0 && 
+                    if (sel_cnt_rdy_not_zero[i] == 0 &&
                         (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
-  //                   printf("Read end\n");
+  //                   log_selchn("Read end\n");
                         cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
                     }
              }
@@ -2533,13 +2533,13 @@ chan_scan:
                  //printf("Send  data\n");
                  if (sel_gr_full[i] != 0 && sel_cnt_rdy_not_zero[i] && !sel_halt_io[i]) {
                     cpu_2030.GO[i] = cpu_2030.GR[i];
-                     //printf("Send data %02x\n", cpu_2030.GO[i]);
+                     //log_selchn("Send data %02x\n", cpu_2030.GO[i]);
                  }
                     /* Check for stop condition */
-                    if (sel_cnt_rdy_not_zero[i] == 0 && 
+                    if (sel_cnt_rdy_not_zero[i] == 0 &&
                         (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
                         cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
-                     //printf("Send end\n");
+                     //log_selchn("Send end\n");
                     }
              }
 
@@ -2550,7 +2550,7 @@ chan_scan:
              /* Check if ack output request */
              if ((cpu_2030.GG[i] & 1) != 0 && sel_cnt_rdy_not_zero[i] && sel_status_stop_cond[i] == 0 &&
                    (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) {
-                      //printf("Acknowlege Service in\n");
+                      //log_selchn("Acknowlege Service in\n");
                        cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
              }
 
@@ -2561,7 +2561,7 @@ chan_scan:
              }
 
              /* Set command chain flag */
-             if (((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) && 
+             if (((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) &&
                    sel_poll_ctrl[i] && (cpu_2030.GF[i] & (BIT0|BIT1)) == (BIT1)) {
                  /* Check if length incomplete */
                  if (sel_cnt_rdy_not_zero[i] && (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == CHAN_SRV_OUT &&
@@ -2583,8 +2583,8 @@ chan_scan:
                  if ((cpu_2030.GI[i] & 0xff) == (SNS_CHNEND)) {
                      cpu_2030.SEL_TAGS[i] |= CHAN_SUP_OUT|CHAN_SRV_OUT;
                  }
-                 //printf("Sel CC %d %03x\n", i, cpu_2030.GI[i]);
-             } else if (((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) && 
+                 //log_selchn("Sel CC %d %03x\n", i, cpu_2030.GI[i]);
+             } else if (((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) &&
                    sel_poll_ctrl[i] && (cpu_2030.GF[i] & (BIT0|BIT1)) == (0)) {
                  /* Check if length incomplete */
                  if (sel_cnt_rdy_not_zero[i] && (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == CHAN_SRV_OUT &&
@@ -2607,33 +2607,33 @@ chan_scan:
                      cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
                  }
 #endif
-                 //printf("Sel No CC %d %03x pol=%d cnt=%d busy=%d R=%d\n", i, cpu_2030.GI[i],
+                 //log_selchn("Sel No CC %d %03x pol=%d cnt=%d busy=%d R=%d\n", i, cpu_2030.GI[i],
                   //     sel_poll_ctrl[i], sel_cnt_rdy_not_zero[i], sel_chan_busy[i], sel_ros_req);
              }
 
              /* Set command chain flag */
-             if (sel_chan_busy[i] && ((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) && 
+             if (sel_chan_busy[i] && ((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) &&
                    sel_cnt_rdy_zero[i] && sel_poll_ctrl[i] && (cpu_2030.GF[i] & (BIT0|BIT1)) == 0) {
                 sel_ros_req |= 1 << i;
-                //printf("Sel end channel %d %d\n", i, sel_chan_busy[i]);
+                //log_selchn("Sel end channel %d %d\n", i, sel_chan_busy[i]);
              }
 
              /* If channel not busy watch for Request In */
              if (sel_poll_ctrl[i] == 0) {
                 if (sel_intrp_lch[i] == 0 && cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_REQ_IN)) {
                     cpu_2030.SEL_TAGS[i] |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
-                    //printf("Select request\n");
+                    //log_selchn("Select request\n");
                 }
                 if (sel_intrp_lch[i] == 0 &&
                      cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                     sel_ros_req |= 1 << i;
-                    //printf("Select addressed\n");
+                    //log_selchn("Select addressed\n");
                 }
                 /* Wait for device to return status in */
 //                if (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
  //                  cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
 
-   //                printf("Select interrupt\n");
+   //                log_selchn("Select interrupt\n");
     //            }
              }
 
@@ -2649,14 +2649,14 @@ chan_scan:
                         sel_chain_req[i] = 1;
                    }
                    sel_ros_req |= 1 << i;
-                   //printf("Status interrupt\n");
+                   //log_selchn("Status interrupt\n");
              }
              if (sel_chan_busy[i] && sel_poll_ctrl[i] == 0 && (
-                 ((cpu_2030.GE[i] & (BIT1||BIT2|BIT3|BIT5|BIT6)) != 0) || 
+                 ((cpu_2030.GE[i] & (BIT1||BIT2|BIT3|BIT5|BIT6)) != 0) ||
                  ((cpu_2030.GE[i] & BIT4) == 0 && sel_cnt_rdy_not_zero[i] == 0) ||
                  ((cpu_2030.GE[i] & BIT4) != 0 && CHK_SW == 0))) {
                  sel_status_stop_cond[i] = 1;
-                 //printf("set stop %d %d %02x %d\n", i, sel_poll_ctrl[i], cpu_2030.GF[i], sel_ros_req);
+                 //log_selchn("set stop %d %d %02x %d\n", i, sel_poll_ctrl[i], cpu_2030.GF[i], sel_ros_req);
              }
         }
 
@@ -2717,11 +2717,11 @@ chan_scan:
             /* Select channel request */
             if ((cpu_2030.H_REG & BIT5) == 0 && sel_ros_req) {
                 priority_stack_reg |= BIT6;
- //               printf("SEL Share %d\n", sel_ros_req);
+ //               log_selchn("SEL Share %d\n", sel_ros_req);
             }
             /* MPX share request */
             if ((cpu_2030.H_REG & (BIT6|BIT5)) == 0 && (cpu_2030.FT & BIT3) != 0) {
-//                printf("MPX Share\n");
+//                log_mpxchn("MPX Share\n");
                 priority_stack_reg |= BIT7;
             }
         }
@@ -2740,4 +2740,4 @@ chan_scan:
     cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;
 
 }
- 
+
