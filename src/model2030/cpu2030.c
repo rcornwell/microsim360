@@ -171,6 +171,9 @@ static char *cs_name[] = {
      "", "", "", "", "", "", "GUV>GCD", "GR>GK",
      "GR>GF", "GR>GG", "GR>GU", "GR>GV", "K>GH", "GI>GR", "K>GB", "K>GA"};
 
+static char hex[] = {
+     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
 static uint8_t    ASCII;                /* Holds ASCII flag */
 static int        suppr_half_trap_lch;  /* Holds Machine check flag 03AA3 */
 static int        start_sw_rst;         /* Reset from start switch 03CA3 */
@@ -290,6 +293,7 @@ static int        cg_mask[4] = { 0x00, 0x0f, 0xf0, 0xff };
    2     ROS SCAN
 */
 
+static char  dis_buffer[1024];
 void
 cycle()
 {
@@ -968,22 +972,29 @@ printf("Set Roar %d\n", allow_man_operation);
 
 #if 1
           /* Disassemble micro instruction */
-           printf ("%s %03X: %02x ", sal->note, cpu_2030.WX, sal->CK);
+           sprintf (dis_buffer, "%s %03X: %02x ", sal->note, cpu_2030.WX, sal->CK);
            if (sal->CK < 0x10) {
                if (sal->PK != 0 || sal->CB == 3 || sal->CU == 2) {
-                   printf("%s,%d", ckb_name[sal->CK], sal->PK);
+                   char buf[3];
+                   strcat(dis_buffer, ckb_name[sal->CK]);
+                   buf[0] = ',';
+                   buf[1] = '0'+sal->PK;
+                   buf[2] = '\0';
+                   strcat(dis_buffer, buf);
                }
            } else {
-               printf("%s", ck_name[sal->CK]);
+               strcat(dis_buffer, ck_name[sal->CK]);
                if (sal->PK != 0)
-                  printf(",1");
+                  strcat(dis_buffer, ",1");
            }
            if (sal->CF == 4) {
-               printf(" STP");
+               strcat(dis_buffer, " STP");
            } else if (sal->CF == 0 && sal->CA == 0) {
-               printf(" 0");
+               strcat(dis_buffer, " 0");
            } else {
-               printf(" %s%s", ca_name[sal->CA], cf_name[sal->CF]);
+               strcat(dis_buffer, " ");
+               strcat(dis_buffer, ca_name[sal->CA]);
+               strcat(dis_buffer, cf_name[sal->CF]);
            }
        
            if (sal->CG == 0 && sal->CV == 0 && sal->CC == 0) {
@@ -993,48 +1004,97 @@ printf("Set Roar %d\n", allow_man_operation);
                case 1:
                case 4:
                case 5:
-               case 6:  printf("+"); break;
-               case 2:  printf("&"); break;
-               case 3:  printf("|"); break;
-               case 7:  printf("^"); break;
+               case 6:  strcat(dis_buffer, "+"); break;
+               case 2:  strcat(dis_buffer, "&"); break;
+               case 3:  strcat(dis_buffer, "|"); break;
+               case 7:  strcat(dis_buffer, "^"); break;
                }
                if (sal->CV == 1)
-                   printf("-");
+                   strcat(dis_buffer, "-");
                if (sal->CG == 0 && sal->CB == 0) {
-                  printf("0");
+                  strcat(dis_buffer, "0");
                } else {
-                  printf("%s", cb_name[sal->CB]);
+                  strcat(dis_buffer, cb_name[sal->CB]);
                   if (sal->CG == 0)
-                     printf("0");
+                     strcat(dis_buffer, "0");
                }
                   
            }
            if (sal->CG != 0)
-              printf("%s", cg_name[sal->CG]);
+              strcat(dis_buffer, cg_name[sal->CG]);
            switch (sal->CC) {
            case 5:
-           case 1:  printf("+1");  break;
-           case 6:  printf("+C"); break;
+           case 1:  strcat(dis_buffer, "+1");  break;
+           case 6:  strcat(dis_buffer, "+C"); break;
            }
-           printf(">%s", cd_name[sal->CD]);
+           strcat(dis_buffer, ">");
+           strcat(dis_buffer, cd_name[sal->CD]);
            if (sal->CC >= 4 && sal->CC < 7)
-              printf("C");
+              strcat(dis_buffer, "C");
        
            if (sal->CV > 1) 
-              printf(" %s", (sal->CV & 1) ? "DEC": "BIN");
+              strcat(dis_buffer, (sal->CV & 1) ? " DEC": " BIN");
        
-           if (sal->CS != 0)
-               printf(" %s", cs_name[sal->CS]);
-           if (sal->CM < 3 && sal->CU == 2)
-               printf("  %s(%x>W) %02x %s %s ", cm_name[sal->CM], sal->CK, sal->CN, ch_name[sal->CH], cl_name[sal->CL]);
-           else if (sal->CM == 6)
+           if (sal->CS != 0) {
+               strcat(dis_buffer, " ");
+               strcat(dis_buffer, cs_name[sal->CS]);
+           }
+           strcat(dis_buffer, "  ");
+           if (sal->CM < 3 && sal->CU == 2) {
+               char buf[10];
+               strcat(dis_buffer, cm_name[sal->CM]);
+               buf[0] = '(';
+               buf[1] = hex[sal->CK];
+               buf[2] = '>';
+               buf[3] = 'W';
+               buf[4] = ')';
+               buf[5] = ' ';
+               buf[6] = hex[(sal->CN >> 4) & 0xf];
+               buf[7] = hex[sal->CN & 0xf];
+               buf[8] = ' ';
+               buf[9] = '\0';;
+               strcat(dis_buffer, buf);
+               strcat(dis_buffer, ch_name[sal->CH]);
+               strcat(dis_buffer, " ");
+               strcat(dis_buffer, cl_name[sal->CL]);
+           } else if (sal->CM == 6) {
+               char buf[10];
+               int val =  0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) | (sal->CK & 0x7);
+               buf[0] = hex[(val >> 4) & 0xf];
+               buf[1] = hex[val & 0xf];
+               buf[2] = '(';
+               buf[3] = '\0';
+               strcat(dis_buffer, buf);
+               strcat(dis_buffer, (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU]);
+               buf[0] = ')';
+               buf[1] = ' ';
+               buf[2] = hex[(sal->CN >> 4) & 0xf];
+               buf[3] = hex[sal->CN & 0xf];
+               buf[4] = ' ';
+               buf[5] = '\0';;
+               strcat(dis_buffer, buf);
+               strcat(dis_buffer, ch_name[sal->CH]);
+               strcat(dis_buffer, " ");
+               strcat(dis_buffer, cl_name[sal->CL]);
                printf("  %x(%s) %02x %s %s ", 0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) |
                     (sal->CK & 0x7), (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU],
                           sal->CN, ch_name[sal->CH], cl_name[sal->CL]);
-           else
-               printf("  %s(%s) %02x %s %s ", cm_name[sal->CM], (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU],
-                          sal->CN, ch_name[sal->CH], cl_name[sal->CL]);
-           printf("\n");
+           } else {
+               char buf[10];
+               strcat(dis_buffer, cm_name[sal->CM]);
+               strcat(dis_buffer, "(");
+               strcat(dis_buffer, (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU]);
+               buf[0] = ' ';
+               buf[1] = hex[(sal->CN >> 4) & 0xf];
+               buf[2] = hex[sal->CN & 0xf];
+               buf[3] = ' ';
+               buf[4] = '\0';;
+               strcat(dis_buffer, buf);
+               strcat(dis_buffer, ch_name[sal->CH]);
+               strcat(dis_buffer, " ");
+               strcat(dis_buffer, cl_name[sal->CL]);
+           }
+           strcat(dis_buffer, "\n");
 #endif
        
            /* Read memory from previous request */
