@@ -45,10 +45,9 @@ main(int argc, char *argv[])
     int    i, j, b;
     int    io;
     int    addr1, addr2;
-    int    max;
     char   *q;
     char   note[20];
-    u_int32_t  bits[4];
+    uint32_t  bits[5];
     int    parity;
 
     /* Syntax, cros2050 input output */
@@ -187,8 +186,6 @@ loop:
             bits[j] <<= 1;
             b++;
         }
-        if (addr1 > max)
-            max=addr1;
         ros_2050[addr1].lu = (bits[0] >> 27) & 7;
         ros_2050[addr1].mv = (bits[0] >> 25) & 3;
         ros_2050[addr1].zp = ((bits[0] >> 19) & 0x3f) << 6;

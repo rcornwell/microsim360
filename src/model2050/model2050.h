@@ -72,23 +72,23 @@ extern struct ROS_2050 {
     int      zf;
     int      tr;
     int      zr;
-    int      ws;
+    int      ws;   /* CS, SA field in I/O */
     int      sf;
-    int      iv;
+    int      iv;   /* CT field in I/O */
     int      al;
-    int      wm;
-    int      up;
-    int      md;
-    int      mb;
-    int      lb;
-    int      dg;
+    int      wm;   /* WL, HC field in I/O */
+    int      up;   /* MS field in I/O */
+    int      md;   /* MS field in I/O */
+    int      lb;   /* CG field in I/O */
+    int      mb;   /* CG field in I/O */
+    int      dg;   /* MG field in I/O */
     int      ul;
     int      ur;
     int      ce;
     int      lx;
     int      tc;
     int      ry;
-    int      ad;
+    int      ad;   /* CT field in I/O */
     int      ab;
     int      bb;
     int      ux;
@@ -132,6 +132,7 @@ int          count;
 uint32_t    M[64 * 1024];
 uint32_t    LS[64];
 uint32_t    BUMP[1024];          /* Bump storage */
+uint8_t     PROT[256];
 uint8_t     mem_state;           /* Storage cycle state */
 
 
@@ -203,8 +204,12 @@ uint16_t    PWX;                /* Previous ROAR address. */
 
 uint8_t     IOS;                /* I/O Status registers */
 uint8_t     BRC;                /* Branch control register */
-uint16_t    BIF1;               /* MPX buffer 1 */
-uint16_t    BIF2;               /* MPX buffer 1 */
+uint16_t    BFR1;               /* MPX buffer 1 */
+uint16_t    BFR2;               /* MPX buffer 1 */
+uint16_t    BUS_IN;             /* MPX bus in */
+uint16_t    MPX_TAGS;           /* MPX tags */
+uint16_t    MPX_TI;             /* MPX tags in */
+uint8_t     IBFULL;             /* IB full */
 uint32_t    B_REG[4];           /* Select channel B regiser */
 uint32_t    C_REG[4];           /* Select channel C regiser */
 uint32_t    IOSTAT;             /* I/O Status register */

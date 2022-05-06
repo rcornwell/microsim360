@@ -164,7 +164,19 @@ static int lamp_offset[36] = {
      23, 23, 23, 23, 23, 23
 };
 
+static int roller_shift[36] = {
+     24,        31, 30, 29, 28, 27, 26, 25, 24,
+     16,        23, 22, 21, 20, 19, 18, 17, 16,
+      8,        15, 14, 13, 12, 11, 10,  9,  8,
+      0,         7,  6,  5,  4,  3,  2,  1,  0
+};
 
+static int roller_mask[36] = {
+     0xff, 0,  0,  0,  0,  0,  0,  0,  0,
+     0xff, 0,  0,  0,  0,  0,  0,  0,  0,
+     0xff, 0,  0,  0,  0,  0,  0,  0,  0,
+     0xff, 0,  0,  0,  0,  0,  0,  0,  0
+};
 
 void
 setup_fp2050(SDL_Renderer *render)
@@ -215,25 +227,64 @@ setup_fp2050(SDL_Renderer *render)
     roller[0].pos.y = 100;
     roller[0].sel = 0;
     roller[0].ystart = 0;
-    roller_ptr++;
     roller[1].rollers = roll;
     roller[1].pos.x = 150;
     roller[1].pos.y = 200;
     roller[1].sel = 0;
     roller[1].ystart = 8 * 25;
-    roller_ptr++;
     roller[2].rollers = roll;
     roller[2].pos.x = 150;
     roller[2].pos.y = 300;
     roller[2].sel = 0;
     roller[2].ystart = 16 * 25;
-    roller_ptr++;
     roller[3].rollers = roll;
     roller[3].pos.x = 150;
     roller[3].pos.y = 400;
     roller[3].sel = 0;
     roller[3].ystart = 24 * 25;
-    roller_ptr++;
+    roller_ptr = 4;
+    for (i = 0; i < 36; i++) {
+        roller[2].disp[0].value[i] = &cpu_2050.L_REG;
+        roller[2].disp[0].shift[i] = roller_shift[i];
+        roller[2].disp[0].mask[i] = roller_mask[i];
+        roller[2].disp[1].value[i] = &cpu_2050.R_REG;
+        roller[2].disp[1].shift[i] = roller_shift[i];
+        roller[2].disp[1].mask[i] = roller_mask[i];
+        roller[2].disp[2].value[i] = &cpu_2050.M_REG;
+        roller[2].disp[2].shift[i] = roller_shift[i];
+        roller[2].disp[2].mask[i] = roller_mask[i];
+        roller[2].disp[3].value[i] = &cpu_2050.H_REG;
+        roller[2].disp[3].shift[i] = roller_shift[i];
+        roller[2].disp[3].mask[i] = roller_mask[i];
+        if (i < 27) {
+            roller[2].disp[4].value[i] = &cpu_2050.SAR_REG;
+            roller[2].disp[4].shift[i] = roller_shift[i+8];
+            roller[2].disp[4].mask[i] = roller_mask[i+8];
+        } else if (i > 28 && i < 32) {
+            roller[2].disp[4].value8[i] = &cpu_2050.BS_REG;
+            roller[2].disp[4].shift[i] = 3 - (i - 29);
+            roller[2].disp[4].mask[i] = 0;
+        }
+        if (i < 28) {
+            roller[2].disp[4].value[i] = &cpu_2050.ros_row3;
+            roller[2].disp[4].shift[i] = 28 - i;
+            roller[2].disp[4].mask[i] = 0;
+        } else if (i < 34) {
+            roller[2].disp[4].value[i] = &cpu_2050.ros_row4;
+            roller[2].disp[4].shift[i] = 34 - i;
+            roller[2].disp[4].mask[i] = 0;
+        }
+        if (i < 32) {
+            roller[3].disp[0].value[i] = &cpu_2050.ros_row1;
+            roller[3].disp[0].shift[i] = 32 - i;
+            roller[3].disp[0].mask[i] = 0;
+        }
+        if (i < 24) {
+            roller[3].disp[0].value[i] = &cpu_2050.ros_row2;
+            roller[3].disp[0].shift[i] = 24 - i;
+            roller[3].disp[0].mask[i] = 0;
+        }
+    }
 
 #if 0
     /* Draw top box */
