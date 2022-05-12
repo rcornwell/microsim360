@@ -65,6 +65,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <memory.h>
+#include "logger.h"
 #include "card.h"
 
 /* Character conversion tables */
@@ -240,11 +241,25 @@ ebcdic_to_hol(uint8_t ebcdic)
    return ebcdic_to_hol_table[ebcdic];
 }
 
-/* Returns the BCD of the hollerith code or 0x7f if error */
+/* Returns the EBCDIC character of a given Hollerith code */
 uint16_t
 hol_to_ebcdic(uint16_t hol)
 {
     return hol_to_ebcdic_table[hol];
+}
+
+/* Returns the ASCII character of a given Hollerith code */
+uint8_t
+hol_to_ascii(uint16_t hol)
+{
+    return hol_to_ascii_table[hol];
+}
+
+/* Return hollerith code for ascii character */
+uint16_t
+ascii_to_hol(uint8_t ascii)
+{
+    return ascii_to_hol_ebcdic[ascii];
 }
 
 /* Return number of cards currently in hopper */
@@ -282,13 +297,13 @@ read_card(struct card_context *card_ctx, uint16_t (*image)[80])
         out[i] = hol_to_ebcdic_table[(int)(*img)[i]];
     }
     if (ok) {
-        printf("Read hopper: [");
+        log_card_s("Read hopper: [");
         for (i = 0; i < 80; i++) {
-            printf("%02x,", out[i]);
+            log_card_c("%02x,", out[i]);
         }
-        printf("]\n");
+        log_card("]\n");
     } else {
-        printf("Read hopper binary\n");
+        log_card("Read hopper binary\n");
     }
     card_ctx->hopper_pos++;
     memcpy(image, img, 80 * sizeof(uint16_t));
@@ -327,7 +342,7 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
     int                   col;
 
     memset(image, 0, 80 * sizeof(uint16_t));
-    printf( "Read card ");
+    log_card( "Read card ");
     if (card_ctx->mode == MODE_AUTO) {
         mode = MODE_TEXT;   /* Default is text */
 
@@ -341,7 +356,7 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
         /* Check if modes match */
         if (card_ctx->mode != MODE_AUTO && card_ctx->mode != mode) {
             (*image)[0] = 0xfff;
-            printf("invalid mode\n");
+            log_card("invalid mode\n");
             return;
         }
     } else
@@ -350,7 +365,7 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
     switch(mode) {
     default:
     case MODE_TEXT:
-        printf("text: [");
+        log_card_s("text: [");
         /* Check for special codes */
         if (buf->buffer[0] == '~') {
             int f = 1;
@@ -377,7 +392,7 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
         }
         if (_cmpcard(&buf->buffer[0], "raw")) {
             int         j = 0;
-            printf("-octal-");
+            log_card_c("-octal-");
             for(col = 0, i = 4; col < 80 && i < buf->len; i++) {
                 if (buf->buffer[i] >= '0' && buf->buffer[i] <= '7') {
                     (*image)[col] = ((*image)[col] << 3) | (buf->buffer[i] - '0');
@@ -393,15 +408,15 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
                 }
             }
         } else if (_cmpcard(&buf->buffer[0], "eor")) {
-            printf("-eor-");
+            log_card_c("-eor-");
             (*image)[0] = 07;        /* 7/8/9 punch */
             i = 4;
         } else if (_cmpcard(&buf->buffer[0], "eof")) {
-            printf("-eof-");
+            log_card_c("-eof-");
             (*image)[0] = 015;       /* 6/7/9 punch */
             i = 4;
         } else if (_cmpcard(&buf->buffer[0], "eoi")) {
-            printf("-eoi-");
+            log_card_c("-eoi-");
             (*image)[0] = 017;       /* 6/7/8/9 punch */
             i = 4;
         } else {
@@ -420,7 +435,7 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
                     i--;
                     break;
                 default:
-                    printf("%c", c);
+                    log_card_c("%c", c);
                     temp = ascii_to_hol_029[(int)c];
                     if (temp & 0xf000)
                         temp = 0xfff;
@@ -429,7 +444,7 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
             }
         }
     end_card:
-        printf("-%d-", i);
+        log_card_c("-%d-", i);
 
         /* Scan to end of line, ignore anything after last column */
         while (buf->buffer[i] != '\n' && buf->buffer[i] != '\r' && i < buf->len) {
@@ -439,12 +454,12 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
             i++;
         if (buf->buffer[i] == '\n')
             i++;
-        printf("]\n");
+        log_card("]\n");
         break;
 
     case MODE_BIN:
         temp = 0;
-        printf( "bin\n");
+        log_card( "bin\n");
         if (buf->len < 160) {
             (*image)[0] = 0xfff;
             return;
@@ -462,7 +477,7 @@ _parse_card(struct card_context *card_ctx, struct _card_buffer *buf, uint16_t (*
         break;
 
     case MODE_EBCDIC:
-        printf("ebcdic\n");
+        log_card("ebcdic\n");
         if (buf->len < 80)
             (*image)[0] |= 0xfff;
         /* Move data to buffer */
@@ -515,15 +530,15 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
     default:
     case MODE_TEXT:
         /* Scan each column */
-        printf("text: [");
+        log_card_s("text: [");
         for (i = 0; i < 80; i++, outp++) {
             out[outp] = hol_to_ascii_table[(*image)[i]];
             if (out[outp] == 0xff) {
                out[outp] = '?';
             }
-            printf("%c", out[outp]);
+            log_card_c("%c", out[outp]);
         }
-        printf("]\n");
+        log_card("]\n");
         /* Trim off trailing spaces */
         while (outp > 0 && out[--outp] == ' ') ;
         out[++outp] = '\n';
@@ -531,7 +546,7 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
         break;
 
     case MODE_OCTAL:
-        printf("octal: [");
+        log_card_s("octal: [");
         out[outp++] = '~';
         for (i = 79; i >= 0; i--) {
             if ((*image)[i] != 0)
@@ -544,19 +559,19 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
             if ((*image)[0] == 07) {
                out[outp++] = 'r';
                out[outp++] = '\n';
-               printf( "eor\n");
+               log_card( "eor\n");
                break;
             }
             if ((*image)[0] == 015) {
                out[outp++] = 'f';
                out[outp++] = '\n';
-               printf( "eof\n");
+               log_card( "eof\n");
                break;
             }
             if ((*image)[0] == 017) {
-               out[outp++] = 'f';
+               out[outp++] = 'i';
                out[outp++] = '\n';
-               printf( "eoi\n");
+               log_card( "eoi\n");
                break;
             }
         }
@@ -571,12 +586,12 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
             out[outp++] = (col & 07) + '0';
         }
         out[outp++] = '\n';
-        printf( "%s", &out[4]);
+        log_card( "%s", &out[4]);
         break;
 
 
     case MODE_BIN:
-        printf( "bin\n");
+        log_card( "bin\n");
         for (i = 0; i < 80; i++) {
             uint16_t      col = (*image)[i];
             out[outp++] = (col & 0x00f) << 4;
@@ -585,7 +600,7 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
         break;
 
     case MODE_EBCDIC:
-        printf( "ebcdic\n");
+        log_card( "ebcdic\n");
         /* Fill buffer */
         for (i = 0; i < 80; i++, outp++) {
             uint16_t      col = (*image)[i];
@@ -616,10 +631,13 @@ read_deck(struct card_context *card_ctx, char *file_name)
     free (card_ctx->file_name);
 	card_ctx->file_name = NULL;
     card_ctx->file = fopen(file_name, "rb");
-    if (card_ctx->file == NULL)
+    if (card_ctx->file == NULL) {
+       log_warn("Cant open %s\n", file_name);
        return -1;
+    }
 
 	if ((card_ctx->file_name = (char*)malloc(strlen(file_name)+1)) == NULL) {
+        log_warn("Can't allocate memory for card deck\n");
 		fclose(card_ctx->file);
 		return -1;
 	}
@@ -655,6 +673,7 @@ read_deck(struct card_context *card_ctx, char *file_name)
 			if (card_ctx->images == NULL) {
 				card_ctx->hopper_size = 0;
 				card_ctx->hopper_cards = 0;
+                log_warn("Out of memory reading deck\n");
 				return -1;
 			}
             memset((void *)&card_ctx->images[card_ctx->hopper_cards], 0,
@@ -693,6 +712,7 @@ empty_cards(struct card_context *card_ctx)
         while (card_ctx->hopper_pos < card_ctx->hopper_cards) {
             _punch_card(card_ctx, &(*card_ctx->images)[card_ctx->hopper_cards]);
         }
+        fflush(card_ctx->file);
     }
 
     /* Reduce size of stack to DECK_SIZE */
@@ -720,9 +740,6 @@ empty_cards(struct card_context *card_ctx)
 void
 blank_deck(struct card_context *card_ctx, int cards)
 {
-
-	if (card_ctx->images == NULL)
-		return;
 
     /* Move stack down if any cards in it */
     if (card_ctx->hopper_pos > 0) {
@@ -787,7 +804,7 @@ stack_card(struct card_context *card_ctx, uint16_t (*image)[80])
     card_ctx->hopper_cards++;
     if (card_ctx->file != NULL) {
         while (card_ctx->hopper_pos < card_ctx->hopper_cards) {
-            _punch_card(card_ctx, &(*card_ctx->images)[card_ctx->hopper_cards]);
+            _punch_card(card_ctx, &(*card_ctx->images)[card_ctx->hopper_pos]);
         }
     }
 	return 0;
@@ -816,8 +833,9 @@ save_deck(struct card_context *card_ctx, char *file_name)
 	strcpy(card_ctx->file_name, file_name);
 
     while (card_ctx->hopper_pos < card_ctx->hopper_cards) {
-        _punch_card(card_ctx, &(*card_ctx->images)[card_ctx->hopper_cards]);
+        _punch_card(card_ctx, &(*card_ctx->images)[card_ctx->hopper_pos]);
     }
+    fflush(card_ctx->file);
 	return 0;
 }
 

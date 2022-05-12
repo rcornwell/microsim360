@@ -105,8 +105,6 @@ struct _unit {
 
 extern struct _device *chan[6];         /* Channels */
 
-extern uint16_t const odd_parity[256];
-
 void print_tags(char *name, int state, uint16_t tags, uint16_t bus_out);
 
 void print_inst(uint8_t *val);

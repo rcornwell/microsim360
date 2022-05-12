@@ -30,6 +30,8 @@ project(${PROJECT_NAME} VERSION 0.0.0
 set (${PROJECT_NAME}_VERSION_MAJOR 0)
 set (${PROJECT_NAME}_VERSION_MINOR 0)
 
+option(RUN_TESTS "Run tests" ON)
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
 find_package (Threads)
 
@@ -50,6 +52,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_TTF_INCLUDE_DIRS})
 
 target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARIES} ${SDL2_IMAGE_LIBRARIES}
                         ${SDL2_TTF_LIBRARIES})
+
+if (RUN_TESTS)
+   enable_testing()
+endif()
+
 if (WIN32)
     target_link_libraries(${PROJECT_NAME} wsock32 ws2_32)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
@@ -58,5 +65,27 @@ else()
     add_compile_options( -Wall -Wunused-result $<$<CONFIG:DEBUG>:-g>)
     add_compile_definitions($<$<CONFIG:DEBUG>:DEBUG>)
 endif()
+set(FONT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fonts)
+
 add_subdirectory(src)
 
+if(UNIX)
+    add_custom_target (distclean @echo cleaning for source distribution)
+
+    add_custom_command(
+        COMMENT "distribution clean"
+        COMMAND make
+        ARGS -C ${CMAKE_CURRENT_BINARY_DIR} clean
+        COMMAND find
+        ARGS ${CMAKE_CURRENT_BINARY_DIR} -name "CMakeCache.txt" | xargs rm -rf
+        COMMAND find
+        ARGS ${CMAKE_CURRENT_BINARY_DIR} -name "CMakeFiles" | xargs rm -rf
+        COMMAND find
+        ARGS ${CMAKE_CURRENT_BINARY_DIR} -name "Makefile" | xargs rm -rf
+        COMMAND find
+        ARGS ${CMAKE_CURRENT_BINARY_DIR} -name "*.cmake" | xargs rm -rf
+        COMMAND find
+        ARGS -rf ${CMAKE_CURRENT_BINARY_DIR}/install_manifest.txt
+        TARGET  distclean
+    )
+endif(UNIX)

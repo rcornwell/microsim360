@@ -30,19 +30,21 @@
 #include <stdarg.h>
 
 extern int log_level;
+extern FILE *log_file;
 
-#define LOG_TRACE    0x001              /* Generic trace messages */
-#define LOG_INFO     0x002              /* Log informational messages */
-#define LOG_WARN     0x004              /* Log warnings */
-#define LOG_ITRACE   0x008              /* Log Instruction trace */
-#define LOG_MICRO    0x010              /* Log micro instructions */
-#define LOG_REG      0x020              /* Log Micro register state */
-#define LOG_MPXCHN   0x040              /* Log muliplex channel status */
-#define LOG_SELCHN   0x080              /* Log selecter channel status */
-#define LOG_DEVICE   0x100              /* Log device messages */
-#define LOG_CONSOLE  0x200              /* Log console traffic */
-#define LOG_TAPE     0x400              /* Log detailed tape information */
-#define LOG_DISK     0x800              /* Log detailed disk information */
+#define LOG_TRACE    0x0001              /* Generic trace messages */
+#define LOG_INFO     0x0002              /* Log informational messages */
+#define LOG_WARN     0x0004              /* Log warnings */
+#define LOG_ITRACE   0x0008              /* Log Instruction trace */
+#define LOG_MICRO    0x0010              /* Log micro instructions */
+#define LOG_REG      0x0020              /* Log Micro register state */
+#define LOG_MPXCHN   0x0040              /* Log muliplex channel status */
+#define LOG_SELCHN   0x0080              /* Log selecter channel status */
+#define LOG_DEVICE   0x0100              /* Log device messages */
+#define LOG_CONSOLE  0x0200              /* Log console traffic */
+#define LOG_TAPE     0x0400              /* Log detailed tape information */
+#define LOG_DISK     0x0800              /* Log detailed disk information */
+#define LOG_CARD     0x1000              /* Log detailed card information */
 
 void log_init(char *filename);
 void log_print_c(int level, const char *fmt, ...);
@@ -60,6 +62,12 @@ void log_print(int level, char *filename, int line, const char *fmt, ...);
 
 #define log_itrace(...) if ((log_level & LOG_ITRACE) != 0) \
                               log_print( LOG_ITRACE, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_itrace_s(...) if ((log_level & LOG_ITRACE) != 0) \
+                              log_print_s( LOG_ITRACE, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_itrace_c(...) if ((log_level & LOG_ITRACE) != 0) \
+                              log_print_c( LOG_ITRACE, __VA_ARGS__)
 
 #define log_micro(...) if ((log_level & LOG_MICRO) != 0) \
                               log_print( LOG_MICRO, __FILE__, __LINE__, __VA_ARGS__)
@@ -87,4 +95,13 @@ void log_print(int level, char *filename, int line, const char *fmt, ...);
 
 #define log_tape_s(...) if ((log_level & LOG_TAPE) != 0) \
                               log_print_s( LOG_TAPE, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_card(...) if ((log_level & LOG_CARD) != 0) \
+                              log_print( LOG_CARD, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_card_c(...) if ((log_level & LOG_CARD) != 0) \
+                              log_print_c( LOG_CARD, __VA_ARGS__)
+
+#define log_card_s(...) if ((log_level & LOG_CARD) != 0) \
+                              log_print_s( LOG_CARD, __FILE__, __LINE__, __VA_ARGS__)
 #endif

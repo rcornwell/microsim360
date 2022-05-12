@@ -50,6 +50,7 @@ struct _log_type {
      { LOG_CONSOLE, "CONSOLE" },
      { LOG_TAPE,    "TAPE" },
      { LOG_DISK,    "DISK" },
+     { LOG_CARD,    "CARD" },
      { 0, NULL},
 };
 

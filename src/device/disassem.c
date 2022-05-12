@@ -381,16 +381,16 @@ void print_inst(uint8_t *val) {
           switch (tab->type & LNMSK) {
           case RR:  /* op, reg1:reg2 */
                     if (tab->type & IMDOP) {
-                        sprintf(buffer, "%s %02x", tab->name, val[1]);
+                        sprintf(buffer, "%s %02x ", tab->name, val[1]);
                     } else {
                         if (tab->type & ONEOP)
-                            sprintf(buffer, "%s %d", tab->name, (val[1] >> 4) & 0xf);
+                            sprintf(buffer, "%s %d ", tab->name, (val[1] >> 4) & 0xf);
                         else
-                            sprintf(buffer, "%s %d,%d", tab->name, (val[1] >> 4) & 0xf, val[1] & 0xf);
+                            sprintf(buffer, "%s %d,%d ", tab->name, (val[1] >> 4) & 0xf, val[1] & 0xf);
                     }
                     break;
           case RX:  /* op, reg1:reg2 reg3:off off */
-                    sprintf(buffer, "%s %d,%01x%02x(%d,%d)", tab->name, (val[1] >> 4) & 0xf,
+                    sprintf(buffer, "%s %d,%01x%02x(%d,%d) ", tab->name, (val[1] >> 4) & 0xf,
                                 val[2] & 0xf, val[3] & 0xff, val[1] & 0xf,
                                 (val[2] >> 4) & 0xf);
                     break;
@@ -447,7 +447,8 @@ void print_inst(uint8_t *val) {
    }
    if (tab->name == NULL)
        sprintf(buffer, "?%02x?", val[0]);
-   log_itrace(buffer);
+   strcat(buffer, " ");
+   log_itrace_s(buffer);
 }
 
 

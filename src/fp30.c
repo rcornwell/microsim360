@@ -37,6 +37,7 @@
 #include <fcntl.h>
 
 #include "logger.h"
+#include "event.h"
 #include "panel.h"
 #include "model2030.h"
 #include "model1050.h"
@@ -47,6 +48,7 @@
 #include "hex_dial_img.xpm"
 #include "store_dials_img.xpm"
 #include "switch_img.xpm"
+/*#include "font1.h" */
 
 
 /* Declare an error to be of a give color */
@@ -155,6 +157,36 @@ int key_state = 0;
 int text_entry = -1;
 
 uint64_t         step_count;
+
+int SYS_RST;
+int ROAR_RST;
+int START;
+int SET_IC;
+int CHECK_RST;
+int STOP;
+int INT_TMR;
+int STORE;
+int DISPLAY;
+int LAMP_TEST;
+int POWER;
+int INTR;
+int LOAD;
+int timer_event;
+
+uint8_t  A_SW;
+uint8_t  B_SW;
+uint8_t  C_SW;
+uint8_t  D_SW;
+uint8_t  E_SW;
+uint8_t  F_SW;
+uint8_t  G_SW;
+uint8_t  H_SW;
+uint8_t  J_SW;
+
+uint8_t  PROC_SW;
+uint8_t  RATE_SW;
+uint8_t  CHK_SW;
+uint8_t  MATCH_SW;
 
 void
 draw_circle(int x, int y, int radius, SDL_Color color)
@@ -999,6 +1031,7 @@ int main(int argc, char *argv[]) {
     SDL_Event event;
     SDL_Surface *text;
     SDL_Texture *txt;
+    SDL_RWops    *rw_font;
     struct _popup   *pop_wind = NULL;
     Uint32	f;
     int      shf;
@@ -1035,6 +1068,7 @@ int main(int argc, char *argv[]) {
 		1000, 900, SDL_WINDOW_RESIZABLE );
     render2 = SDL_CreateRenderer( screen2, -1, SDL_RENDERER_ACCELERATED);
 
+/*    rw_font = SDL_RWFromConstMem(base_font, sizeof(base_font)); */
     /* Create fonts */
     font1 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 9);
     font12 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 12);
@@ -1528,6 +1562,7 @@ int process(void *data) {
           SDL_UnlockMutex(display_mutex);
        }
        cycle();
+       advance();
     }
     return 0;
 }

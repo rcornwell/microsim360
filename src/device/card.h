@@ -99,8 +99,14 @@ struct card_context
 /* Convert EBCDIC character into hollerith code */
 uint16_t ebcdic_to_hol(uint8_t ebcdic);
 
-/* Returns the BCD of the hollerith code or 0x7f if error */
+/* Returns the EBCDIC of the hollerith code or 0x7f if error */
 uint16_t hol_to_ebcdic(uint16_t hol);
+
+/* Returns the ASCII of the hollerith code or 0xff if error */
+uint8_t hol_to_ascii(uint16_t hol);
+
+/* Returns the hollerith code of the ASCII value */
+uint16_t ascii_to_hol(uint8_t ascii);
 
 /* Return number of cards in hopper */
 int hopper_size(struct card_context *card_ctx);
