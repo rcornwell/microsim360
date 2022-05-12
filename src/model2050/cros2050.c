@@ -80,7 +80,7 @@ loop:
         if (line[0] == ' ' && line[1] == ' ')
             goto loop;
         addr1 = addr2 = 0;
-        
+
         /* Grab first address */
         for (p = line; *p != ' ' && *p != '\0'; p++) {
             if (!isxdigit(*p))
@@ -90,7 +90,7 @@ loop:
                 addr1 += (*p - '0');
             else if (tolower(*p) >= 'a' && tolower(*p) <= 'f')
                 addr1 += (*p - 'a') + 0xa;
-        } 
+        }
         if (*p == '\n')
             goto loop;
         /* Grab next address */
@@ -177,7 +177,6 @@ loop:
                j++;
                b = 0;
             }
-            
         }
             if (parity != 0 && io < 4) {
                fprintf(stderr, "Parity error %d %08x 2 %s\n", ln,  bits[2], line);
@@ -231,11 +230,11 @@ loop:
                    /* row4   note */
                      " 0x%08x, \"%s\"},\n",
                   addr1, ros_2050[addr1].io, ros_2050[addr1].lu, ros_2050[addr1].mv,
-                         ros_2050[addr1].zp, ros_2050[addr1].zn, ros_2050[addr1].zf, 
+                         ros_2050[addr1].zp, ros_2050[addr1].zn, ros_2050[addr1].zf,
                          ros_2050[addr1].tr, ros_2050[addr1].zr, ros_2050[addr1].ws,
                          ros_2050[addr1].sf, ros_2050[addr1].iv, ros_2050[addr1].al,
                          ros_2050[addr1].wm, ros_2050[addr1].up, ros_2050[addr1].md,
-                         ros_2050[addr1].mb, ros_2050[addr1].lb, ros_2050[addr1].dg,
+                         ros_2050[addr1].lb, ros_2050[addr1].mb, ros_2050[addr1].dg,
                          ros_2050[addr1].ul, ros_2050[addr1].ur, ros_2050[addr1].ce,
                          ros_2050[addr1].lx, ros_2050[addr1].tc, ros_2050[addr1].ry,
                          ros_2050[addr1].ad, ros_2050[addr1].ab, ros_2050[addr1].bb,

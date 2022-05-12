@@ -104,7 +104,7 @@ extern struct ROS_2050 {
 #define R1  1                    /* Start of read cycle */
 #define R2  2                    /* Data ready during this cycle */
 #define R3  3                    /* Data can be modified in SDR */
-#define W1  0                    /* Store SDR in memory */
+#define W1  4                    /* Store SDR in memory */
 
 /* To initiate Store read, state must be W2.
    Set address into SAR change state to R1. */
@@ -116,23 +116,23 @@ extern struct ROS_2050 {
     iv = 4 or 7.
     tr = 4, 8, 9, 10, 11, 15, 16
 */
-    
+
 /* Read storage:
     tr = 12
     al = 30
  */
-   
+ 
 /* Modify storage when:
     tr = 4, 17,29
  */
 
 
 extern struct CPU_2050 {
-int          count;
+int         count;
 uint32_t    M[64 * 1024];
 uint32_t    LS[64];
 uint32_t    BUMP[1024];          /* Bump storage */
-uint8_t     PROT[256];
+uint8_t     MP[256];
 uint8_t     mem_state;           /* Storage cycle state */
 
 
@@ -154,9 +154,6 @@ uint8_t     w_bus;               /* Mover w output */
 
 int         mvfnc;               /* Mover function register */
 int         io_mvfnc;            /* Mover I/O function register */
-int         osyl;                /* Sylable */
-int         refresh;             /* Refresh memory buffer */
-int         ilc;                 /* Instruction length */
 
 uint32_t    R_REG;               /* Right register */
 uint32_t    L_REG;               /* Left register */
@@ -198,9 +195,13 @@ int         CAR;                 /* Output carry status */
 int         G1NEG;               /* G1 negative */
 int         G2NEG;               /* G2 negative */
 
-uint16_t    WX;                 /* ROAR address register. */
-uint16_t    FWX;                /* Backup ROAR address. */
-uint16_t    PWX;                /* Previous ROAR address. */
+uint16_t    ROAR;               /* ROAR address register. */
+uint16_t    BROAR;              /* Backup ROAR address. */
+uint8_t     break_in;           /* Break in cycle requested */
+uint8_t     break_out;          /* In break out cycle */
+uint8_t     first_cycle;        /* First cycle of breakout */
+uint8_t     last_cycle;         /* Last cycle of breakout */
+uint8_t     CHCTL;              /* Channel control register */
 
 uint8_t     IOS;                /* I/O Status registers */
 uint8_t     BRC;                /* Branch control register */
@@ -217,7 +218,7 @@ uint16_t    GR_REG[4];          /* Selector General register */
 uint16_t    TAGS[4];            /* channel tags. */
 uint16_t    TI[4];              /* Input tags. */
 
-} cpu_2050; 
+} cpu_2050;
 
 extern uint16_t    store;
 extern uint16_t    allow_write;

@@ -23,6 +23,7 @@
  *
  */
 
+#include "logger.h"
 #include "device.h"
 #include "model2050.h"
 
@@ -78,13 +79,20 @@ static    char     *mv_name[] = {  /* Right Mover input */
                   "MMB>V",
                   "3",       /* Not used */
              };
+    char     *mv_io_name[] = {  /* Right Mover input */
+                  "0>V",     /* Zero into V */
+                  "1",       /* Not used */
+                  "BIB>V",
+                  "3",       /* Not used */
+             };
+
     /* ZP = ROAR bits 0-5 */
 static    char     *zn_name[] = {      /* branch logic */
                   "0",            /* Use ZF */
-                  "SMIF",         /* Suppress memory if off bounds and !refresh */
+                  "SMIF",         /* Suppress memory if off bounds and !refetch */
                   "A|(B=0)>A",    /* If ! B branch bit set A to 1 */
                   "A|(B=1)>A",    /* If B branch bit set A to 1 */
-                  "4",            /* No change */
+                  "",             /* No change */
                   "5",            /* Not used */
                   "B|(A=0)>B",    /* If !A branch bit set B to 1 */
                   "B|(A=1)>B",    /* If A branch bit set B to 1 */
@@ -94,7 +102,7 @@ static    char     *zf_name[] = {       /* Special branch functions */
                   "1",              /* Used with SMIF? */
                   "D>ROAR,SCAN",    /* Scan SDR to ROAR */
                   "3",
-                  "4",    
+                  "4",
                   "5",
                   "M(03)>>ROAR",    /* M<0-3> to ROAR */
                   "7",
@@ -105,16 +113,16 @@ static    char     *zf_name[] = {       /* Special branch functions */
                   "ED>ROAR",       /* Expf to ROAR */
                   "d",
                   "RETURN>ROAR",   /* Return from micro irq */
-                  "f",    
+                  "f",
               };
 static    char     *tr_name[] = {
                   "T",
                   "R",
                   "R0",
                   "M",
-                  "D", 
+                  "D",
                   "L0",
-                  "R,A", 
+                  "R,A",
                   "L",
                   "HA>A",
                   "R,AN",
@@ -123,14 +131,14 @@ static    char     *tr_name[] = {
                   "D>IAR",
                   "SCAN>D",
                   "R13",
-                  "0f",
                   "A",
-                  "L,R",
+                  "L,A",
+                  "R,D",
                   "12",
-                  "13",
-                  "H", 
+                  "R,IO",
+                  "H",
                   "IA",
-                  "FOLD>D", 
+                  "FOLD",
                   "17",
                   "M,L",
                   "MLJK",   /* T(12-15)>J T(16-19)>MD, (X=0)>S0,(B=0)>S1, ILC, */
@@ -141,18 +149,14 @@ static    char     *tr_name[] = {
                   "L13",
                   "J",
               };
-static    char     *zr_name[] = {
-                  "0",
-                  "1",
-              };
 static    char     *cssa_name[] = {  /* Local Storage Address decode */
                   "2,3,0>LSA",
                   "2,3,1>LSA",
                   "2,3,2>LSA",
                   "2,3,3>LSA",
-                  "0,CH,0>LSA", 
+                  "0,CH,0>LSA",
                   "0,CH,1>LSA",
-                  "0,CH,2>LSA", 
+                  "0,CH,2>LSA",
                   "0,CH,3>LSA",
               };
 static    char     *ws_name[] = {   /* Local storage address decode */
@@ -162,7 +166,7 @@ static    char     *ws_name[] = {   /* Local storage address decode */
                   "WS,E>LSA",
                   "FN,J>LSA",   /* (R2) > LSA */
                   "FN,J|1>LSA",
-                  "FN,MD>LSA", 
+                  "FN,MD>LSA",
                   "FN,MD|1>LSA",
               };
 static    char     *sf_name[] = {    /* Local Storage controlles */
@@ -170,18 +174,18 @@ static    char     *sf_name[] = {    /* Local Storage controlles */
                   "LS>L,R>LS",
                   "LS>R>LS",
                   "3",
-                  "L>LS", 
+                  "L>LS",
                   "L>R,L>LS",
-                  "LS>L>LS", 
+                  "LS>L>LS",
                   "7",
               };
 
 static    char     *ct_name[] = { /* IV field under I/O control */
-                  "0",
-                  "1",
-                  "2",
-                  "3",
-                  "4",
+                  "0",           /* Nop */
+                  "FIRSTCYCLE",  /* Set channel trap if not first breakout cycle */
+                  "DTC1",        /* Send ingate to channel, latch branch control */
+                  "DTC2",        /* Send outgate to channel. */
+                  "IA 4,4,IAR",  /* Increment IAR by 4, start read cycle */
                   "5",
                   "6",
                   "7",
@@ -191,9 +195,9 @@ static    char     *iv_name[] = {
                   "WL>IVD",
                   "WR>IVD",
                   "W>IVD",
-                  "IA/4>A,IA", 
+                  "IA/4>A,IA",
                   "IA_2/4",
-                  "IA+2", 
+                  "IA+2",
                   "IA+0/2>A",
               };
 static    char     *al_name[] = {  /* Shift control */
@@ -201,9 +205,9 @@ static    char     *al_name[] = {  /* Shift control */
                   "Q>SR1>F",
                   "L0,!S4>T",
                   "+SGN>T",
-                  "-SGN>T", 
+                  "-SGN>T",
                   "L0,S4>T",
-                  "IA>H", 
+                  "IA>H",
                   "Q>SL1>-F",
                   "Q>SL1>F",
                   "F>SL1>F",
@@ -217,9 +221,9 @@ static    char     *al_name[] = {  /* Shift control */
                   "F>SL4>F",
                   "FPSL4",
                   "F>FPSL4",
-                  "SR4>F", 
+                  "SR4>F",
                   "F>SR4>F",
-                  "FPSR4>F", 
+                  "FPSR4>F",
                   "1>FPSR4>F",
                   "SR4>H",
                   "F>SR4",
@@ -227,7 +231,7 @@ static    char     *al_name[] = {  /* Shift control */
                   "F>SR1>Q",
                   "DKEY>F",
                   "1d",
-                  "D>",
+                  "D",
                   "1f",
              };
 static    char     *wl_name[] = {  /* Mover destination under I/O WL */
@@ -237,7 +241,7 @@ static    char     *wl_name[] = {  /* Mover destination under I/O WL */
                   "3",    /* 3 */ /* W bits 6-7 to LB */
                   "4",  /* 4 */ /* W bits 2-7 to PSW 34-39 */
                   "5",    /* 5 */ /* W to PSW 0-7 SSM */
-                  "6",      /* 6 */  
+                  "6",      /* 6 */
                   "7",   /* 7 */
                   "8",   /* 8 */ /* W,E(32) select bump sector address */
                   "9",     /* 9 */
@@ -256,7 +260,7 @@ static    char     *wm_name[] = {    /* Mover destination */
                   "W67>LB",    /* 3 */ /* W bits 6-7 to LB */
                   "W27>PSW4",  /* 4 */ /* W bits 2-7 to PSW 34-39 */
                   "W>PSW0",    /* 5 */ /* W to PSW 0-7 SSM */
-                  "WL>J",      /* 6 */  
+                  "WL>J",      /* 6 */
                   "W>CHCTL",   /* 7 */
                   "W,E>A(BUMP)",   /* 8 */ /* W,E(32) select bump sector address */
                   "WL>G1",     /* 9 */
@@ -271,18 +275,12 @@ static    char     *wm_name[] = {    /* Mover destination */
 static    char     *ms_name[] = {  /* UP and MD field under I/O */
                   "0",
                   "BFR(03)->IOS",
-                  "BFR(47)->IOS", 
+                  "BFR(47)->IOS",
                   "BIB(03)->IOS",
-                  "BIB(47)->IOS", 
+                  "BIB(47)->IOS",
                   "5",     /* Turn I/O Stats off per emit */
                   "6",     /* Turn I/O Stats off per Emit */
                   "7"      /* Set I/O stats on CC */
-             };
-static    char     *up_name[] = {
-                  "0",      /* Clear counters */
-                  "3",      /* Counter to 3 */
-                  "-",
-                  "+",
              };
 static    char     *md_name[] = {
                   "MD=0",
@@ -327,7 +325,7 @@ static    char     *dg_name[] = {
                   "G1-1",         /* if G1 == 0 G1Neg = 1, else G1Neg = 0 */
                   "HOT1,G-1",     /* 1 to carry */
                   "G2-1",
-                  "G-1", 
+                  "G-1",
                   "G1,2-1",
               };
 static    char     *ul_name[] = {  /* Mover left input */
@@ -342,24 +340,6 @@ static    char     *ur_name[] = {  /* Mover right input */
                   "V>WR",
                   "?",
              };
-static    char     *ce_name[] = {  /* Emit field */
-                  "0",
-                 "1",
-                  "2",
-                  "3",
-                  "4", 
-                  "5",
-                  "6", 
-                  "7",
-                  "8",
-                  "9",
-                  "a",
-                  "b",
-                  "c",
-                  "d",
-                  "e",
-                  "f",
-              };
 static    char     *lx_name[] = {  /* Left side of adder input */
                   "0",   /* Adder input 0 */
                   "L",   /* L reg */
@@ -370,18 +350,14 @@ static    char     *lx_name[] = {  /* Left side of adder input */
                   "4",   /* Value 4 */
                   "64C", /* 64 complement for excess 64 correct */
               };
-static    char     *tc_name[] = {
-                  "-",   /* Ones complement L */
-                  "+",
-              };
 static    char     *ry_name[] = {  /* Right side input */
                   "0",
                   "R",
                   "M",
                   "M23",  /* Bytes 2 and 3 of M */
-                  "H", 
+                  "H",
                   "SEMT",
-                  "6", 
+                  "6",
                   "7",
               };
 static    char     *ad_name[] = { /* Adder function */
@@ -391,7 +367,7 @@ static    char     *ad_name[] = { /* Adder function */
                   "3",
                   "BC0",    /* Carry from position 0 */
                   "BC^C",   /* Carry test for overflow */
-                  "BC1B",  
+                  "BC1B",
                   "BC8",    /* Carry set from position 8 */
                   "DHL",    /* Decimal half correct Low */
                   "DC0",    /* Decimal correct */
@@ -402,22 +378,32 @@ static    char     *ad_name[] = { /* Adder function */
                   "e",
                   "f",
               };
+static   char     *cy_name[] = { /* I/O mode selector channel adder latch */
+                  "0",        /* nop */
+                  "1",        /* undefined */
+                  "2",        /* Undefined */
+                  "CCW2TEST", /* Test CCW2 for validity */
+                  "CATEST",   /* Address check */
+                  "UATEST",   /* Compare address in */
+                  "LSWDTEST", /* Test for last word */
+                  "7",        /* Undefined */
+             };
 static    char     *ab_name[] = {
                   "0",
                   "1",
                   "S0",
                   "S1",
-                  "S2", 
+                  "S2",
                   "S3",
-                  "S4", 
+                  "S4",
                   "S5",
                   "S6",
                   "S7",
                   "Carry",
-                  "0b",   
-                  "1SYLS",   /* One Syllable op stat */ 
-                  "LSGNS",   /* L sig stat */ 
-                  "XSGNS",   /* LSS EOR RSS */ 
+                  "0b",
+                  "1SYLS",   /* One Syllable op stat */
+                  "LSGNS",   /* L sig stat */
+                  "XSGNS",   /* LSS EOR RSS */
                   "0f",
                   "CRMD",  /* MD Bit 0 & Not Cond Reg Pos2 & Not cond Reg Pos 3 */
                   "W=0",
@@ -425,7 +411,7 @@ static    char     *ab_name[] = {
                   "WR=0",  /* MVR LTH 4-7 eq zero */
                   "MD=FP",    /* Branch if MD<0>==0 and MD<3> == 0 */
                   "MB=3",  /* Branch if MB=3 */
-                  "MD3=0", 
+                  "MD3=0",
                   "G1=0",
                   "G1NEG",
                   "G<4",
@@ -441,7 +427,7 @@ static    char     *ab_name[] = {
                   "EDITPAT",
                   "PROB",    /* In problem state */
                   "TIMUP",
-                  "26", 
+                  "26",
                   "GZ/MB3",
                   "28",
                   "LOG",
@@ -453,11 +439,11 @@ static    char     *ab_name[] = {
                   "SCFS",
                   "CROS",
                   "W(67)-AB",
-                  "Z23!0",  
+                  "Z23!0",
                   "CCW20K",   /* T(5-7) = 0 && T(16-31) == 0 */
                   "TZ*BS",    /* T Zero per Byte Stats */
                   "IBFULL",
-                  "CANG", 
+                  "CANG",
                   "CHLOG",
                   "I-FETCH",   /* I Fetch Stat FCN A, 00 Odd-no ref, 10 even, 01 odd- ref, 11=? */
                   "IA(30)",
@@ -473,9 +459,9 @@ static    char     *bb_name[] = {
                   "1",
                   "S0",
                   "S1",
-                  "S2", 
+                  "S2",
                   "S3",
-                  "S4", 
+                  "S4",
                   "S5",
                   "S6",
                   "S7",
@@ -502,20 +488,16 @@ static    char     *bb_name[] = {
                   "(CAR)",     /* BR Immeded on Carry LTH */
                   "(Z00)",
               };
-static    char     *ux_name[] = {
-                  "0",
-                  "1",
-              };
 static    char     *ss_name[] = {
                   "00",
                   "01",
                   "02",
                   "D->CR*BS",
-                  "E->SCHANCTL", 
+                  "E->SCHANCTL",
                   "L,RSGNS",
-                  "IVD/RSGNS", 
+                  "IVD/RSGNS",
                   "EDITSGN",
-                  "E->S03", 
+                  "E->S03",
                   "S03|E,1->LSGN",
                   "S03|E",
                   "S03|E,0->BS",
@@ -527,9 +509,9 @@ static    char     *ss_name[] = {
                   "(T=0)->S3",
                   "E->BS,T30->S3",  /* T(30) to S3 */
                   "E->BS",
-                  "1->BS*MB", 
+                  "1->BS*MB",
                   "15",
-                  "16", 
+                  "16",
                   "17",
                   "E>S47",
                   "S47|E",
@@ -543,9 +525,9 @@ static    char     *ss_name[] = {
                   "0->LSGNS",
                   "1->RSGNS",
                   "0->RSGNS",
-                  "L(0)->LSGNS", 
+                  "L(0)->LSGNS",
                   "R(0)->RSGNS",
-                  "E(13)>WFN", 
+                  "E(13)>WFN",
                   "E(23)->LSFN",   /* Set FN to E, 00-  01-   10-  11- Gen Reg */
                   "E(23)->CR",
                   "SETCRALG",
@@ -559,9 +541,9 @@ static    char     *ss_name[] = {
                   "31",
                   "E(0)->IBFULL",
                   "33",
-                  "E->CH", 
+                  "E->CH",
                   "35",
-                  "1->TIMERIRPT", 
+                  "1->TIMERIRPT",
                   "T->PSW,IPL->T",
                   "T->PSW T(12-15)",
                   "SCAN*E,00",
@@ -572,8 +554,6 @@ static    char     *ss_name[] = {
                   "1->COMOUT",
                   "1->SERVOUT",
               };
-static char *rostype[]  = { "cp", "io", "on", "ze", "er" };
-
 
 void
 cycle_2050()
@@ -594,7 +574,7 @@ cycle_2050()
     uint32_t         r_update;
     uint32_t         m_update;
     uint32_t         carries;
-    uint32_t         t1, t2, t3;
+    uint32_t         t1, t2;
     int              t;
     struct _device  *dev;
 
@@ -624,9 +604,9 @@ cycle_2050()
     }
 
     if (SYS_RST) {
-        cpu_2050.WX = 0x242;
+        cpu_2050.ROAR = 0x242;
         if (load_mode)
-             cpu_2050.WX = 0x240;
+             cpu_2050.ROAR = 0x240;
     }
 
     if (DISPLAY) {
@@ -639,6 +619,19 @@ cycle_2050()
         STORE = 0;
     }
 
+    sal = &ros_2050[cpu_2050.ROAR];
+    cpu_2050.ros_row1 = sal->row1;
+    cpu_2050.ros_row2 = sal->row2;
+    cpu_2050.ros_row3 = sal->row3;
+    cpu_2050.ros_row4 = sal->row4;
+    g_update = cpu_2050.G_REG;
+    q_update = cpu_2050.Q_REG;
+    s_update = cpu_2050.S_REG;
+    l_update = cpu_2050.L_REG;
+    r_update = cpu_2050.R_REG;
+    m_update = cpu_2050.M_REG;
+    f_update = cpu_2050.F_REG;
+
     /* Check for memory access */
     /* Interlock if not at correct state */
     if ((sal->al == 30 || sal->ss == 3) && cpu_2050.mem_state != R2) {
@@ -646,6 +639,10 @@ cycle_2050()
     }
 
     switch (sal->tr) {
+    case 4:  /* D */
+             if (cpu_2050.mem_state == R1 || cpu_2050.mem_state == R2)
+                 goto channel;
+             break;
     case 6:  /* R,A Initiate main storage read */
     case 9:  /* R,AN, initaite memory request, suppress invalid memory address trap */
     case 10:  /* R,AW, initiate memory request, invalid address trap if not word boundry  */
@@ -676,9 +673,9 @@ cycle_2050()
         }
         switch (sal->wm) {
         case 10: /* W.E>R(BUMP) */
-        case 11: 
+        case 11:
         case 12: /* W.E>R(BUMP)S */
-        case 13: 
+        case 13:
             if (cpu_2050.mem_state != W1)
                 goto channel;
             break;
@@ -688,24 +685,154 @@ cycle_2050()
             goto channel;
     }
 
+    if ((log_level & LOG_ITRACE) != 0 && (cpu_2050.ROAR == 0x197)) {
+        uint8_t   mem[6];
+        int       i;
+        for (i = 0; i < 6; i++) {
+            uint32_t pc = i + cpu_2050.IA_REG;
+            uint32_t mm = cpu_2050.M[pc >> 2];
+            mem[i] = (mm >> (8 * (3 - (pc & 3)))) & 0xff;
+        }
+        
+        print_inst(mem);
+        log_itrace_c(" IC=%06x CC=%x", cpu_2050.IA_REG, cpu_2050.CC);
+        log_itrace("\n");
+
+        log_itrace_s(" ");
+        for (i = 0; i < 16; i++) {
+            log_itrace_c(" GR%02d = %08x", i, cpu_2050.LS[0x30 + i]);
+            if ((i & 0x3) == 0x3) {
+                 log_itrace("");
+                 log_itrace_s(" ");
+            }
+        }
+        log_itrace("");
+    }
+
+
+    /* Disassemble micro instruction */
+    if ((log_level & LOG_MICRO) != 0) {
+        char       dis_buffer[1024];
+        char       t_buffer[100];
+
+        sprintf(dis_buffer, "%s %03X: E=%0X [ry=%d lx=%d tc=%d tr=%d] ", sal->note, cpu_2050.ROAR, sal->ce,
+                  sal->ry, sal->lx, sal->tc, sal->tr);
+        if (sal->ry != 0 || sal->lx == 0) {
+            if (sal->al == 0x1e) {
+                strcat(dis_buffer, al_name[sal->al]);
+            } else {
+                strcat(dis_buffer, ry_name[sal->ry]);
+            }
+        }
+        if (sal->lx != 0 || sal->tc == 0) {
+           if (sal->io == 1) {
+               if (sal->ry != 0 && sal->tc == 1) {
+                  strcat(dis_buffer, "+");
+               }
+           }
+           if (sal->tc == 0) {
+              strcat(dis_buffer, "-");
+           } else {
+              strcat(dis_buffer, "+");
+           }
+           strcat(dis_buffer, lx_name[sal->lx]);
+        }
+        strcat(dis_buffer, ">");
+        strcat(dis_buffer, tr_name[sal->tr]);
+        strcat(dis_buffer, " ");
+        if (sal->ad >= 2) {
+            strcat(dis_buffer, ad_name[sal->ad]);
+            strcat(dis_buffer, " ");
+        }
+        if (sal->al != 0 && sal->al != 0x1e) {
+            strcat(dis_buffer, al_name[sal->al]);
+            strcat(dis_buffer, " ");
+        }
+        if (sal->lu != 0) {
+            if (sal->io) {
+                strcat(dis_buffer, lu_io_name[sal->lu]);
+            } else {
+                strcat(dis_buffer, lu_name[sal->lu]);
+            }
+            strcat(dis_buffer, " ");
+        }
+        if (sal->mv != 0) {
+            strcat(dis_buffer, (sal->io) ? mv_io_name[sal->mv] : mv_name[sal->mv]);
+        }
+        strcat(dis_buffer, " ");
+        if (sal->ur == sal->ul) {
+            switch (sal->ur) {
+            case 0:  strcat(dis_buffer, "E>W"); break;
+            case 1:  strcat(dis_buffer, "U>W"); break;
+            case 2:  strcat(dis_buffer, "V>W"); break;
+            case 3:  strcat(dis_buffer, "?>W"); break;
+            }
+        } else {
+            strcat(dis_buffer, ul_name[sal->ul]);
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, ur_name[sal->ur]);
+        }
+        strcat(dis_buffer, " ");
+        strcat(dis_buffer, (sal->io) ? wl_name[sal->wm] : wm_name[sal->wm]);
+        strcat(dis_buffer, " ");
+        if (sal->sf != 7) {
+            strcat(dis_buffer, (sal->io) ? cssa_name[sal->ws]: ws_name[sal->ws]);
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, sf_name[sal->sf]);
+        }
+
+        if (sal->io == 1) {
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, ms_name[(sal->up<<1)|sal->mb]);
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, cg_name[(sal->lb<<1) |sal->mb]);
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, ct_name[sal->iv]);
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, mg_name[sal->dg]);
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, cy_name[sal->ad>>1]);
+        } else {
+            if (sal->md) {
+              strcat(dis_buffer, " ");
+              strcat(dis_buffer, md_name[sal->up]);
+            }
+            if (sal->lb) {
+              strcat(dis_buffer, " ");
+              strcat(dis_buffer, lb_name[sal->up]);
+            }
+            if (sal->mb) {
+              strcat(dis_buffer, " ");
+              strcat(dis_buffer, mb_name[sal->up]);
+            }
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, iv_name[sal->iv]);
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, dg_name[sal->dg]);
+        }
+        if (sal->ss != 0) {
+            strcat(dis_buffer, " ");
+            strcat(dis_buffer, ss_name[sal->ss]);
+        }
+        strcat(dis_buffer, " ");
+        strcat(dis_buffer, ab_name[sal->ab]);
+        strcat(dis_buffer, " ");
+        strcat(dis_buffer, bb_name[sal->bb]);
+        strcat(dis_buffer, " ");
+
+        if (sal->zn != 0) {
+           sprintf(t_buffer, "%03X %s", sal->zp | (sal->zf << 2), zn_name[sal->zn]);
+        } else {
+           sprintf(t_buffer, "%03X %s", sal->zp, zf_name[sal->zf]);
+        }
+        strcat(dis_buffer, t_buffer);
+        log_micro("%s\n", dis_buffer);
+    }
     /* Basic next address */
     next_roar = sal->zp;
     if (sal->zn != 0) {
-        next_roar |= sal->sf << 2; 
+        next_roar |= sal->zf << 2;
     }
-
-    sal = &ros_2050[cpu_2050.WX];
-    cpu_2050.ros_row1 = sal->row1;
-    cpu_2050.ros_row2 = sal->row2;
-    cpu_2050.ros_row3 = sal->row3;
-    cpu_2050.ros_row4 = sal->row4;
-    g_update = cpu_2050.G_REG;
-    s_update = cpu_2050.S_REG;
-    l_update = cpu_2050.L_REG;
-    r_update = cpu_2050.R_REG;
-    m_update = cpu_2050.M_REG;
-    f_update = cpu_2050.F_REG;
-    q_update = cpu_2050.Q_REG;
 
     a_bit = 0;
     b_bit = 0;
@@ -741,7 +868,7 @@ cycle_2050()
             a_bit = ((cpu_2050.S_REG & BIT7) != 0);
             break;
     case 10: /* CSTAT carry status */
-            a_bit = (cpu_2050.CSTAT_REG != 0);
+            a_bit = (cpu_2050.CAR != 0);
             break;
     case 11: /* Undefined */
             break;
@@ -757,7 +884,7 @@ cycle_2050()
     case 15: /* Unknown */
             break;
     case 16: /* CRMD, mask condition codes */
-            a_bit = (cpu_2050.MD_REG & (1 << 3 - cpu_2050.CC));
+            a_bit = cpu_2050.MD_REG & (1 << (3 - cpu_2050.CC));
             break;
     case 17: /* W = 0 */
             a_bit = (cpu_2050.w_bus == 0);
@@ -789,10 +916,10 @@ cycle_2050()
     case 26: /* G1MBZ */
             a_bit = ((cpu_2050.G_REG & 0xf0) == 0 && (cpu_2050.MB_REG == 0));
     case 27: /* IO Stat 0 to CPU */
-            a_bit = (cpu_2050.IOSTAT & 4) != 0;
+            a_bit = (cpu_2050.IOSTAT & BIT0) != 0;
             break;
     case 28: /* IO Stat 2  */
-            a_bit = (cpu_2050.IOSTAT & 2) != 0;
+            a_bit = (cpu_2050.IOSTAT & BIT2) != 0;
             break;
     case 29: /* R(31)  */
             a_bit = ((cpu_2050.R_REG & 1) != 0);
@@ -807,7 +934,7 @@ cycle_2050()
             a_bit = (cpu_2050.F_REG == 0);
             break;
     case 33: /* UNORM,  T8-11 zero and not S0  */
-            a_bit = ((cpu_2050.alu_out & 0x00f00000) != 0 && 
+            a_bit = ((cpu_2050.alu_out & 0x00f00000) != 0 &&
                         (cpu_2050.S_REG & BIT0) == 0);
             break;
     case 34: /* TZ*BZ */
@@ -853,7 +980,7 @@ cycle_2050()
             a_bit = (cpu_2050.alu_out & 0xFFFF) != 0;
             break;
     case 51: /* CCW2OK T5-7 == 0 && T16-31 != 0  */
-            a_bit = ((cpu_2050.alu_out & 0xFFFF) == 0) | 
+            a_bit = ((cpu_2050.alu_out & 0xFFFF) == 0) |
                      ((cpu_2050.alu_out & 0x07000000) != 0);
             break;
     case 52: /* MXBIO  bus in bit 0  */
@@ -882,13 +1009,13 @@ cycle_2050()
     case 60: /* PSS,  */
             break;
     case 61: /* IO Stat 4  */
-            a_bit = ((cpu_2050.IOSTAT & 01) != 0);
+            a_bit = ((cpu_2050.IOSTAT & BIT4) != 0);
             break;
     case 62: /*  Undefined   */
             break;
     case 63: /*  RX.S0     */
             a_bit = 0;
-            if ((cpu_2050.S_REG & BIT0) != 0 && 
+            if ((cpu_2050.S_REG & BIT0) != 0 &&
                  ((cpu_2050.M_REG & 0xc0000000) == 0x40000000))
                 a_bit = 1;
             break;
@@ -947,10 +1074,10 @@ cycle_2050()
             b_bit |= (cpu_2050.alu_out == 0);
             break;
     case 18: /* TZ*BS */
-            t1  = ((cpu_2050.BS_REG & BIT0) ? 0xff000000: 0) |
-                  ((cpu_2050.BS_REG & BIT1) ? 0x00ff0000: 0) |
-                  ((cpu_2050.BS_REG & BIT2) ? 0x0000ff00: 0) |
-                  ((cpu_2050.BS_REG & BIT3) ? 0x000000ff: 0);
+            t1  = ((cpu_2050.BS_REG & 8) ? 0xff000000: 0) |
+                  ((cpu_2050.BS_REG & 4) ? 0x00ff0000: 0) |
+                  ((cpu_2050.BS_REG & 2) ? 0x0000ff00: 0) |
+                  ((cpu_2050.BS_REG & 1) ? 0x000000ff: 0);
             b_bit |= ((cpu_2050.alu_out & t1) == 0);
             break;
     case 19: /* W = 1 */
@@ -975,7 +1102,7 @@ cycle_2050()
             b_bit |= ((cpu_2050.G_REG & 0x0f) == 0 || (cpu_2050.LB_REG == 0));
             break;
     case 26: /* IO Stat 1 to CPU */
-            b_bit |= (cpu_2050.IOSTAT & 4) != 0;
+            b_bit |= (cpu_2050.IOSTAT & BIT1) != 0;
             break;
     case 27: /* MD/JI MD Odd gt 8 or J odd gt 8 */
             b_bit |= ((cpu_2050.MD_REG & 0x9) != 0 || (cpu_2050.J_REG & 0x9) != 0);
@@ -983,13 +1110,13 @@ cycle_2050()
     case 28: /* IVA  */
             break;
     case 29: /* IO Stat 3 */
-            b_bit |= (cpu_2050.IOSTAT & 1) != 0;
+            b_bit |= (cpu_2050.IOSTAT & BIT3) != 0;
             break;
     case 30: /* (CAR) branch on carry latch  */
-            b_bit |= carry_out;
+//            b_bit |= cpu_2050.CAR;
             break;
     case 31: /* (Z00) looks at current T */
-            b_bit |= (cpu_2050.alu_out & 0x80000000) != 0;
+ //           b_bit |= (cpu_2050.alu_out & 0x80000000) != 0;
             break;
     }
 
@@ -1034,7 +1161,7 @@ cycle_2050()
             }
             break;
     case 1: /* SMIF suppress memory instruction fetch */
-            /* By order IV7 if refresh == 0 and IAR bit 30 == 1 */
+            /* By order IV7 if refetch == 0 and IAR bit 30 == 1 */
             break;
     case 2: /* A&(B=0)->A */
             if (!b_bit) {
@@ -1116,11 +1243,11 @@ cycle_2050()
                                 routine = 0x88;
                             }
                         }
-                        if (cpu_2050.brctl == 2 && 
+                        if (cpu_2050.brctl == 2 &&
                                  (cpu_2050.MPX_TI & CHAN_SRV_IN) != 0) {
                            routine = 0x88;
                         }
-                        if (cpu_2050.brctl == 3 && 
+                        if (cpu_2050.brctl == 3 &&
                                  (cpu_2050.MPX_TI & CHAN_SRV_IN) == 0) {
                            routine = 0x8c;
                         }
@@ -1177,7 +1304,7 @@ B0 sequencial controlles:
     xx10    Dev end or att in IB
     xxx1    Active
 
-bfr2 = 
+bfr2 =
      0 input fwd
      1 input back
      3 skip
@@ -1204,12 +1331,12 @@ Channel status
      6  Interface Control check
      7  Chaining check
 
-F 
+F
     0000  Start I/O
     0001  Foul on Start I/O
     0100  Test I/O
     0010  Halt I/O
-    1000  Test Channel 
+    1000  Test Channel
     0000  Proceed with interrupt.
 
     B0 brctl 0, startio -> B1
@@ -1284,9 +1411,9 @@ F
             F == 0100  -> C1
             F == 0010  -> C6
             F == 1000   Test chan
-            
+        
     B1  brctl 1, seq ctrl idle, prog ck -> D5
-    B1  brctl 1, seq ctrl idle, (TIC | invalid op) -> D5   
+    B1  brctl 1, seq ctrl idle, (TIC | invalid op) -> D5  
     B1  brctl 2, seq ctrl active -> polling  Set CC2, GSS3
     B1  brctl 6,  op in, sel in -> polling
     B1  brctl 6, seq ctrl idle, op in, address in -> B2
@@ -1420,6 +1547,65 @@ F
 
 #endif    
 
+    /* set local storage address */
+    if (cpu_2050.io_mode) {
+        /* Set local storage address */
+        switch (sal->ws) {
+        case 0: /* 2,3  */
+                cpu_2050.LSA = 0x2c;
+                break;
+        case 1: /* 2,3 */
+                cpu_2050.LSA = 0x2d;
+                break;
+        case 2: /* 2,3 */
+                cpu_2050.LSA = 0x2e;
+                break;
+        case 3: /* 2,3 */
+                cpu_2050.LSA = 0x2f;
+                break;
+        case 4: /* 0,CH */
+                cpu_2050.LSA = (cpu_2050.CH);
+                break;
+        case 5: /* 0,CH */
+                cpu_2050.LSA = (cpu_2050.CH) | 1;
+                break;
+        case 6: /* 0,CH */
+                cpu_2050.LSA = (cpu_2050.CH) | 2;
+                break;
+        case 7: /* 0,CH */
+                cpu_2050.LSA = (cpu_2050.CH) | 3;
+                break;
+        }
+    } else {
+        /* Set local storage address */
+        switch (sal->ws) {
+        case 0: /* No access  */
+                break;
+        case 1: /* WS1->LSA */
+                cpu_2050.LSA = 0x11;
+                break;
+        case 2: /* WS2->LSA */
+                cpu_2050.LSA = 0x12;
+                break;
+       case 3: /* WS,E->LSA */
+                cpu_2050.LSA = 0x10 | (sal->ce & 0xf);
+                break;
+        case 4: /* FN,J->LSA */
+                if (sal->sf != 7)
+                    cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.J_REG & 0xf);
+                break;
+        case 5: /* FN,J|1->LSA */
+                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.J_REG & 0xf) | 1;
+                break;
+        case 6: /* FN,MD->LSA */
+                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.MD_REG & 0xf);
+                break;
+        case 7: /* FN,MD|1->LSA */
+                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.MD_REG & 0xf) | 1;
+                break;
+        }
+    }
+
 
     /* Set up L and R inputs */
     switch (sal->ry) {
@@ -1552,10 +1738,10 @@ F
                                   (cpu_2050.PM);
                 break;
         case 6:  /* LMB */
-                cpu_2050.u_bus = (cpu_2050.L_REG >> (cpu_2050.MB_REG * 8)) & 0xff;
+                cpu_2050.u_bus = (cpu_2050.L_REG >> ((3 - cpu_2050.MB_REG) * 8)) & 0xff;
                 break;
         case 7:  /* LLB */
-                cpu_2050.u_bus = (cpu_2050.L_REG >> (cpu_2050.LB_REG * 8)) & 0xff;
+                cpu_2050.u_bus = (cpu_2050.L_REG >> ((3 - cpu_2050.LB_REG) * 8)) & 0xff;
                 break;
         }
 
@@ -1565,10 +1751,10 @@ F
                 cpu_2050.v_bus = 0;
                 break;
         case 1:   /* MLB */
-                cpu_2050.v_bus = (cpu_2050.M_REG >> (cpu_2050.LB_REG * 8)) & 0xff;
+                cpu_2050.v_bus = (cpu_2050.M_REG >> ((3 - cpu_2050.LB_REG) * 8)) & 0xff;
                 break;
         case 2:   /* MMB */
-                cpu_2050.v_bus = (cpu_2050.M_REG >> (cpu_2050.MB_REG * 8)) & 0xff;
+                cpu_2050.v_bus = (cpu_2050.M_REG >> ((3 - cpu_2050.MB_REG) * 8)) & 0xff;
                 break;
         case 3:   /* Undefined */
                 cpu_2050.v_bus = 0;
@@ -1580,49 +1766,6 @@ F
     /* Do mover function left */
     switch (sal->ul) {
     case 0:  /* E->WR */
-            cpu_2050.w_bus |= sal->ce;
-            if (sal->wm == 12) {
-                /* Fix based on ASCII flag setting */
-            }
-            break;
-    case 1:  /* U */
-            cpu_2050.w_bus |= cpu_2050.u_bus & 0x0f;
-            break;
-    case 2:  /* V */
-            cpu_2050.w_bus |= cpu_2050.v_bus & 0x0f;
-            break;
-    case 3:  /* ? */
-            switch (cpu_2050.mvfnc) {
-            case 0: /* Cross */
-                    cpu_2050.w_bus = (cpu_2050.u_bus & 0xf0) >> 4;
-                    break;
-            case 1: /* Or */
-                    cpu_2050.w_bus = (cpu_2050.v_bus | cpu_2050.u_bus) & 0x0f;
-                    break;
-            case 2: /* And  */
-                    cpu_2050.w_bus = (cpu_2050.v_bus & cpu_2050.u_bus) & 0x0f;
-                    break;
-            case 3: /* Xor */
-                    cpu_2050.w_bus = (cpu_2050.v_bus ^ cpu_2050.u_bus) & 0x0f;
-                    break;
-            case 4: /* char */
-                    cpu_2050.w_bus = cpu_2050.u_bus & 0x0f;
-                    break;
-            case 5: /* Numeric */
-                    cpu_2050.w_bus = cpu_2050.v_bus & 0x0f;
-                    break;
-            case 6: /* Zone */
-                    cpu_2050.w_bus = cpu_2050.u_bus & 0x0f;
-                    break;
-            case 7:  /* Unknown */
-                    break;
-            }
-            break;
-    }
-
-    /* Do mover function right */
-    switch (sal->ur) {
-    case 0:  /* E->WL */
             cpu_2050.w_bus = (sal->ce << 4);
             if (sal->wm == 12) {
                 /* Fix based on ASCII flag setting */
@@ -1652,10 +1795,54 @@ F
                     cpu_2050.w_bus = cpu_2050.u_bus & 0xf0;
                     break;
             case 5: /* Numeric */
-                    cpu_2050.w_bus = cpu_2050.u_bus & 0xf0;
+                    cpu_2050.w_bus = cpu_2050.v_bus & 0xf0;
                     break;
             case 6: /* Zone */
-                    cpu_2050.w_bus = cpu_2050.v_bus & 0xf0;
+                    cpu_2050.w_bus = cpu_2050.u_bus & 0xf0;
+                    break;
+            case 7:  /* Unknown */
+                    cpu_2050.w_bus = 0;
+                    break;
+            }
+            break;
+    }
+
+    /* Do mover function right */
+    switch (sal->ur) {
+    case 0:  /* E->WL */
+            cpu_2050.w_bus |= (sal->ce);
+            if (sal->wm == 12) {
+                /* Fix based on ASCII flag setting */
+            }
+            break;
+    case 1:  /* U */
+            cpu_2050.w_bus |= cpu_2050.u_bus & 0x0f;
+            break;
+    case 2:  /* V */
+            cpu_2050.w_bus |= cpu_2050.v_bus & 0x0f;
+            break;
+    case 3:  /* ? */
+            switch (cpu_2050.mvfnc) {
+            case 0: /* Cross */
+                    cpu_2050.w_bus |= (cpu_2050.u_bus & 0xf0) >> 4;
+                    break;
+            case 1: /* Or */
+                    cpu_2050.w_bus |= (cpu_2050.v_bus | cpu_2050.u_bus) & 0x0f;
+                    break;
+            case 2: /* And  */
+                    cpu_2050.w_bus |= (cpu_2050.v_bus & cpu_2050.u_bus) & 0x0f;
+                    break;
+            case 3: /* Xor */
+                    cpu_2050.w_bus |= (cpu_2050.v_bus ^ cpu_2050.u_bus) & 0x0f;
+                    break;
+            case 4: /* char */
+                    cpu_2050.w_bus |= cpu_2050.u_bus & 0x0f;
+                    break;
+            case 5: /* Numeric */
+                    cpu_2050.w_bus |= cpu_2050.u_bus & 0x0f;
+                    break;
+            case 6: /* Zone */
+                    cpu_2050.w_bus |= cpu_2050.v_bus & 0x0f;
                     break;
             case 7:  /* Unknown */
                     break;
@@ -1695,7 +1882,6 @@ F
          }
          /* Compute carry into adder */
          g_update = cpu_2050.G_REG;
-         carry_in = (sal->wm & 1);
     } else {
          /* Instruction address register */
          switch (sal->iv) {
@@ -1735,14 +1921,14 @@ F
                  cpu_2050.IA_REG += 2;
                  break;
          case 7:  /* IA+0/2->A */
-                 if (sal->zn == 1) {
-                    if (cpu_2050.REFETCH == 0 && (cpu_2050.IA_REG & 0x3) != 0)
+                 if (sal->zn == 1) {  /* SMIF */
+                    if (cpu_2050.REFETCH == 0 && (cpu_2050.IA_REG & 0x2) != 0)
                         break;
                  }
                  if (cpu_2050.REFETCH) {
                      cpu_2050.SAR_REG = cpu_2050.IA_REG;
                  } else {
-                     cpu_2050.SAR_REG = (cpu_2050.IA_REG + 2) & ~0x3;
+                     cpu_2050.SAR_REG = (cpu_2050.IA_REG + 2);
                  }
                  init_mem = 1;
                  break;
@@ -1754,7 +1940,7 @@ F
          case 0: /*  */
                  break;
          case 1: /* CSTAT->ADDER */
-                 carry_in = cpu_2050.CSTAT_REG;
+                 carry_in = cpu_2050.CAR;
                  break;
          case 2: /* HOT1->ADDER */
                  carry_in = 1;
@@ -1764,7 +1950,7 @@ F
                      cpu_2050.G1NEG = 1;
                  } else {
                      cpu_2050.G1NEG = 0;
-                 } 
+                 }
                  g_update = (cpu_2050.G_REG & 0x0f) | ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
          case 4: /* HOT1,G-1 */
@@ -1772,7 +1958,7 @@ F
                      cpu_2050.G1NEG = 1;
                  } else {
                      cpu_2050.G1NEG = 0;
-                 } 
+                 }
                  g_update = cpu_2050.G_REG - 1;
                  break;
          case 5: /* G2-1 */
@@ -1780,7 +1966,7 @@ F
                      cpu_2050.G2NEG = 1;
                  } else {
                      cpu_2050.G2NEG = 0;
-                 } 
+                 }
                  g_update = (cpu_2050.G_REG & 0x0f) | ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
          case 6: /* G-1 */
@@ -1788,7 +1974,7 @@ F
                      cpu_2050.G1NEG = 1;
                  } else {
                      cpu_2050.G1NEG = 0;
-                 } 
+                 }
                  g_update = cpu_2050.G_REG - 1;
                  break;
          case 7: /* G1,2-1 */
@@ -1796,128 +1982,160 @@ F
                      cpu_2050.G1NEG = 1;
                  } else {
                      cpu_2050.G1NEG = 0;
-                 } 
+                 }
                  if ((cpu_2050.G_REG & 0x0f) == 0) {
                      cpu_2050.G2NEG = 1;
                  } else {
                      cpu_2050.G2NEG = 0;
-                 } 
+                 }
                  g_update = ((cpu_2050.G_REG & 0x0f) - 0x1) | ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
          }
      }
 
 
-    switch (sal->ad) {
-    case 0:  /* Nop */
-    case 1:  /* Default */
-    case 3:  /* Unknown */
-    case 13:
-    case 14:
-    case 15:
-            carry_in = 0;
-            break;
-    case 2:  /* BCF0 */
-            if (cpu_2050.F_REG == 0)
-                carry_in = 1;
-            break;
-    case 4:  /* BC0 */
-    case 5: /* BC^C */
-    case 6: /* BC1B */
-    case 7: /* BC8 */
-    case 8: /* DHL */
-    case 11: /* DHH */
-            break;
-    case 9: /* DC0 */
-    case 10: /* DDC0 */
-    case 12: /* DCBS */
-            carry_in = (cpu_2050.S_REG & BIT1) != 0;
-            break;
+    if (cpu_2050.io_mode) {
+        carry_in = (sal->wm & 1);
+        /* Do adder, update output */
+        cpu_2050.alu_out = cpu_2050.left_bus + cpu_2050.right_bus + carry_in;
+        carries = (cpu_2050.left_bus & cpu_2050.right_bus) |
+                     ((cpu_2050.left_bus ^ cpu_2050.right_bus) & ~cpu_2050.alu_out);
+        carry_out = 0;
+
+    } else {
+        switch (sal->ad) {
+        case 0:  /* Nop */
+        case 1:  /* Default */
+        case 3:  /* Unknown */
+        case 13:
+        case 14:
+        case 15:
+                carry_in = 0;
+                break;
+        case 2:  /* BCF0 */
+                if (cpu_2050.F_REG == 0)
+                    carry_in = 1;
+                break;
+        case 4:  /* BC0 */
+        case 5: /* BC^C */
+        case 6: /* BC1B */
+        case 7: /* BC8 */
+        case 8: /* DHL */
+        case 11: /* DHH */
+                break;
+        case 9: /* DC0 */
+        case 10: /* DDC0 */
+        case 12: /* DCBS */
+                carry_in = (cpu_2050.S_REG & BIT1) != 0;
+                break;
+        }
+
+
+        /* Do adder, update output */
+        cpu_2050.alu_out = cpu_2050.left_bus + cpu_2050.right_bus + carry_in;
+        carries = (cpu_2050.left_bus & cpu_2050.right_bus) |
+                     ((cpu_2050.left_bus ^ cpu_2050.right_bus) & ~cpu_2050.alu_out);
+        carry_out = 0;
+
+        switch (sal->ad) {
+        case 0:  /* Nop */
+        case 1:  /* Default */
+        case 2:  /* BCF0 */
+        case 3:  /* Unknown */
+                break;
+        case 4:  /* BC0 */ /* Set carry based out sum out */
+                carry_out = ((carries & 0x80000000) != 0);
+                break;
+        case 5: /* BC^C */  /* Set carry based on xor of carry from 0 and 1 */
+                carry_out = ((carries ^ (carries << 1)) & 0x80000000) != 0;
+                break;
+        case 6: /* BC1B */ /* Set carry out from position 1 */
+                           /* Block carry between 8 and 7 */
+        case 7: /* BC8 */  /* Same */
+                if (sal->al == 23) {
+                    t1 = (cpu_2050.left_bus & 0xff000000) + (cpu_2050.right_bus & 0xff000000) + 0x010000000;
+                } else {
+                    t1 = (cpu_2050.left_bus & 0xff000000) + (cpu_2050.right_bus & 0xff000000);
+                }
+                t2 = (cpu_2050.left_bus & 0x00ffffff) + (cpu_2050.right_bus & 0x00ffffff) + carry_in;
+                cpu_2050.alu_out =  (t1 & 0xff000000) + (t2 & 0x00ffffff);
+                carries = (cpu_2050.left_bus & cpu_2050.right_bus) | ((cpu_2050.left_bus ^ cpu_2050.right_bus) & ~t1);
+                carry_out = (carries & 0x80000000) != 0;
+                cpu_2050.CAR = carry_out;
+                break;
+
+        case 8: /* DHL */ /* If out bit 2 is set, set L right one digit to 6. Left
+                             digit of L set to 6 if aux carry set */
+                t1 = 0x22222222 & cpu_2050.alu_out;
+                l_update = (t1 >> 4) || (t1 >> 5);
+                if (cpu_2050.AUX_REG)
+                    l_update |= 0x60000000;
+                break;
+        case 9: /* DC0 */ /* Set L to 6 if carry out of sum between digits */
+                t1 = 0x88888888 & ~carries;
+                l_update = ((t1 >> 2) | (t1 >> 3));
+                if ((carries & 0x800000000) != 0) {
+                    s_update |= BIT1;
+                } else {
+                    s_update &= ~BIT1;
+                }
+                break;
+        case 10: /* DDC0 */ /* Set L to 6 if sum out is greater then 6. */
+                t1 = (cpu_2050.alu_out << 1) & (cpu_2050.alu_out << 2) & 0x88888888;
+                t1 |= (cpu_2050.alu_out & 0x88888888);
+                l_update = ((t1 >> 1) | (t1 >> 2));
+                if ((carries & 0x800000000) != 0) {
+                    s_update |= BIT1;
+                } else {
+                    s_update &= ~BIT1;
+                }
+                break;
+        case 11: /* DHH */ /* Same as DC0, Aux carry set to right most digit bit 2 */
+                t1 = 0x22222222 & cpu_2050.alu_out;
+                l_update = (t1 >> 4) || (t1 >> 5);
+                cpu_2050.AUX_REG = (t1 & 0x2) != 0;
+                break;
+        case 12: /* DCBS */
+                t1 = 0x88888888 & ~carries;
+                l_update = ((t1 >> 2) | (t1 >> 3));
+                t1 = 0x80000000;
+                for (t2 = 0x8; (cpu_2050.BS_REG & t2) == 0 && t2 != 0; t2 >>= 1 ) {
+                    t1 >>= 8;
+                }
+                s_update &= ~BIT1;
+                if (carries & t1) {
+                   s_update |= BIT1;
+                }
+                break;
+        case 13:
+                break;
+        case 14:
+                break;
+        case 15:
+                break;
+        }
     }
 
-
-    /* Do adder, update output */
-    cpu_2050.alu_out = cpu_2050.left_bus + cpu_2050.right_bus + carry_in;
-    carries = (cpu_2050.left_bus & cpu_2050.right_bus) | 
-                 ((cpu_2050.left_bus ^ cpu_2050.right_bus) & ~cpu_2050.alu_out);
-    carry_out = 0;
-   
-    switch (sal->ad) {
-    case 0:  /* Nop */
-    case 1:  /* Default */
-    case 2:  /* BCF0 */
-    case 3:  /* Unknown */
-            break;
-    case 4:  /* BC0 */ /* Set carry based out sum out */
-            carry_out = ((carries & 0x80000000) != 0);
-            break;
-    case 5: /* BC^C */  /* Set carry based on xor of carry from 0 and 1 */
-            carry_out = ((carries ^ (carries << 1)) & 0x80000000) != 0;
-            break;
-    case 6: /* BC1B */ /* Set carry out from position 1 */
-                       /* Block carry between 8 and 7 */
-    case 7: /* BC8 */  /* Same */
-            if (sal->al == 23) {
-                t1 = (cpu_2050.left_bus & 0xff000000) + (cpu_2050.right_bus & 0xff000000) + 0x010000000;
-            } else {
-                t1 = (cpu_2050.left_bus & 0xff000000) + (cpu_2050.right_bus & 0xff000000);
+    if (sal->bb == 30 || sal->bb == 31) {
+         if (sal->bb == 30) {  /* (CAR) branch on carry latch  */
+            b_bit |= carry_out;
+         } else  {             /* (ZOO) branch on T bit 0 */
+            b_bit |= (cpu_2050.alu_out & 0x80000000) != 0;
+         }
+         if (sal->zn == 2) { /* A&(B=0)->A */
+            if (!b_bit) {
+                a_bit = 1;
             }
-            t2 = (cpu_2050.left_bus & 0x00ffffff) + (cpu_2050.right_bus & 0x00ffffff) + carry_in;
-            cpu_2050.alu_out =  (t1 & 0xff000000) + (t2 & 0x00ffffff);
-            carries = (cpu_2050.left_bus & cpu_2050.right_bus) | ((cpu_2050.left_bus ^ cpu_2050.right_bus) & ~t1);
-            carry_out = (carries & 0x80000000) != 0;
-            break;
-
-    case 8: /* DHL */ /* If out bit 2 is set, set L right one digit to 6. Left 
-                         digit of L set to 6 if aux carry set */
-            t1 = 0x22222222 & cpu_2050.alu_out;
-            l_update = (t1 >> 4) || (t1 >> 5);
-            if (cpu_2050.AUX_REG)
-                l_update |= 0x60000000;
-            break;
-    case 9: /* DC0 */ /* Set L to 6 if carry out of sum between digits */
-            t1 = 0x88888888 & ~carries;
-            l_update = ((t1 >> 2) | (t1 >> 3));
-            if ((carries & 0x800000000) != 0) {
-                s_update |= BIT1;
-            } else {
-                s_update &= ~BIT1;
+         }
+         if (sal->zn == 3) { /* A&(B=1)->A */
+            if (b_bit) {
+                a_bit = 1;
             }
-            break;
-    case 10: /* DDC0 */ /* Set L to 6 if sum out is greater then 6. */
-            t1 = (cpu_2050.alu_out << 1) & (cpu_2050.alu_out << 2) & 0x88888888;
-            t1 |= (cpu_2050.alu_out & 0x88888888);
-            l_update = ((t1 >> 1) | (t1 >> 2));
-            if ((t3 & 0x20000000) != 0) {
-                s_update |= BIT1;
-            } else {
-                s_update &= ~BIT1;
-            }
-            break;
-    case 11: /* DHH */ /* Same as DC0, Aux carry set to right most digit bit 2 */
-            t1 = 0x22222222 & cpu_2050.alu_out;
-            l_update = (t1 >> 4) || (t1 >> 5);
-            cpu_2050.AUX_REG = (t1 & 0x2) != 0;
-            break;
-    case 12: /* DCBS */
-            t1 = 0x88888888 & ~carries;
-            l_update = ((t1 >> 2) | (t1 >> 3));
-            t1 = 0x80000000;
-            for (t2 = 0x8; (cpu_2050.BS_REG & t2) == 0 && t2 != 0; t2 >>= 1 ) {
-                t1 >>= 8;
-            }
-            s_update &= ~BIT1;
-            if (carries & t1) {
-               s_update |= BIT1;
-            }
-            break;
-    case 13:
-            break;
-    case 14:
-            break;
-    case 15:
-            break;
+         }
+         next_roar &= ~3;
+         next_roar |= (a_bit << 1)|b_bit;
     }
+
 
     /* Do adder shifter */
     switch (sal->al) {
@@ -1930,7 +2148,7 @@ F
             break;
     case 2: /* L0->-S4-> */
             t1 = ((cpu_2050.S_REG & BIT4) == 0) ? 0x80000000 : 0;
-            cpu_2050.aob_latch = t1 | (cpu_2050.L_REG & 0x7f000000) | 
+            cpu_2050.aob_latch = t1 | (cpu_2050.L_REG & 0x7f000000) |
                            (cpu_2050.alu_out & 0xffffff);
             break;
     case 3: /* +SGN-> */
@@ -1941,7 +2159,7 @@ F
             break;
     case 5: /* L0,S4-> */
             t1 = ((cpu_2050.S_REG & BIT4) != 0) ? 0x80000000 : 0;
-            cpu_2050.aob_latch = t1 | (cpu_2050.L_REG & 0x7f000000) | 
+            cpu_2050.aob_latch = t1 | (cpu_2050.L_REG & 0x7f000000) |
                            (cpu_2050.alu_out & 0xffffff);
             break;
     case 6: /* IA->H */
@@ -2026,7 +2244,7 @@ F
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4) | (cpu_2050.F_REG << 28);
             break;
     case 26: /* E->FPSL4 */
-            cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) | (cpu_2050.alu_out & 0xff000000) 
+            cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) | (cpu_2050.alu_out & 0xff000000)
                                   | (sal->ce & 0xf);
             break;
     case 27: /* F->SR1->Q */
@@ -2059,8 +2277,6 @@ F
             break;
     case 3: /* D->CR*BS */
             /* Read main store, do test and set */
-            if (cpu_2050.mem_state != R2)
-                 goto channel;
             if (((cpu_2050.SDR_REG & BS_MASK[cpu_2050.BS_REG]) & 0x80808080) != 0)
                 cpu_2050.CC = 1;
             else
@@ -2069,7 +2285,7 @@ F
     case 4: /* E->SCHANCTL */
             break;
     case 5: /* L,RSGNS */
-            /*  If U < 01010 force invalid digit trap, 
+            /*  If U < 01010 force invalid digit trap,
              *  if B or D turn on L sign, invert Rsign,
              *  else clear L sign */
             t = cpu_2050.u_bus & 0xf;
@@ -2163,16 +2379,16 @@ F
                 s_update |= BIT3;
             break;
     case 18: /* E->BS,T30->S3 */
-            cpu_2050.BS_REG = (sal->ce & 0xf) << 4;
+            cpu_2050.BS_REG = (sal->ce & 0xf);
             s_update &= ~(BIT3);
             if ((cpu_2050.aob_latch & 02) != 0)
                 s_update |= BIT3;
             break;
     case 19: /* E->BS */
-            cpu_2050.BS_REG = (sal->ce & 0xf) << 4;
+            cpu_2050.BS_REG = (sal->ce & 0xf);
             break;
     case 20: /* 1->BS*MB */
-            cpu_2050.BS_REG = 1 << ((3 - cpu_2050.MB_REG) + 4);
+            cpu_2050.BS_REG = 1 << (3 - cpu_2050.MB_REG);
             break;
     case 21: /* DIRCTL->E */
             break;
@@ -2196,12 +2412,14 @@ F
             cpu_2050.S_REG |= cpu_2050.OPPANEL;
             break;
     case 29: /* CAR,(T!=0)->CR */
+            cpu_2050.CC = carry_out << 1;
+            cpu_2050.CC |= (cpu_2050.alu_out != 0);
             break;
     case 30: /* KEY->F */
-            cpu_2050.F_REG = cpu_2050.PROT[cpu_2050.SAR_REG >> 11];
+            cpu_2050.F_REG = cpu_2050.MP[cpu_2050.SAR_REG >> 11];
             break;
     case 31: /* F->KEY */
-            cpu_2050.PROT[cpu_2050.SAR_REG >> 11] = cpu_2050.F_REG;
+            cpu_2050.MP[cpu_2050.SAR_REG >> 11] = cpu_2050.F_REG;
             break;
     case 32: /* 1->LSGNS */
             cpu_2050.LSGNS = 1;
@@ -2222,7 +2440,7 @@ F
             cpu_2050.RSGNS = (cpu_2050.R_REG & 0x80000000) != 0;
             break;
     case 38: /* E(13)->WFN */
-            if (cpu_2050.io_mode) 
+            if (cpu_2050.io_mode)
                 cpu_2050.io_mvfnc = sal->ce & 07;
             else
                 cpu_2050.mvfnc = sal->ce & 07;
@@ -2323,23 +2541,22 @@ F
             r_update = cpu_2050.aob_latch;
             break;
     case 2:  /* R0 */
-            r_update = (cpu_2050.aob_latch & 0xff000000) | 
+            r_update = (cpu_2050.aob_latch & 0xff000000) |
                              (cpu_2050.R_REG & 0x00ffffff);
             break;
     case 3:  /* M */
-            cpu_2050.M_REG = cpu_2050.aob_latch;
+            m_update = cpu_2050.aob_latch;
             break;
     case 4:  /* D */
             cpu_2050.SDR_REG = cpu_2050.aob_latch;
             break;
     case 5:  /* L0 */
-            l_update = (cpu_2050.aob_latch & 0xff000000) | 
+            l_update = (cpu_2050.aob_latch & 0xff000000) |
                              (cpu_2050.L_REG & 0x00ffffff);
             break;
     case 6:  /* R,A Initiate main storage read */
-            /* Wait if memory state != W2 */
             r_update = cpu_2050.aob_latch;
-            cpu_2050.SAR_REG = cpu_2050.aob_latch;
+            cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
             init_mem = 1;
             break;
     case 7:  /* L */
@@ -2357,21 +2574,18 @@ F
              /* Emit x111 undefined */
             break;
     case 9:  /* R,AN, initaite memory request, suppress invalid memory address trap */
-            /* Wait if memory state != W2 */
             r_update = cpu_2050.aob_latch;
-            cpu_2050.SAR_REG = cpu_2050.aob_latch;
+            cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
             init_mem = 1;
             break;
     case 10:  /* R,AW, initiate memory request, invalid address trap if not word boundry  */
-            /* Wait if memory state != W2 */
             r_update = cpu_2050.aob_latch;
-            cpu_2050.SAR_REG = cpu_2050.aob_latch;
+            cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
             init_mem = 1;
             break;
     case 11:  /* R,AD  memory request, invalid address trap if not double boundry */
-            /* Wait if memory state != W2 */
             r_update = cpu_2050.aob_latch;
-            cpu_2050.SAR_REG = cpu_2050.aob_latch;
+            cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
             init_mem = 1;
             break;
     case 12:  /* D->IAR interlock with storage timing rinmmg */
@@ -2383,16 +2597,14 @@ F
     case 13:  /* SCAN->D */
             break;
     case 14:  /* R13 */
-            r_update = (cpu_2050.R_REG & 0xff000000) | 
+            r_update = (cpu_2050.R_REG & 0xff000000) |
                              (cpu_2050.aob_latch & 0x00ffffff);
             break;
     case 15:  /* A initiate memory request */
-            /* Wait if memory state != W2 */
             cpu_2050.SAR_REG = cpu_2050.aob_latch & 0xffffff;
             init_mem = 1;
             break;
     case 16:  /* L,A initiate memory request */
-            /* Wait if memory state != W2 */
             l_update = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = cpu_2050.aob_latch & 0xffffff;
             init_mem = 1;
@@ -2419,32 +2631,31 @@ F
             break;
     case 24:  /* L,M  */
             l_update = cpu_2050.aob_latch;
-            cpu_2050.M_REG = cpu_2050.aob_latch;
+            m_update = cpu_2050.aob_latch;
             break;
     case 25:  /* MLJK */
             l_update = cpu_2050.aob_latch;
-            cpu_2050.M_REG = cpu_2050.aob_latch;
+            m_update = cpu_2050.aob_latch;
             cpu_2050.J_REG = (cpu_2050.aob_latch >> 16) & 0xF;  /* 12-15 */
             cpu_2050.MD_REG = (cpu_2050.aob_latch >> 12) & 0xF;  /* 16-19 */
-            cpu_2050.refresh = 0;
+            cpu_2050.REFETCH = 0;
             s_update &= ~(BIT0|BIT1);
             if (cpu_2050.J_REG == 0)
                 s_update |= BIT0;
             if (cpu_2050.MD_REG == 0)
                 s_update |= BIT1;
             if ((cpu_2050.MD_REG & 0xc0) == 0)
-                cpu_2050.osyl = 1;
+                cpu_2050.SYLS1 = 1;
             else
-                cpu_2050.osyl = 0;
-            cpu_2050.ilc = 0;
-            if ((cpu_2050.aob_latch & 0x80000000) != 0) 
-                cpu_2050.ILC = 1;
-            if ((cpu_2050.aob_latch & 0xc0000000) == 0xc0000000) 
+                cpu_2050.SYLS1 = 0;
+            cpu_2050.ILC = 1;
+            if ((cpu_2050.aob_latch & 0x80000000) != 0)
                 cpu_2050.ILC = 2;
+            if ((cpu_2050.aob_latch & 0xc0000000) == 0xc0000000)
+                cpu_2050.ILC = 3;
             break;
     case 26:  /* MHL */
-            l_update = cpu_2050.aob_latch;
-            cpu_2050.M_REG = (cpu_2050.aob_latch >> 16) & 0xffff;
+            m_update = (cpu_2050.M_REG & 0xffff0000) | ((cpu_2050.aob_latch >> 16) & 0xffff);
             cpu_2050.MD_REG = (cpu_2050.aob_latch >> 28) & 0xF;  /* 0-3 */
             break;
     case 27:  /* MD */
@@ -2459,7 +2670,7 @@ F
                            (cpu_2050.aob_latch & BS_MASK[cpu_2050.BS_REG]);
             break;
     case 30:  /* L13 */
-            l_update = (cpu_2050.L_REG & 0xff000000) | 
+            l_update = (cpu_2050.L_REG & 0xff000000) |
                              (cpu_2050.aob_latch & 0x00ffffff);
             break;
     case 31:  /* IO  gate adder 29-31 to I/O reg */
@@ -2469,32 +2680,32 @@ F
     if (cpu_2050.io_mode) {
         switch (sal->wm) {
         case 0: /* Nop */
-        case 1: 
+        case 1:
                 break;
         case 2: /* W->L0 */
-        case 3: 
+        case 3:
                 l_update &= 0x00ffffff;
                 l_update |= ((uint32_t)cpu_2050.w_bus) << 24;
                 break;
         case 4: /* W->L1 */
-        case 5: 
+        case 5:
                 l_update &= 0xff00ffff;
                 l_update |= ((uint32_t)cpu_2050.w_bus) << 16;
                 break;
         case 6: /* W->L2 */
-        case 7: 
+        case 7:
                 l_update &= 0xffff00ff;
                 l_update |= ((uint32_t)cpu_2050.w_bus) << 8;
                 break;
         case 8: /* W->L3 */
-        case 9: 
+        case 9:
                 l_update &= 0xffffff00;
                 l_update |= ((uint32_t)cpu_2050.w_bus) << 0;
                 break;
         case 10: /* W.E>R(BUMP) */
-        case 11: 
+        case 11:
         case 12: /* W.E>R(BUMP)S */
-        case 13: 
+        case 13:
                /* 1111112222222222
                   4567890123456789
                   LLEE      LLLLLL
@@ -2505,7 +2716,7 @@ F
                 init_bump_mem = 1;
                 break;
         case 14: /* Nop */
-        case 15: 
+        case 15:
                 break;
         }
     } else {
@@ -2514,8 +2725,8 @@ F
         case 0: /* No change */
                 break;
         case 1: /* W->MMB  */
-                cpu_2050.M_REG &= ~(0xff << (3-cpu_2050.MB_REG));
-                cpu_2050.M_REG |= (cpu_2050.w_bus << (3-cpu_2050.MB_REG));
+                m_update &= ~(0xff << (8 * (3-cpu_2050.MB_REG)));
+                m_update |= (cpu_2050.w_bus << (8 * (3-cpu_2050.MB_REG)));
                 break;
         case 2: /* W67->MB  */
                 cpu_2050.MB_REG = cpu_2050.w_bus & 03;
@@ -2524,6 +2735,9 @@ F
                 cpu_2050.LB_REG = cpu_2050.w_bus & 03;
                 break;
         case 4: /* W27->PSW4, 2-7 -> PSW 34-39  */
+                load_mode = 0;
+                cpu_2050.CC = (cpu_2050.w_bus >> 4) & 0x3;
+                cpu_2050.PM = cpu_2050.w_bus & 0xf;
                 break;
         case 5: /* W->PSW0  */
                 cpu_2050.MASK = cpu_2050.w_bus;
@@ -2534,7 +2748,7 @@ F
         case 7: /* W->CHCTL  */
                 /* Start channel micro op */
                 /* 0000 Issue IRPT Test IO.
-                   0001 SIO 
+                   0001 SIO
                    0010 Channel Count=0 no ST3
                    0100 Emit Timout chk to Sel Chan.
                    1000 TCH
@@ -2558,11 +2772,11 @@ F
                 g_update = cpu_2050.w_bus;
                 break;
         case 12: /* W->MMB(E?)  */
-                cpu_2050.M_REG &= ~(0xff << (3-cpu_2050.MB_REG));
-                cpu_2050.M_REG |= (cpu_2050.w_bus << (3-cpu_2050.MB_REG));
+                m_update &= ~(0xff << (8 * (3-cpu_2050.MB_REG)));
+                m_update |= (cpu_2050.w_bus << (8 * (3-cpu_2050.MB_REG)));
                 break;
         case 13: /* WR->MD */
-                cpu_2050.MD_REG = (cpu_2050.w_bus & 0xf0) >> 4;
+                cpu_2050.MD_REG = (cpu_2050.w_bus & 0x0f);
                 break;
         case 14: /* WR->F */
                 cpu_2050.F_REG = (cpu_2050.w_bus & 0x0f);
@@ -2574,6 +2788,7 @@ F
         }
 
         /* Update counters */
+      log_trace("set up=%d lb=%d mb=%d md=%d\n", sal->up, sal->lb, sal->mb, sal->md);
         switch (sal->up) {
         case 0: /* 0-> */
                 if (sal->lb)
@@ -2610,88 +2825,30 @@ F
         }
     }
 
-    if (cpu_2050.io_mode) {
-        /* Set local storage address */
-        switch (sal->ws) {
-        case 0: /* 2,3  */
-                cpu_2050.LSA = 0x2c;
-                break;
-        case 1: /* 2,3 */
-                cpu_2050.LSA = 0x2d;
-                break;
-        case 2: /* 2,3 */
-                cpu_2050.LSA = 0x2e;
-                break;
-        case 3: /* 2,3 */
-                cpu_2050.LSA = 0x2f;
-                break;
-        case 4: /* 0,CH */
-                cpu_2050.LSA = (cpu_2050.CH);
-                break;
-        case 5: /* 0,CH */
-                cpu_2050.LSA = (cpu_2050.CH) | 1;
-                break;
-        case 6: /* 0,CH */
-                cpu_2050.LSA = (cpu_2050.CH) | 2;
-                break;
-        case 7: /* 0,CH */
-                cpu_2050.LSA = (cpu_2050.CH) | 3;
-                break;
-        }
-    } else {
-        /* Set local storage address */
-        switch (sal->ws) {
-        case 0: /* No access  */
-                break;
-        case 1: /* WS1->LSA */
-                cpu_2050.LSA = 0x11;
-                break;
-        case 2: /* WS2->LSA */
-                cpu_2050.LSA = 0x12;
-                break;
-       case 3: /* WS,E->LSA */
-                cpu_2050.LSA = 0x10 | (sal->ce & 0xf);
-                break;
-        case 4: /* FN,J->LSA */
-                if (sal->sf != 7)
-                    cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.J_REG & 0xf);
-                break;
-        case 5: /* FN,J|1->LSA */
-                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.J_REG & 0xf) | 1;
-                break;
-        case 6: /* FN,MD->LSA */
-                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.MD_REG & 0xf);
-                break;
-        case 7: /* FN,MD|1->LSA */
-                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.MD_REG & 0xf) | 1;
-                break;
-        }
-    }
-
 
     /* Fetch/store local storage */
     switch (sal->sf) {
     case 0: /* R->LS */
-            cpu_2050.LS[cpu_2050.LSA] = cpu_2050.R_REG;
+            cpu_2050.LS[cpu_2050.LSA] = r_update;
             break;
     case 1: /* LS->L,R->LS */
             l_update = cpu_2050.LS[cpu_2050.LSA];
-            cpu_2050.LS[cpu_2050.LSA] = cpu_2050.R_REG;
+            cpu_2050.LS[cpu_2050.LSA] = r_update;
             break;
     case 2: /* LS->R->LS */
-            cpu_2050.LS[cpu_2050.LSA] = cpu_2050.R_REG;
+            r_update = cpu_2050.LS[cpu_2050.LSA];
             break;
     case 3: /* unknown */
             break;
     case 4: /* L->LS */
-            cpu_2050.LS[cpu_2050.LSA] = cpu_2050.L_REG;
+            cpu_2050.LS[cpu_2050.LSA] = l_update;
             break;
     case 5: /* LS->R,L->LS */
             r_update = cpu_2050.LS[cpu_2050.LSA];
-            cpu_2050.LS[cpu_2050.LSA] = cpu_2050.L_REG;
+            cpu_2050.LS[cpu_2050.LSA] = l_update;
             break;
     case 6: /* LS->L->LS */
-            cpu_2050.LS[cpu_2050.LSA] = cpu_2050.L_REG;
+            l_update = cpu_2050.LS[cpu_2050.LSA];
             break;
     case 7: /* No function */
             break;
@@ -2703,27 +2860,51 @@ F
     cpu_2050.R_REG = r_update;
     cpu_2050.G_REG = g_update;
     cpu_2050.S_REG = s_update;
+    cpu_2050.M_REG = m_update;
+    cpu_2050.Q_REG = q_update;
 channel:
 
+    cpu_2050.ROAR = next_roar;
     /* Main memory cycle */
     switch (cpu_2050.mem_state) {
     case R1:
              cpu_2050.mem_state = R2;
              cpu_2050.SDR_REG = cpu_2050.M[cpu_2050.SAR_REG >> 2];
+             log_info("mem cycle read %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
              break;
     case R2:
+             log_info("mem cycle read 2 %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
              cpu_2050.mem_state = R3;
              break;
     case R3:
+             log_info("mem cycle read 3 %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
+             cpu_2050.M[cpu_2050.SAR_REG >> 2] = cpu_2050.SDR_REG;
              cpu_2050.mem_state = W1;
              break;
+    case 0:
+             cpu_2050.SDR_REG = cpu_2050.M[cpu_2050.SAR_REG >> 2];
     case W1:
-             if (init_mem)
-                cpu_2050.mem_state = R1;
-             cpu_2050.M[cpu_2050.SAR_REG >> 2] = cpu_2050.SDR_REG;
+             /* Fall through */
+             cpu_2050.mem_state = (init_mem | init_bump_mem) ? R1 : W1;
+             if (cpu_2050.mem_state == W1)
+                 cpu_2050.M[cpu_2050.SAR_REG >> 2] = cpu_2050.SDR_REG;
+             log_info("mem write  %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
              break;
     }
-    ;
+    log_reg("u=%02x v=%02x w=%02x l=%08x r=%08x alu=%08x aob=%08x\n",
+              cpu_2050.u_bus, cpu_2050.v_bus, cpu_2050.w_bus,
+              cpu_2050.left_bus, cpu_2050.right_bus, cpu_2050.alu_out, cpu_2050.aob_latch);
+    log_reg("L=%c%08x R=%c%08X H=%08X M=%08X IAR=%06X SAR=%06X SDR=%08X F=%X\n",
+               (cpu_2050.LSGNS) ? '-' : '+', cpu_2050.L_REG, (cpu_2050.RSGNS)? '-' : '+',cpu_2050.R_REG,
+               cpu_2050.H_REG, cpu_2050.M_REG, cpu_2050.IA_REG, cpu_2050.SAR_REG, cpu_2050.SDR_REG,
+               cpu_2050.F_REG);
+    log_reg("MD=%X MB=%X LB=%X S=%02X J=%X G1=%c%X,G2=%c%X LSA=%02X FN=%02X\n",
+                cpu_2050.MD_REG, cpu_2050.MB_REG, cpu_2050.LB_REG, cpu_2050.S_REG, cpu_2050.J_REG,
+               (cpu_2050.G1NEG) ? '-' : '+', (cpu_2050.G_REG >> 4), (cpu_2050.G2NEG) ? '-' : '+', (cpu_2050.G_REG & 0xf),
+                cpu_2050.LSA, cpu_2050.FN);
+    log_reg("ILC=%X CC=%X AMWP=%X MASK=%02X\n",
+                cpu_2050.ILC, cpu_2050.CC, cpu_2050.AMWP, cpu_2050.MASK);
+
     if (cpu_2050.count & 1)
        return;
 
@@ -2732,7 +2913,7 @@ channel:
     for (dev = chan[0]; dev != NULL; dev = dev->next) {
          dev->bus_func(dev, &cpu_2050.MPX_TI, cpu_2050.BFR1, &cpu_2050.BUS_IN);
     }
-   
+
 #if 0 
 142  STPR  Storage protection
 149  DATA  Invalid Decimal data or sign
@@ -3274,5 +3455,5 @@ log    -   a0, brctrl 6, inv bump adr | b2, brctrl 1, ucw ua != inter ua |
            d1, brctrl 6, not op in, (status in | sel in)
 
 #endif
-} 
+}
 

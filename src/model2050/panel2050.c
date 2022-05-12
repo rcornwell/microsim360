@@ -303,7 +303,7 @@ setup_fp2050(SDL_Renderer *render)
     rect.h = f1_hd;
     rect.w = f1_wd;
     ros_ptr = 0;
-    shf = 23; 
+    shf = 23;
     for (i = 0; row1[i] != '\0'; i++) {
         pos1[i] = rect.x;
         switch (row1[i]) {
@@ -534,7 +534,7 @@ next_row1:
         case 'P': j = 16;  break;
         case ' ': pos_cnt[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3 * f1_wd; continue;
         }
-        if (j) 
+        if (j)
             (void)add_led(&labels[j], &cpu_2030.GHY, shf, pos_cnt[i], rect.y, j);
         else
             (void)add_led(&labels[j], &cpu_2030.GHZ, shf, pos_cnt[i], rect.y, j);
@@ -985,7 +985,7 @@ next_row1:
         case 'P': j = 16;  break;
         case ' ': pos_store[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3 * f1_wd; continue;
         }
-        if (k) 
+        if (k)
             (void)add_led(&labels[j], &cpu_2030.N_REG, shf, pos_store[i], rect.y, j);
         else
             (void)add_led(&labels[j], &cpu_2030.M_REG, shf, pos_store[i], rect.y, j);
@@ -1097,7 +1097,7 @@ next_row1:
         case 'P': j = 16;  break;
         case ' ': pos_breg[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3 * f1_wd; continue;
         }
-        if (k) 
+        if (k)
             (void)add_led(&labels[j], &cpu_2030.Bbus, shf, pos_breg[i], rect.y, j);
         else
             (void)add_led(&labels[j], &cpu_2030.Abus, shf, pos_breg[i], rect.y, j);
