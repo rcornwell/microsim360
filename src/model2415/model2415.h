@@ -27,8 +27,8 @@
  *  Commands.
  *
  *            01234567
- *  Write     00000001       
- *  Read      00000010     
+ *  Write     00000001
+ *  Read      00000010
  *  Sense     00000100
  *  Readback  00001100
  *
@@ -69,5 +69,5 @@
 #include <stdint.h>
 #include "device.h"
 
-struct _device *model2415_init(SDL_Renderer *render, uint16_t addr); 
+struct _device *model2415_init(SDL_Renderer *render, uint16_t addr);
 #endif
