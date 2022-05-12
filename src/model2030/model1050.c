@@ -74,12 +74,10 @@ static int       in_flg;
 static int       in_ptr;
 static int       out_ptr;
 static int       in_len;
-static int       out_len;
 static int       home_loop;
 static int       attn_flg;
 static int       cancel_flg;
 static int       eob_flg;
-static int       eot_flg;
 static int       t_state;
 static fd_set    fds_socks;
 static SDL_Thread *thrd;
@@ -92,7 +90,6 @@ WSADATA wsaData = { 0 };
 void
 model1050_init()
 {
-    int                 flags;
     struct sockaddr_in  locAddr;
     int                 on = 1;
 
@@ -129,7 +126,7 @@ model1050_init()
     running = 1;
     thrd = SDL_CreateThread(model1050_thrd, "Console", NULL);
     log_console("listern created\n");
-} 
+}
 
 void
 model1050_out(uint16_t out_char)
@@ -145,7 +142,7 @@ model1050_in(uint16_t *in_char)
    char   ch;
    if (in_flg && in_len > 0) {
        ch = key_buf[out_ptr++];
-       *in_char = ascii_to_ebcdic[ch];
+       *in_char = ascii_to_ebcdic[(ch & 0xff)];
        *in_char |= odd_parity[*in_char];
        out_ptr &= 0xff;
        in_len--;
@@ -226,7 +223,7 @@ model1050_func(uint16_t *tags_out, uint16_t tags_in, uint16_t *t_request)
 
        log_console("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
     }
-} 
+}
 
 void
 model1050_done()
@@ -277,17 +274,15 @@ static char init_string[] = {
 int
 model1050_thrd(void *data)
 {
-    static char    bell = '\007';
-    char           c;
-    int            i, j;
+//    static char    bell = '\007';
+    int            j, k;
     int            maxfd;
-    struct timeval tv = {1,0}; 
-    fd_set         read_set, write_set;
+    struct timeval tv = {1,0};
+    fd_set         read_set;
     struct sockaddr_in client;
-    int            size;
+    socklen_t      size;
     SOCKET         newsock;
     char           buffer[256];
-    int            flags;
 
     log_console("Console started\n");
 
@@ -296,10 +291,9 @@ model1050_thrd(void *data)
         if (cons > 0 && cons > maxfd)
             maxfd = cons;
         read_set = fds_socks;
-        write_set = fds_socks;
         tv.tv_sec = 0;
         tv.tv_usec = 33000;
-        i = select(maxfd+1, &read_set, NULL, NULL, &tv);
+        (void)select(maxfd+1, &read_set, NULL, NULL, &tv);
 
         /* Do accept on socket. */
         if (FD_ISSET(sock, &read_set)) {
@@ -319,24 +313,23 @@ model1050_thrd(void *data)
                static char *msg = "Console already connected\n\r";
                send(newsock, msg, sizeof(msg), 0);
                closesocket(newsock);
-           } 
+           }
         }
 
         /* Send any data ready to send */
-            if (out_flg) {
-                send(cons, &out_buf, 1, 0);
-                out_flg = 0;
-                if (out_buf == '\r')
-                   send(cons, "\n", 1, 0);
-            }
-            if (out_cr) {
-                send(cons, "\r\n", 2, 0);
-                out_cr = 0;
-            }
+        if (out_flg) {
+            send(cons, &out_buf, 1, 0);
+            out_flg = 0;
+            if (out_buf == '\r')
+               send(cons, "\n", 1, 0);
+        }
+        if (out_cr) {
+            send(cons, "\r\n", 2, 0);
+            out_cr = 0;
+        }
 
         /* Collect any waiting input */
         if (FD_ISSET(cons, &read_set)) {
-            int j, k;
             j = recv(cons, buffer, 256, 0);
             if (j == 0) {
                log_console("Disonnected\n");
@@ -366,7 +359,7 @@ model1050_thrd(void *data)
                        t_state = TNS_WILL;
                     } else if (t == TN_WONT) {
                        t_state = TNS_WONT;
-                    } else 
+                    } else
                        t_state = TNS_SKIP;
                     break;
                 case TNS_WILL:

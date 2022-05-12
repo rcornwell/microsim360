@@ -235,7 +235,7 @@ loop:
         x ^= odd_parity[(r->row3 >> 8) & 0xff];
         x ^= odd_parity[(r->row3 >> 16) & 0xff];
         r->row3 |= (x != 0) << 19;
-    } 
+    }
 
     /* Dump out the ros image to a C file. */
     fprintf(out, "/*  CN   CH   CL   CM   CU    CA   CB    CK   CD    CF  CG   CV   CC    CS   PK        R1        R2        R3  Note  */\n");
@@ -247,8 +247,8 @@ loop:
                 /* CD  CF    CG   CV    CC    CS    PK   */
         fprintf(out, "0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%02x, 0x%x, ",
                   r->CD, r->CF, r->CG, r->CV, r->CC, r->CS, r->PK);
-        fprintf(out, "0x%06x, 0x%06x, 0x%06x, \"%s\" }, \n", 
+        fprintf(out, "0x%06x, 0x%06x, 0x%06x, \"%s\" }, \n",
                   r->row1, r->row2, r->row3, (r->note[0] == '\0') ? " ": r->note);
     }
 }
-                             
+

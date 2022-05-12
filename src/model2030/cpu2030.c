@@ -28,39 +28,10 @@
 
 #include "logger.h"
 #include "device.h"
+#include "xlat.h"
 #include "model2030.h"
 #include "model1050.h"
 
-
-int SYS_RST;
-int ROAR_RST;
-int START;
-int SET_IC;
-int CHECK_RST;
-int STOP;
-int INT_TMR;
-int STORE;
-int DISPLAY;
-int LAMP_TEST;
-int POWER;
-int INTR;
-int LOAD;
-int timer_event;
-
-uint8_t  A_SW;
-uint8_t  B_SW;
-uint8_t  C_SW;
-uint8_t  D_SW;
-uint8_t  E_SW;
-uint8_t  F_SW;
-uint8_t  G_SW;
-uint8_t  H_SW;
-uint8_t  J_SW;
-
-uint8_t  PROC_SW;
-uint8_t  RATE_SW;
-uint8_t  CHK_SW;
-uint8_t  MATCH_SW;
 
 struct CPU_2030 cpu_2030;
 
@@ -160,9 +131,6 @@ static char *cf_name[] = {
 static char *cg_name[] = {
      "0", "L", "H", "" };
 
-static char *cv_name[] = {
-     "bin", "comp", "+2", "+3" };
-
 static char *cc_name[] = {
      "+", "+1", ".", "|", "0c", "1c", "cc", "^" };
 
@@ -175,7 +143,6 @@ static char *cs_name[] = {
 static char hex[] = {
      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 
-static uint8_t    ASCII;                /* Holds ASCII flag */
 static int        suppr_half_trap_lch;  /* Holds Machine check flag 03AA3 */
 static int        start_sw_rst;         /* Reset from start switch 03CA3 */
 static int        e_cy_stop_sample;     /* Cycle Stop sample flag 03CB3 */
@@ -196,13 +163,11 @@ static int        priority;
 static int        priority_bus;
 static int        priority_stack_reg;
 static int        priority_lch;
-static int        priority_rst_ctrl;
 static int        any_priority_lch;
 static int        any_priority_pulse;
 static int        force_ij_req;
 static int        hard_stop;
 static int        second_err_stop;
-static int        gate_sws_to_wx_lch;
 static int        gate_sw_to_wx;
 static int        allow_a_reg_chk;
 static int        first_mach_chk_req;
@@ -229,18 +194,11 @@ static int        sel_start_sel;
 static int        sel_ros_req;
 static int        sel_chnl_chk;
 static int        sel_chain_pulse;
-static int        sel_share_cnt;
 static int        sel_share_req;
-static int        sel_chk_a_reg[2];
-static int        sel_share_cycle[2];
-static int        sel_rw_ctrl_lch[2];
 static int        sel_read_cycle[2];
 static int        sel_write_cycle[2];
 static int        sel_gr_full[2];
-static int        sel_rd_cycle[2];
-static int        sel_wr_cycle[2];
 static int        sel_halt_io[2];
-static int        sel_poll_req[2];
 static int        sel_poll_ctrl[2];
 static int        sel_cnt_rdy_not_zero[2];
 static int        sel_cnt_rdy_zero[2];
@@ -251,8 +209,6 @@ static int        sel_chan_busy[2];
 static int        sel_intrp_lch[2];
 static int        sel_status_stop_cond[2];
 static int        sel_chain_req[2];
-static int        sel_dev_irq_cond[2];
-static int        sel_irq_cond[2];
 static int        sel_chain_det[2];
 
 static int        cg_mask[4] = { 0x00, 0x0f, 0xf0, 0xff };
@@ -299,15 +255,13 @@ void
 cycle()
 {
    uint16_t   nextWX = cpu_2030.WX;
-   uint16_t   mask;
    struct ROS_2030  *sal;
    int         dec;
    int         carry_in;
    uint16_t   abus_f;
    uint16_t   bbus_f;
    static uint16_t   carries;
-   uint8_t    abus_s;
-   int         i, j;
+   int         i;
    struct _device *dev;
 
    sal = &ros_2030[nextWX];
@@ -463,7 +417,7 @@ cycle()
       read_call = 0;
       even_parity = 0;
       alu_chk = 0;
-      ASCII = 0;
+      cpu_2030.ASCII = 0;
       SYS_RST = 0;
       cpu_2030.mem_max = 0x3fff;
       /* Set memory parity to valid */
@@ -958,16 +912,20 @@ cycle()
                  mem[i] = cpu_2030.M[cpu_2030.MN_REG + i] & 0xff;
              }
              print_inst(mem);
-             log_trace(" IC=%02x%02x CC=%02x\n\n", cpu_2030.I_REG & 0xff, cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB]);
+             log_itrace_c(" IC=%02x%02x CC=%02x", cpu_2030.I_REG & 0xff, cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB]);
+             log_itrace("\n");
 
+             log_itrace_s(" ");
              for (i = 0; i < 16; i++) {
-                 log_itrace(" GR%02d = %02x%02x%02x%02x", i,
+                 log_itrace_c(" GR%02d = %02x%02x%02x%02x", i,
                       cpu_2030.LS[(i << 4) + 0] & 0xff,
                       cpu_2030.LS[(i << 4) + 1] & 0xff,
                       cpu_2030.LS[(i << 4) + 2] & 0xff,
                       cpu_2030.LS[(i << 4) + 3] & 0xff);
-                 if ((i & 0x3) == 0x3)
+                 if ((i & 0x3) == 0x3) {
                       log_itrace("\n");
+                      log_itrace_s(" ");
+                 }
              }
           }
 
@@ -1438,7 +1396,7 @@ cycle()
            case 0x18: /* Set even parity */
                        break;
            case 0x19: /* Check ascii flag */
-                       if (ASCII)
+                       if (cpu_2030.ASCII)
                           nextWX &= 0xffd;  /* Clear X6 if set */
                        break;
            case 0x1A: /* Select interrupt SEL1 -> 0,x SEL2 -> x,0, timer -> 0,0 */
@@ -1883,7 +1841,7 @@ cycle()
                if ((carries & BIT0) == 0)
                   cpu_2030.Alu_out -= 0x60;
                if (sal->CC == 7) {
-                   ASCII = (cpu_2030.R_REG & BIT4) != 0;
+                   cpu_2030.ASCII = (cpu_2030.R_REG & BIT4) != 0;
                    suppr_half_trap_lch = (cpu_2030.R_REG & BIT5) == 0;
                }
                if (sal->CC == 3) {
@@ -2109,6 +2067,11 @@ cycle()
                               cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;
                           //printf("Update op out: %d\n", sal->PK);
                    }
+                   if ((cpu_2030.MPX_TAGS & (CHAN_SEL_OUT|CHAN_ADR_OUT)) == (CHAN_SEL_OUT|CHAN_ADR_OUT) &&
+                       (cpu_2030.MPX_TI & (CHAN_STA_IN)) != 0) {
+                       mpx_start_sel = 0;
+                       cpu_2030.MPX_TAGS &= ~CHAN_SEL_OUT;
+                   }
                    break;
            case 0x0F:
 
@@ -2131,7 +2094,7 @@ cycle()
                             cpu_2030.MPX_TAGS |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
                         }
                    } else {
-                        cpu_2030.MPX_TAGS &= ~CHAN_ADR_OUT;
+                        cpu_2030.MPX_TAGS &= ~(CHAN_ADR_OUT);
                    }
                    if (sal->CK & BIT6) {
                         cpu_2030.MPX_TAGS |= CHAN_CMD_OUT;
@@ -2383,7 +2346,7 @@ cycle()
 
            log_reg("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
                    cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG, cpu_2030.Q_REG, cpu_2030.R_REG,
-                   cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG, cpu_2030.FT, cpu_2030.MASK, abus_f, cc_name[sal->CC], bbus_f, cpu_2030.Alu_out, ASCII);
+                   cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG, cpu_2030.FT, cpu_2030.MASK, abus_f, cc_name[sal->CC], bbus_f, cpu_2030.Alu_out, cpu_2030.ASCII);
            log_reg("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d\n",
                    cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG,
                    cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX, cpu_2030.STAT_REG,
@@ -2434,18 +2397,19 @@ chan_scan:
         if ((cpu_2030.MPX_TI & (CHAN_SRV_OUT|CHAN_STA_IN|CHAN_SRV_IN)) == CHAN_SRV_OUT)
             cpu_2030.MPX_TAGS &= ~CHAN_SRV_OUT;
         /* Update Command output line */
-        if ((cpu_2030.MPX_TI & CHAN_CMD_OUT) != 0 && (cpu_2030.MPX_TI & (CHAN_ADR_IN|CHAN_STA_IN|CHAN_SRV_IN)) != 0);
+        if ((cpu_2030.MPX_TI & CHAN_CMD_OUT) != 0 && (cpu_2030.MPX_TI & (CHAN_ADR_IN)) == 0)
             cpu_2030.MPX_TAGS &= ~CHAN_CMD_OUT;
         if (mpx_start_sel && (cpu_2030.MPX_TI & (CHAN_STA_IN|CHAN_CMD_OUT)) != 0) {
             mpx_start_sel = 0;
             cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
         }
         /* Drop address out when we get address in */
-        if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_ADR_IN)) == (CHAN_ADR_IN|CHAN_ADR_OUT)) {
+        if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_ADR_IN)) == (CHAN_ADR_OUT|CHAN_ADR_IN)) {
             cpu_2030.MPX_TAGS &= ~CHAN_ADR_OUT;
         }
         /* If device responded drop select out */
-        if ((cpu_2030.MPX_TAGS & CHAN_SEL_OUT) != 0 && (cpu_2030.MPX_TI & (CHAN_OPR_IN|CHAN_ADR_IN)) == (CHAN_OPR_IN|CHAN_ADR_IN)) {
+        if ((cpu_2030.MPX_TAGS & CHAN_SEL_OUT) != 0 &&
+               (cpu_2030.MPX_TI & (CHAN_OPR_IN|CHAN_ADR_IN)) == (CHAN_OPR_IN|CHAN_ADR_IN)) {
             cpu_2030.FT &= ~BIT6;
             cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
         }

@@ -114,6 +114,7 @@ uint16_t    T_REG;              /* Partial address. */
 uint16_t    MC_REG;             /* Machine check */
 uint16_t    XX_REG;             /* X latches, high order bump address. */
 uint8_t     MASK;               /* System mask register.. */
+uint8_t     ASCII;              /* ASCII flag latch */
 
 uint16_t    M_REG;              /* M register */
 uint16_t    N_REG;              /* N register */
@@ -250,7 +251,7 @@ uint16_t     GF[2];              /* Selector channel flags. */
  *  Bit 4 - PIC GEo
  */
 uint16_t     GG[2];                /* Selector channel  command register. Bits 4-7. */
-/* GG Register. 
+/* GG Register.
  *
  *  0000    - Invalid
  *  0100    - Sense
@@ -304,7 +305,7 @@ uint16_t    GO[2];                 /* Select bus output */
  *  K = 3  GK to Abus
  *  K = 4  GE to Abus
  *  K = 5
- *  K = 6 
+ *  K = 6
  *         Bit 0 - Sx1 Cnt Rdy & not zero
  *         Bit 1 - SLI   GE<2>
  *         Bit 2 - COM 7 Bit output
@@ -329,7 +330,7 @@ uint16_t    GO[2];                 /* Select bus output */
  *  K = c
  *  K = d
  *  K = e
- *  K = f    
+ *  K = f
  */
 uint16_t    GC[2];                /* Select channel count */
 uint16_t    GD[2];                /* Select channel count */
@@ -337,12 +338,12 @@ uint16_t    GU[2];                /* Select channel address */
 uint16_t    GV[2];                /* Select channel address */
 
 uint16_t    GHY;               /* Incrementer bus. */
-uint16_t    GHZ;              
+uint16_t    GHZ;
 
 uint16_t    SEL_TAGS[2];         /* Select channel tags. */
 uint16_t    SEL_TI[2];           /* Input tags. */
 
-} cpu_2030; 
+} cpu_2030;
 
 extern uint16_t    end_of_e_cycle;
 extern uint16_t    store;
@@ -362,14 +363,14 @@ extern uint8_t     load_mode;
 void  cycle();
 
 
-/* Select channel I/O sequence. 
+/* Select channel I/O sequence.
  *
  *   K->GB of 0001 (PK) selects Channel 1 or 2. PK==1 for 2.
  *   K->GB of 1011,1    set poll.   (Raise Sel out).
  *   GT & 0x20 == 0.   Poll control on to S4.
  *   K->GB of 1001,0   reset channel.
  *   set command out& service out.
- * 
+ *
  *   K->GA 1100,0     set addr out.
  *   K->GB 1100,0     reset select out.
  *   Wait for Addr in or Status in   Bit 4 = addr in, bit5 = status in
@@ -380,22 +381,22 @@ void  cycle();
  *   K->GA 1010,0     command out, drop address out.
  *   Wait status in GT Bit 5.
  *   K->GB 1000,0     set count ready flag.
- *   
+ *
  *
  *   Status != 0:
  *    K->GB   1010,0   reset suppress out. Stack status.
  *
  *  Interrupt: (8)
- *    H & 0x4 
+ *    H & 0x4
  *    GT & 1010  Check Address in or irq latch.
  *    GT & 1100,0000 Check select in and service in.
  *
- *    Address in, store address 
+ *    Address in, store address
  *    Load GE.
- *    
- *    
- *    
- *  
- *   
+ *
+ *
+ *
+ *
+ *
  */
 #endif
