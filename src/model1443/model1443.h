@@ -28,7 +28,7 @@
  *
  *            01234567
  *  Write     FSD00001       F= feed, S = stacker, D = data mode
- *  Read      0SD00010     
+ *  Read      0SD00010
  *  Select    FS000011
  *  Sense     00000100
  */

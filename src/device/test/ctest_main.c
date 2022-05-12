@@ -1,7 +1,7 @@
 /*
- * microsim360 - Model 1442 header.
+ * microsim360 - device emulation test cases.
  *
- * Copyright 2021, Richard Cornwell
+ * Copyright 2022, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,21 +23,17 @@
  *
  */
 
-/*
- *  Commands.
- *
- *            01234567
- *  Write     FSD00001       F= feed, S = stacker, D = data mode
- *  Read      0SD00010
- *  Select    FS000011
- *  Sense     00000100
- */
+#include <stdio.h>
+#include "logger.h"
 
-#ifndef _MODEL1442_H_
-#define _MODEL1442_H_
+#define CTEST_MAIN
+#define CTEST_SEGFAULT
+#define CTEST_NO_COLORS
 
-#include <stdint.h>
-#include "device.h"
+#include "ctest.h"
 
-struct _device *model1442_init(SDL_Renderer *render, uint16_t addr);
-#endif
+int main(int argc, const char *argv[])
+{
+    int result = ctest_main(argc, argv);
+    return result;
+}
