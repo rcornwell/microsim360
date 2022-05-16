@@ -183,7 +183,7 @@ uint8_t     KEY;                 /* Storage key */
 uint8_t     AMWP;                /* Flags */
 uint8_t     CC;                  /* CC register */
 uint8_t     ILC;                 /* ILC register */
-uint8_t     PM;                  /* Program Mask */
+uint8_t     PMASK;               /* Program Mask */
 uint16_t    FN;                  /* LSA Function address */
 uint8_t     OPPANEL;             /* Front panel switch state */
 uint8_t     IVA;                 /* Invalid address flag */

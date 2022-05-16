@@ -1750,7 +1750,7 @@ F
                 break;
         case 5:  /* PSW4 ILC,CC, Progmask */
                 cpu_2050.u_bus = (cpu_2050.ILC << 6) | (cpu_2050.CC << 4) |
-                                  (cpu_2050.PM);
+                                  (cpu_2050.PMASK);
                 break;
         case 6:  /* LMB */
                 cpu_2050.u_bus = (cpu_2050.L_REG >> ((3 - cpu_2050.MB_REG) * 8)) & 0xff;
@@ -2749,7 +2749,7 @@ F
         case 4: /* W27->PSW4, 2-7 -> PSW 34-39  */
                 load_mode = 0;
                 cpu_2050.CC = (cpu_2050.w_bus >> 4) & 0x3;
-                cpu_2050.PM = cpu_2050.w_bus & 0xf;
+                cpu_2050.PMASK = cpu_2050.w_bus & 0xf;
                 break;
         case 5: /* W->PSW0  */
                 cpu_2050.MASK = cpu_2050.w_bus;
@@ -2885,7 +2885,7 @@ channel:
                (cpu_2050.G1NEG) ? '-' : '+', (cpu_2050.G_REG >> 4), (cpu_2050.G2NEG) ? '-' : '+', (cpu_2050.G_REG & 0xf),
                 cpu_2050.LSA, cpu_2050.FN);
     log_reg("ILC=%X CC=%X AMWP=%X PM=%X MASK=%02X\n",
-                cpu_2050.ILC, cpu_2050.CC, cpu_2050.AMWP, cpu_2050.PM, cpu_2050.MASK);
+                cpu_2050.ILC, cpu_2050.CC, cpu_2050.AMWP, cpu_2050.PMASK, cpu_2050.MASK);
 
     if (cpu_2050.count & 1)
        return;

@@ -49,6 +49,7 @@ target_include_directories(inst2030_test PRIVATE
                                 ${CMAKE_CURRENT_BINARY_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/..
                                 ${CMAKE_CURRENT_BINARY_DIR}/..
+                                ${CMAKE_CURRENT_SOURCE_DIR}/../test
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 add_test(NAME inst2030_test COMMAND inst2030_test )
 endif()
