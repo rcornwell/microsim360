@@ -23,6 +23,8 @@
  *
  */
 
+#include <string.h>
+
 #include "logger.h"
 #include "device.h"
 #include "model2050.h"
@@ -52,6 +54,8 @@ uint32_t    BS_MASK[16] = {
 #define SPEC 0x1c2   /* Specification voilation */
 
 struct CPU_2050 cpu_2050;
+
+static uint32_t tr_interloc = 0x2043bf50;
 
 static    char     *lu_name[] = {  /* Left Mover input */
                   "0",
@@ -555,6 +559,8 @@ static    char     *ss_name[] = {
                   "1->SERVOUT",
               };
 
+static uint32_t    SA;
+
 void
 cycle_2050()
 {
@@ -564,15 +570,8 @@ cycle_2050()
     int              b_bit;
     int              carry_in;
     int              carry_out;
-    int              init_mem;          /* Start Main memory cycle */
-    int              init_bump_mem;     /* Start memory cycle in bump store */
-    uint8_t          g_update;
     uint8_t          s_update;
-    uint8_t          f_update;
-    uint8_t          q_update;
     uint32_t         l_update;
-    uint32_t         r_update;
-    uint32_t         m_update;
     uint32_t         carries;
     uint32_t         t1, t2;
     int              t;
@@ -607,6 +606,9 @@ cycle_2050()
         cpu_2050.ROAR = 0x242;
         if (load_mode)
              cpu_2050.ROAR = 0x240;
+        cpu_2050.init_mem = 0;
+        cpu_2050.init_bump_mem = 0;
+        cpu_2050.bump_mem = 0;
     }
 
     if (DISPLAY) {
@@ -624,68 +626,80 @@ cycle_2050()
     cpu_2050.ros_row2 = sal->row2;
     cpu_2050.ros_row3 = sal->row3;
     cpu_2050.ros_row4 = sal->row4;
-    g_update = cpu_2050.G_REG;
-    q_update = cpu_2050.Q_REG;
     s_update = cpu_2050.S_REG;
     l_update = cpu_2050.L_REG;
-    r_update = cpu_2050.R_REG;
-    m_update = cpu_2050.M_REG;
-    f_update = cpu_2050.F_REG;
 
-    /* Check for memory access */
-    /* Interlock if not at correct state */
-    if ((sal->al == 30 || sal->ss == 3) && cpu_2050.mem_state != R2) {
-          goto channel;
-    }
-
-    switch (sal->tr) {
-    case 4:  /* D */
-             if (cpu_2050.mem_state == R1 || cpu_2050.mem_state == R2)
+    /* Main memory cycle */
+    switch (cpu_2050.mem_state) {
+    case R1:
+             cpu_2050.mem_state = R2;
+             /* Check if this cycle will access the SDR register, wait */
+             if (tr_interloc & (1 << sal->tr))
+                 goto channel;
+             if (sal->al == 30 || sal->ss == 3 || sal->iv == 4 || sal->iv == 7)
+                 goto channel;
+             /* If we are initiating a memory cycle, or updating SDR, wait */
+             if (cpu_2050.init_mem | cpu_2050.init_bump_mem | cpu_2050.update_d)
+                 goto channel;
+             log_info("mem cycle read %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
+             break;
+    case R2:
+             cpu_2050.mem_state = R3;
+             if (cpu_2050.bump_mem) 
+                 cpu_2050.SDR_REG = cpu_2050.BUMP[cpu_2050.SAR_REG >> 2];
+             else
+                 cpu_2050.SDR_REG = cpu_2050.M[cpu_2050.SAR_REG >> 2];
+             log_info("mem cycle read 2 %06X %08x i=%d ib=%d b=%d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, cpu_2050.init_mem, cpu_2050.init_bump_mem, cpu_2050.bump_mem);
+             /* Check if this cycle will access the SDR register, wait */
+             if (tr_interloc & (1 << sal->tr))
+                 goto channel;
+             if (sal->al == 30 || sal->ss == 3 || sal->iv == 4 || sal->iv == 7)
+                 goto channel;
+             /* If we are initiating a memory cycle, or updating SDR, wait */
+             if (cpu_2050.init_mem | cpu_2050.init_bump_mem | cpu_2050.update_d)
                  goto channel;
              break;
-    case 6:  /* R,A Initiate main storage read */
-    case 9:  /* R,AN, initaite memory request, suppress invalid memory address trap */
-    case 10:  /* R,AW, initiate memory request, invalid address trap if not word boundry  */
-    case 11:  /* R,AD  memory request, invalid address trap if not double boundry */
-    case 15:  /* A initiate memory request */
-    case 16:  /* L,A initiate memory request */
-            /* Wait if memory state != W2 */
-            if (cpu_2050.mem_state != W1)
-                goto channel;
-            break;
-    case 12:  /* D->IAR interlock with storage timing rinmmg */
-    case 13:  /* SCAN->D */
-            if (cpu_2050.mem_state != R2)
+    case R3:
+             log_info("mem cycle read 3 %06X %08x i=%d ib=%d b=%d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, cpu_2050.init_mem, cpu_2050.init_bump_mem, cpu_2050.bump_mem);
+             cpu_2050.mem_state = W1;
+             /* If we are initiating a memory cycle, wait */
+             if (cpu_2050.init_mem | cpu_2050.init_bump_mem)
                  goto channel;
-            break;
-    case 17:  /* R,D  */
-    case 22:  /* FOLD->D */
-    case 29:  /* D,BS gate D to SDR based on BS */
-            if (cpu_2050.mem_state == R1 || cpu_2050.mem_state == R2)
-                 goto channel;
-            break;
+             if (cpu_2050.update_d) {
+                 if (cpu_2050.bump_mem) 
+                     cpu_2050.BUMP[SA >> 2] = cpu_2050.SDR_REG;
+                 else
+                     cpu_2050.M[SA >> 2] = cpu_2050.SDR_REG;
+             }
+             break;
+    case 0:  /* Memory cycle at system reset */
+             cpu_2050.SDR_REG = cpu_2050.M[cpu_2050.SAR_REG >> 2];
+             cpu_2050.mem_state = W1;
+    case W1:
+             /* Fall through */
+             if (cpu_2050.update_d) {
+                 if (cpu_2050.bump_mem) 
+                     cpu_2050.BUMP[SA >> 2] = cpu_2050.SDR_REG;
+                 else
+                     cpu_2050.M[SA >> 2] = cpu_2050.SDR_REG;
+                 cpu_2050.update_d = 0;
+             }
+             SA = cpu_2050.SAR_REG;
+
+             log_info("mem write  %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
+
+             if (cpu_2050.init_mem | cpu_2050.init_bump_mem) {
+                 cpu_2050.mem_state = R1;
+                 cpu_2050.bump_mem = cpu_2050.init_bump_mem;
+                 cpu_2050.init_mem = cpu_2050.init_bump_mem = 0;
+                 if (sal->al == 30 || sal->ss == 3 || sal->iv == 4 || sal->iv == 7)
+                     goto channel;
+             } 
+             
+             break;
     }
 
-    if (cpu_2050.io_mode) {
-        /* Channel timing */
-        if (sal->iv == 4 && cpu_2050.mem_state != W1) {
-            goto channel;
-        }
-        switch (sal->wm) {
-        case 10: /* W.E>R(BUMP) */
-        case 11:
-        case 12: /* W.E>R(BUMP)S */
-        case 13:
-            if (cpu_2050.mem_state != W1)
-                goto channel;
-            break;
-        }
-    } else {
-        if (sal->wm == 8 && cpu_2050.mem_state != W1)
-            goto channel;
-    }
-
-    if ((log_level & LOG_ITRACE) != 0 && (cpu_2050.ROAR == 0x197)) {
+    if ((log_level & LOG_ITRACE) != 0 && (cpu_2050.ROAR == 0x188)) {
         uint8_t   mem[6];
         int       i;
         for (i = 0; i < 6; i++) {
@@ -914,7 +928,8 @@ cycle_2050()
             a_bit = (cpu_2050.G_REG < 4);
             break;
     case 26: /* G1MBZ */
-            a_bit = ((cpu_2050.G_REG & 0xf0) == 0 && (cpu_2050.MB_REG == 0));
+            a_bit = ((cpu_2050.G_REG & 0xf0) == 0 || (cpu_2050.MB_REG == 0));
+            break;
     case 27: /* IO Stat 0 to CPU */
             a_bit = (cpu_2050.IOSTAT & BIT0) != 0;
             break;
@@ -1862,15 +1877,12 @@ F
          case 3:  /* DTC2 send outgate timing to channel */
                  break;
          case 4:  /* IA/4->A,IA, initiate storage read, inhibit invalid address, set flag */
-                 if (cpu_2050.mem_state != W1) {
-                     goto channel;
-                 }
                  if (cpu_2050.IA_REG & 1) {
                      cpu_2050.IVA = 1;
                  } else {
                      cpu_2050.IA_REG += 4;
                      cpu_2050.SAR_REG = cpu_2050.IA_REG;
-                     init_mem = 1;
+                     cpu_2050.init_mem = 1;
                  }
                  break;
          case 5:  /* Undefined */
@@ -1881,7 +1893,6 @@ F
                  break;
          }
          /* Compute carry into adder */
-         g_update = cpu_2050.G_REG;
     } else {
          /* Instruction address register */
          switch (sal->iv) {
@@ -1908,7 +1919,7 @@ F
                  } else {
                      cpu_2050.IA_REG += 4;
                      cpu_2050.SAR_REG = cpu_2050.IA_REG;
-                     init_mem = 1;
+                     cpu_2050.init_mem = 1;
                  }
                  break;
          case 5:  /* IA+2/4 based on ILC if ILC == 0 or 1, IAR+= 2, ILC = 2 or 3, IAR+=4 */
@@ -1930,11 +1941,10 @@ F
                  } else {
                      cpu_2050.SAR_REG = (cpu_2050.IA_REG + 2);
                  }
-                 init_mem = 1;
+                 cpu_2050.init_mem = 1;
                  break;
          }
          /* Compute carry into adder */
-         g_update = cpu_2050.G_REG;
          carry_in = 0;
          switch (sal->dg) {
          case 0: /*  */
@@ -1951,7 +1961,7 @@ F
                  } else {
                      cpu_2050.G1NEG = 0;
                  }
-                 g_update = (cpu_2050.G_REG & 0x0f) | ((cpu_2050.G_REG - 0x10) & 0xf0);
+                 cpu_2050.G_REG = (cpu_2050.G_REG & 0x0f) | ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
          case 4: /* HOT1,G-1 */
                  if (cpu_2050.G_REG == 0) {
@@ -1959,7 +1969,7 @@ F
                  } else {
                      cpu_2050.G1NEG = 0;
                  }
-                 g_update = cpu_2050.G_REG - 1;
+                 cpu_2050.G_REG = cpu_2050.G_REG - 1;
                  break;
          case 5: /* G2-1 */
                  if ((cpu_2050.G_REG & 0x0f) == 0) {
@@ -1967,7 +1977,7 @@ F
                  } else {
                      cpu_2050.G2NEG = 0;
                  }
-                 g_update = (cpu_2050.G_REG & 0x0f) | ((cpu_2050.G_REG - 0x10) & 0xf0);
+                 cpu_2050.G_REG = (cpu_2050.G_REG & 0x0f) | ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
          case 6: /* G-1 */
                  if (cpu_2050.G_REG == 0) {
@@ -1975,7 +1985,7 @@ F
                  } else {
                      cpu_2050.G1NEG = 0;
                  }
-                 g_update = cpu_2050.G_REG - 1;
+                 cpu_2050.G_REG = cpu_2050.G_REG - 1;
                  break;
          case 7: /* G1,2-1 */
                  if ((cpu_2050.G_REG & 0xf0) == 0) {
@@ -1988,7 +1998,7 @@ F
                  } else {
                      cpu_2050.G2NEG = 0;
                  }
-                 g_update = ((cpu_2050.G_REG & 0x0f) - 0x1) | ((cpu_2050.G_REG - 0x10) & 0xf0);
+                 cpu_2050.G_REG = ((cpu_2050.G_REG & 0x0f) - 0x1) | ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
          }
      }
@@ -2144,7 +2154,7 @@ F
             break;
     case 1: /* Q->SR1->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 1) | (cpu_2050.Q_REG << 31);
-            f_update = ((cpu_2050.alu_out & 1) << 3) | (cpu_2050.F_REG >> 1);
+            cpu_2050.F_REG = ((cpu_2050.alu_out & 1) << 3) | (cpu_2050.F_REG >> 1);
             break;
     case 2: /* L0->-S4-> */
             t1 = ((cpu_2050.S_REG & BIT4) == 0) ? 0x80000000 : 0;
@@ -2168,88 +2178,91 @@ F
             break;
     case 7: /* Q->SL->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | (cpu_2050.Q_REG);
-            f_update = ((cpu_2050.alu_out >>31) & 1) | (cpu_2050.F_REG << 1);
-            f_update ^= 0x1;
+            cpu_2050.F_REG = ((cpu_2050.alu_out >>31) & 1) | (cpu_2050.F_REG << 1);
+            cpu_2050.F_REG ^= 0x1;
             break;
     case 8: /* Q->SL1->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | (cpu_2050.Q_REG);
-            f_update = ((cpu_2050.alu_out >>31) & 1) | (cpu_2050.F_REG << 1);
+            cpu_2050.F_REG = ((cpu_2050.alu_out >>31) & 1) | (cpu_2050.F_REG << 1);
             break;
     case 9: /* F->SL1->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | (cpu_2050.F_REG);
-            f_update = ((cpu_2050.alu_out >>31) & 1) | (cpu_2050.F_REG << 1);
+            cpu_2050.F_REG = ((cpu_2050.alu_out >>31) & 1) | (cpu_2050.F_REG << 1);
             break;
     case 10: /* SL1->Q */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1);
-            q_update = ((cpu_2050.alu_out & 0x80000000) != 0);
+            cpu_2050.Q_REG = ((cpu_2050.alu_out & 0x80000000) != 0);
             break;
     case 11: /* Q->SL1 */
             cpu_2050.aob_latch = cpu_2050.alu_out << 1 | (cpu_2050.Q_REG);
             break;
     case 12: /* SR1->F */
             cpu_2050.aob_latch = cpu_2050.alu_out >> 1;
-            f_update = ((cpu_2050.alu_out & 1) << 3) | (cpu_2050.F_REG >> 1);
+            cpu_2050.F_REG = ((cpu_2050.alu_out & 1) << 3) | (cpu_2050.F_REG >> 1);
             break;
     case 13: /* SR1->Q */
             cpu_2050.aob_latch = cpu_2050.alu_out >> 1;
-            q_update = cpu_2050.alu_out & 1;
+            cpu_2050.Q_REG = cpu_2050.alu_out & 1;
             break;
     case 14: /* Q->SR1->Q */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 1) | ((cpu_2050.Q_REG) << 31);
-            q_update = (cpu_2050.alu_out & 1);
+            cpu_2050.Q_REG = (cpu_2050.alu_out & 1);
             break;
     case 15: /* F->SL1->Q */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | ((cpu_2050.F_REG >> 3) & 1);
-            f_update = (cpu_2050.F_REG << 1);
-            q_update = ((cpu_2050.alu_out & 0x80000000) != 0);
+            cpu_2050.F_REG = (cpu_2050.F_REG << 1);
+            cpu_2050.Q_REG = ((cpu_2050.alu_out & 0x80000000) != 0);
             break;
     case 16: /* SL4->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 4);
-            f_update = ((cpu_2050.alu_out >> 28) & 0xf);
+            cpu_2050.F_REG = ((cpu_2050.alu_out >> 28) & 0xf);
             break;
     case 17: /* F->SL4->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 4) | (cpu_2050.F_REG);
-            f_update = ((cpu_2050.alu_out >> 28) & 0xf);
+            cpu_2050.F_REG = ((cpu_2050.alu_out >> 28) & 0xf);
             break;
     case 18: /* FPSL4 */
-            cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) | (cpu_2050.alu_out & 0xff000000);
+            cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) |
+                                   (cpu_2050.alu_out & 0xff000000);
             break;
     case 19: /* F->FPSL4 */
-            cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) | (cpu_2050.alu_out & 0xff000000) |
-                                     (cpu_2050.F_REG);
+            cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) |
+                                   (cpu_2050.alu_out & 0xff000000) | (cpu_2050.F_REG);
             break;
     case 20: /* SR4->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4);
-            f_update = (cpu_2050.alu_out & 0xf);
+            cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
     case 21: /* F->SR4->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4) | (cpu_2050.F_REG << 28);
-            f_update = (cpu_2050.alu_out & 0xf);
+            cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
     case 22: /* FPSR4->F */
-            cpu_2050.aob_latch = ((cpu_2050.alu_out >> 4) & 0xffffff) | (cpu_2050.alu_out & 0xff000000);
-            f_update = (cpu_2050.alu_out & 0xf);
+            cpu_2050.aob_latch = ((cpu_2050.alu_out >> 4) & 0xffffff) |
+                                      (cpu_2050.alu_out & 0xff000000);
+            cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
     case 23: /* 1->FPSR4->F */
-            cpu_2050.aob_latch = ((cpu_2050.alu_out >> 4) & 0x0fffff) | (cpu_2050.alu_out & 0xff000000) |
-                                  0x100000;
-            f_update = (cpu_2050.alu_out & 0xf);
+            cpu_2050.aob_latch = ((cpu_2050.alu_out >> 4) & 0x0fffff) |
+                                      (cpu_2050.alu_out & 0xff000000) | 0x100000;
+            cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
     case 24: /* SR4->H */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4);
             cpu_2050.H_REG = (cpu_2050.alu_out & 0xF0000000) | (cpu_2050.H_REG & 0xfffffff);
-            r_update = ((cpu_2050.aob_latch & 0x0F000000) << 4) | (cpu_2050.R_REG & 0xfffffff);
+            cpu_2050.R_REG = ((cpu_2050.aob_latch & 0x0F000000) << 4) |
+                                  (cpu_2050.R_REG & 0xfffffff);
             break;
     case 25: /* F->SR4 */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4) | (cpu_2050.F_REG << 28);
             break;
     case 26: /* E->FPSL4 */
-            cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) | (cpu_2050.alu_out & 0xff000000)
-                                  | (sal->ce & 0xf);
+            cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) |
+                                  (cpu_2050.alu_out & 0xff000000) | (sal->ce & 0xf);
             break;
     case 27: /* F->SR1->Q */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 1) | ((cpu_2050.F_REG & 0x1) << 31);
-            q_update = cpu_2050.alu_out & 1;
+            cpu_2050.Q_REG = cpu_2050.alu_out & 1;
             break;
     case 28: /* DKEY-> */
             cpu_2050.aob_latch = cpu_2050.DKEYS;
@@ -2257,8 +2270,6 @@ F
     case 29: /* CH, gate selector channels to latch  */
             break;
     case 30: /* D-> gate storage to latch, hold off it not ready */
-            if (cpu_2050.mem_state != R2)
-                 goto channel;
             cpu_2050.aob_latch = cpu_2050.SDR_REG;
             break;
     case 31: /* AKEY-> */
@@ -2538,26 +2549,27 @@ F
     case 0:  /* T */
             break;
     case 1:  /* R */
-            r_update = cpu_2050.aob_latch;
+            cpu_2050.R_REG = cpu_2050.aob_latch;
             break;
     case 2:  /* R0 */
-            r_update = (cpu_2050.aob_latch & 0xff000000) |
+            cpu_2050.R_REG = (cpu_2050.aob_latch & 0xff000000) |
                              (cpu_2050.R_REG & 0x00ffffff);
             break;
     case 3:  /* M */
-            m_update = cpu_2050.aob_latch;
+            cpu_2050.M_REG = cpu_2050.aob_latch;
             break;
     case 4:  /* D */
             cpu_2050.SDR_REG = cpu_2050.aob_latch;
+            cpu_2050.update_d = 1;
             break;
     case 5:  /* L0 */
             l_update = (cpu_2050.aob_latch & 0xff000000) |
                              (cpu_2050.L_REG & 0x00ffffff);
             break;
     case 6:  /* R,A Initiate main storage read */
-            r_update = cpu_2050.aob_latch;
+            cpu_2050.R_REG = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
-            init_mem = 1;
+            cpu_2050.init_mem = 1;
             break;
     case 7:  /* L */
             l_update = cpu_2050.aob_latch;
@@ -2574,46 +2586,45 @@ F
              /* Emit x111 undefined */
             break;
     case 9:  /* R,AN, initaite memory request, suppress invalid memory address trap */
-            r_update = cpu_2050.aob_latch;
+            cpu_2050.R_REG = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
-            init_mem = 1;
+            cpu_2050.init_mem = 1;
             break;
     case 10:  /* R,AW, initiate memory request, invalid address trap if not word boundry  */
-            r_update = cpu_2050.aob_latch;
+            cpu_2050.R_REG = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
-            init_mem = 1;
+            cpu_2050.init_mem = 1;
             break;
     case 11:  /* R,AD  memory request, invalid address trap if not double boundry */
-            r_update = cpu_2050.aob_latch;
+            cpu_2050.R_REG = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
-            init_mem = 1;
+            cpu_2050.init_mem = 1;
             break;
     case 12:  /* D->IAR interlock with storage timing rinmmg */
             /* Read */
-            if (cpu_2050.mem_state != R2)
-                 goto channel;
             cpu_2050.IA_REG = cpu_2050.SDR_REG;
             break;
     case 13:  /* SCAN->D */
+            cpu_2050.SDR_REG = 0;
+            cpu_2050.update_d = 1;
             break;
     case 14:  /* R13 */
-            r_update = (cpu_2050.R_REG & 0xff000000) |
+            cpu_2050.R_REG = (cpu_2050.R_REG & 0xff000000) |
                              (cpu_2050.aob_latch & 0x00ffffff);
             break;
     case 15:  /* A initiate memory request */
             cpu_2050.SAR_REG = cpu_2050.aob_latch & 0xffffff;
-            init_mem = 1;
+            cpu_2050.init_mem = 1;
             break;
     case 16:  /* L,A initiate memory request */
             l_update = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = cpu_2050.aob_latch & 0xffffff;
-            init_mem = 1;
+            cpu_2050.init_mem = 1;
             break;
     case 17:  /* R,D  */
-            if (cpu_2050.mem_state == R1 || cpu_2050.mem_state == R2)
-                 goto channel;
-            r_update = cpu_2050.aob_latch;
+            cpu_2050.R_REG = cpu_2050.aob_latch;
             cpu_2050.SDR_REG = cpu_2050.aob_latch;
+            cpu_2050.update_d = 1;
             break;
     case 18:  /* Undefined  */
             break;
@@ -2631,11 +2642,11 @@ F
             break;
     case 24:  /* L,M  */
             l_update = cpu_2050.aob_latch;
-            m_update = cpu_2050.aob_latch;
+            cpu_2050.M_REG = cpu_2050.aob_latch;
             break;
     case 25:  /* MLJK */
             l_update = cpu_2050.aob_latch;
-            m_update = cpu_2050.aob_latch;
+            cpu_2050.M_REG = cpu_2050.aob_latch;
             cpu_2050.J_REG = (cpu_2050.aob_latch >> 16) & 0xF;  /* 12-15 */
             cpu_2050.MD_REG = (cpu_2050.aob_latch >> 12) & 0xF;  /* 16-19 */
             cpu_2050.REFETCH = 0;
@@ -2655,7 +2666,7 @@ F
                 cpu_2050.ILC = 3;
             break;
     case 26:  /* MHL */
-            m_update = (cpu_2050.M_REG & 0xffff0000) | ((cpu_2050.aob_latch >> 16) & 0xffff);
+            cpu_2050.M_REG = (cpu_2050.M_REG & 0xffff0000) | ((cpu_2050.aob_latch >> 16) & 0xffff);
             cpu_2050.MD_REG = (cpu_2050.aob_latch >> 28) & 0xF;  /* 0-3 */
             break;
     case 27:  /* MD */
@@ -2668,6 +2679,7 @@ F
                  goto channel;
             cpu_2050.SDR_REG = (cpu_2050.SDR_REG & ~BS_MASK[cpu_2050.BS_REG]) |
                            (cpu_2050.aob_latch & BS_MASK[cpu_2050.BS_REG]);
+            cpu_2050.update_d = 1;
             break;
     case 30:  /* L13 */
             l_update = (cpu_2050.L_REG & 0xff000000) |
@@ -2713,7 +2725,7 @@ F
                 */
                 cpu_2050.SAR_REG = (((uint32_t)cpu_2050.w_bus)<<2) |
                          ((sal->ce & 3) << 10);
-                init_bump_mem = 1;
+                cpu_2050.init_bump_mem = 1;
                 break;
         case 14: /* Nop */
         case 15:
@@ -2725,8 +2737,8 @@ F
         case 0: /* No change */
                 break;
         case 1: /* W->MMB  */
-                m_update &= ~(0xff << (8 * (3-cpu_2050.MB_REG)));
-                m_update |= (cpu_2050.w_bus << (8 * (3-cpu_2050.MB_REG)));
+                cpu_2050.M_REG &= ~(0xff << (8 * (3-cpu_2050.MB_REG)));
+                cpu_2050.M_REG |= (cpu_2050.w_bus << (8 * (3-cpu_2050.MB_REG)));
                 break;
         case 2: /* W67->MB  */
                 cpu_2050.MB_REG = cpu_2050.w_bus & 03;
@@ -2758,22 +2770,22 @@ F
         case 8: /* W,E->A(BUMP)  */
                 cpu_2050.SAR_REG = (((uint32_t)cpu_2050.w_bus)<<2) |
                          ((sal->ce & 3) << 10);
-                init_bump_mem = 1;
+                cpu_2050.init_bump_mem = 1;
                 break;
         case 9: /* WL->G1  */
-                g_update &= 0xf;
-                g_update |= (cpu_2050.w_bus & 0xf0);
+                cpu_2050.G_REG &= 0xf;
+                cpu_2050.G_REG |= (cpu_2050.w_bus & 0xf0);
                 break;
         case 10: /* WR->G2  */
-                g_update &= 0xf0;
-                g_update |= (cpu_2050.w_bus & 0x0f);
+                cpu_2050.G_REG &= 0xf0;
+                cpu_2050.G_REG |= (cpu_2050.w_bus & 0x0f);
                 break;
         case 11: /* W->G  */
-                g_update = cpu_2050.w_bus;
+                cpu_2050.G_REG = cpu_2050.w_bus;
                 break;
         case 12: /* W->MMB(E?)  */
-                m_update &= ~(0xff << (8 * (3-cpu_2050.MB_REG)));
-                m_update |= (cpu_2050.w_bus << (8 * (3-cpu_2050.MB_REG)));
+                cpu_2050.M_REG &= ~(0xff << (8 * (3-cpu_2050.MB_REG)));
+                cpu_2050.M_REG |= (cpu_2050.w_bus << (8 * (3-cpu_2050.MB_REG)));
                 break;
         case 13: /* WR->MD */
                 cpu_2050.MD_REG = (cpu_2050.w_bus & 0x0f);
@@ -2829,14 +2841,14 @@ F
     /* Fetch/store local storage */
     switch (sal->sf) {
     case 0: /* R->LS */
-            cpu_2050.LS[cpu_2050.LSA] = r_update;
+            cpu_2050.LS[cpu_2050.LSA] = cpu_2050.R_REG;
             break;
     case 1: /* LS->L,R->LS */
             l_update = cpu_2050.LS[cpu_2050.LSA];
-            cpu_2050.LS[cpu_2050.LSA] = r_update;
+            cpu_2050.LS[cpu_2050.LSA] = cpu_2050.R_REG;
             break;
     case 2: /* LS->R->LS */
-            r_update = cpu_2050.LS[cpu_2050.LSA];
+            cpu_2050.R_REG = cpu_2050.LS[cpu_2050.LSA];
             break;
     case 3: /* unknown */
             break;
@@ -2844,7 +2856,7 @@ F
             cpu_2050.LS[cpu_2050.LSA] = l_update;
             break;
     case 5: /* LS->R,L->LS */
-            r_update = cpu_2050.LS[cpu_2050.LSA];
+            cpu_2050.R_REG = cpu_2050.LS[cpu_2050.LSA];
             cpu_2050.LS[cpu_2050.LSA] = l_update;
             break;
     case 6: /* LS->L->LS */
@@ -2857,53 +2869,23 @@ F
 
 
     cpu_2050.L_REG = l_update;
-    cpu_2050.R_REG = r_update;
-    cpu_2050.G_REG = g_update;
     cpu_2050.S_REG = s_update;
-    cpu_2050.M_REG = m_update;
-    cpu_2050.Q_REG = q_update;
+    cpu_2050.ROAR = next_roar;
 channel:
 
-    cpu_2050.ROAR = next_roar;
-    /* Main memory cycle */
-    switch (cpu_2050.mem_state) {
-    case R1:
-             cpu_2050.mem_state = R2;
-             cpu_2050.SDR_REG = cpu_2050.M[cpu_2050.SAR_REG >> 2];
-             log_info("mem cycle read %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
-             break;
-    case R2:
-             log_info("mem cycle read 2 %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
-             cpu_2050.mem_state = R3;
-             break;
-    case R3:
-             log_info("mem cycle read 3 %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
-             cpu_2050.M[cpu_2050.SAR_REG >> 2] = cpu_2050.SDR_REG;
-             cpu_2050.mem_state = W1;
-             break;
-    case 0:
-             cpu_2050.SDR_REG = cpu_2050.M[cpu_2050.SAR_REG >> 2];
-    case W1:
-             /* Fall through */
-             cpu_2050.mem_state = (init_mem | init_bump_mem) ? R1 : W1;
-             if (cpu_2050.mem_state == W1)
-                 cpu_2050.M[cpu_2050.SAR_REG >> 2] = cpu_2050.SDR_REG;
-             log_info("mem write  %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
-             break;
-    }
     log_reg("u=%02x v=%02x w=%02x l=%08x r=%08x alu=%08x aob=%08x\n",
               cpu_2050.u_bus, cpu_2050.v_bus, cpu_2050.w_bus,
               cpu_2050.left_bus, cpu_2050.right_bus, cpu_2050.alu_out, cpu_2050.aob_latch);
-    log_reg("L=%c%08x R=%c%08X H=%08X M=%08X IAR=%06X SAR=%06X SDR=%08X F=%X\n",
+    log_reg("L=%c%08x R=%c%08X H=%08X M=%08X IAR=%06X SAR=%06X SDR=%08X F=%X Q=%X\n",
                (cpu_2050.LSGNS) ? '-' : '+', cpu_2050.L_REG, (cpu_2050.RSGNS)? '-' : '+',cpu_2050.R_REG,
                cpu_2050.H_REG, cpu_2050.M_REG, cpu_2050.IA_REG, cpu_2050.SAR_REG, cpu_2050.SDR_REG,
-               cpu_2050.F_REG);
+               cpu_2050.F_REG, cpu_2050.Q_REG);
     log_reg("MD=%X MB=%X LB=%X S=%02X J=%X G1=%c%X,G2=%c%X LSA=%02X FN=%02X\n",
                 cpu_2050.MD_REG, cpu_2050.MB_REG, cpu_2050.LB_REG, cpu_2050.S_REG, cpu_2050.J_REG,
                (cpu_2050.G1NEG) ? '-' : '+', (cpu_2050.G_REG >> 4), (cpu_2050.G2NEG) ? '-' : '+', (cpu_2050.G_REG & 0xf),
                 cpu_2050.LSA, cpu_2050.FN);
-    log_reg("ILC=%X CC=%X AMWP=%X MASK=%02X\n",
-                cpu_2050.ILC, cpu_2050.CC, cpu_2050.AMWP, cpu_2050.MASK);
+    log_reg("ILC=%X CC=%X AMWP=%X PM=%X MASK=%02X\n",
+                cpu_2050.ILC, cpu_2050.CC, cpu_2050.AMWP, cpu_2050.PM, cpu_2050.MASK);
 
     if (cpu_2050.count & 1)
        return;

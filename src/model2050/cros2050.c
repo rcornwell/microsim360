@@ -28,8 +28,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <ctype.h>
-
 #include <sys/types.h>
+
+#ifdef _MSC_VER 
+#define strncasecmp _strnicmp
+#endif
+
 #include "model2050.h"
 
 struct ROS_2050 ros_2050[4096];

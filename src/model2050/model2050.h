@@ -161,6 +161,7 @@ uint32_t    H_REG;               /* H register */
 uint32_t    M_REG;               /* M instruction register */
 uint32_t    IA_REG;              /* Instruction pointer register */
 uint32_t    SAR_REG;             /* Memory address register */
+uint32_t    SA_REG;              /* Buffered memory address */
 uint32_t    SDR_REG;             /* Memory data register */
 uint8_t     F_REG;               /* F shift output register */
 uint8_t     MD_REG;              /* 4 bit register */
@@ -195,6 +196,11 @@ int         CAR;                 /* Output carry status */
 int         G1NEG;               /* G1 negative */
 int         G2NEG;               /* G2 negative */
 
+uint8_t     init_mem;           /* Initial memory cycle */
+uint8_t     init_bump_mem;      /* Initial bump memory cycle */
+uint8_t     bump_mem;           /* Accessing bump storage */
+uint8_t     update_d;           /* Update to D register */
+
 uint16_t    ROAR;               /* ROAR address register. */
 uint16_t    BROAR;              /* Backup ROAR address. */
 uint8_t     break_in;           /* Break in cycle requested */
@@ -216,7 +222,6 @@ uint32_t    C_REG[4];           /* Select channel C regiser */
 uint32_t    IOSTAT;             /* I/O Status register */
 uint16_t    GR_REG[4];          /* Selector General register */
 uint16_t    TAGS[4];            /* channel tags. */
-uint16_t    TI[4];              /* Input tags. */
 
 } cpu_2050;
 
@@ -228,6 +233,6 @@ extern uint8_t     wait;
 extern uint8_t     test_mode;
 extern uint8_t     clock_start_lch;
 
-void  cycle();
+void  cycle_2050();
 
 #endif
