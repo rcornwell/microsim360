@@ -1093,6 +1093,7 @@ int main(int argc, char *argv[]) {
     SDL_SetRenderDrawColor( render, 0x00, 0x00, 0x00, 0xFF);
     SDL_RenderClear( render);
 
+    cpu_2030.mem_max = 0x3fff;
     setup_fp2030(render);
 
     model1050_init();

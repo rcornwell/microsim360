@@ -66,7 +66,7 @@ uint8_t  MATCH_SW;
 
 int main(int argc, const char *argv[])
 {
-    log_level = 0xfff;
+    log_level = 0x07f;
     log_init("debug.log");
     int result = ctest_main(argc, argv);
     return result;
