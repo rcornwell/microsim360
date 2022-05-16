@@ -1,0 +1,5 @@
+#define VERSION_MAJOR @microsim360_VERSION_MAJOR@
+#define VERSION_MINOR @microsim360_VERSION_MINOR@
+
+#cmakedefine HAVE_UNISTD_H
+

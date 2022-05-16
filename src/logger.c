@@ -44,6 +44,7 @@ struct _log_type {
      { LOG_ITRACE,  "ITRACE" },
      { LOG_MICRO,  "MICRO" },
      { LOG_REG,  "REG" },
+     { LOG_MEM,  "MEM" },
      { LOG_MPXCHN,  "MPXCHN" },
      { LOG_SELCHN,  "SELCHN" },
      { LOG_DEVICE,  "DEVICE" },
@@ -79,9 +80,9 @@ log_print_s(int level, char *file, int line, const char *fmt, ...)
        fprintf(log_file, "\n");
     }
 #ifdef LOG_FILE
-    fprintf(log_file, "%ld:[%s:%d] ", step_count, file, line);
+    fprintf(log_file, "%lu:[%s:%d] ", step_count, file, line);
 #else
-    fprintf(log_file, "%ld: ", step_count);
+    fprintf(log_file, "%lu: ", step_count);
 #endif
     for (i = 0; log_type[i].mask != 0; i++) {
         if (log_type[i].mask == level) {
@@ -104,9 +105,9 @@ log_print_c(int level, const char *fmt, ...)
         return;
     if (last_level == 0) {
 #ifdef LOG_FILE
-        fprintf(log_file, "%ld:[%s:%d] ", step_count, file, line);
+        fprintf(log_file, "%lu:[%s:%d] ", step_count, file, line);
 #else
-        fprintf(log_file, "%ld: ", step_count);
+        fprintf(log_file, "%lu: ", step_count);
 #endif
         for (i = 0; log_type[i].mask != 0; i++) {
             if (log_type[i].mask == level) {
@@ -135,9 +136,9 @@ log_print(int level, char *file, int line, const char *fmt, ...)
        last_level = 0;
     }
 #ifdef LOG_FILE
-        fprintf(log_file, "%ld:[%s:%d] ", step_count, file, line);
+        fprintf(log_file, "%lu:[%s:%d] ", step_count, file, line);
 #else
-        fprintf(log_file, "%ld: ", step_count);
+        fprintf(log_file, "%lu: ", step_count);
 #endif
     for (i = 0; log_type[i].mask != 0; i++) {
         if (log_type[i].mask == level) {

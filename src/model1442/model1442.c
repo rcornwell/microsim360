@@ -31,6 +31,7 @@
 #include <string.h>
 #include "logger.h"
 #include "event.h"
+#include "panel.h"
 #include "card.h"
 #include "model1442.h"
 #include "model1442.xpm"
@@ -851,9 +852,10 @@ SDL_Texture *model1442_img;
 
 
 void
-model1442_draw(struct _device *unit, SDL_Renderer *render)
+model1442_draw(struct _device *unit, void *rend)
 {
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
+    SDL_Renderer *render = (SDL_Renderer *)rend;
     int          i, j;
     SDL_Rect     rect;
     SDL_Rect     rect2;
@@ -1050,7 +1052,7 @@ static struct _l {
 static char *type_label[] = { "AUTO", "ASCII", "EBCDIC", "BIN", "OCTAL", NULL};
 
 
-static SDL_Renderer *render;
+//static SDL_Renderer *render;
 struct _popup *
 model1442_control(struct _device *unit, int hd, int wd, int u)
 {
@@ -1297,9 +1299,10 @@ model1442_control(struct _device *unit, int hd, int wd, int u)
 }
 
 struct _device *
-model1442_init(SDL_Renderer *render, uint16_t addr)
+model1442_init(void *rend, uint16_t addr)
 {
      SDL_Surface *text;
+     SDL_Renderer *render = (SDL_Renderer *)rend;
      struct _device *dev1442;
      struct _1442_context *card;
 

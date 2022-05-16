@@ -42,6 +42,9 @@ else()
     add_executable(${PROJECT_NAME})
 endif()
 
+include(CheckIncludeFiles)
+check_include_files(unistd.h HAVE_UNISTD_H)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
 find_package (SDL2 REQUIRED)
 target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_INCLUDE_DIRS})

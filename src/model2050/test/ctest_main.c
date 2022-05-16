@@ -24,13 +24,12 @@
  */
 
 #include <stdio.h>
-#include <SDL.h>
 #include "device.h"
 #include "logger.h"
 
 #define CTEST_MAIN
 
-#define CTEST_SEGFAULT
+//#define CTEST_SEGFAULT
 #define CTEST_NO_COLORS
 
 #include "ctest.h"

@@ -23,6 +23,7 @@
  *
  */
 
+#include <stdlib.h>
 #include "logger.h"
 #include "event.h"
 

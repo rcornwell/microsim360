@@ -47,9 +47,9 @@ add_custom_command(TARGET sim_test
             COMMENT "Test simulator function"
             VERBATIM)
 
-target_include_directories(sim_test PRIVATE ${SDL2_INCLUDE_DIRS}
-                                            ${CMAKE_CURRENT_SOURCE_DIR}
-                                            ${CMAKE_CURRENT_SOURCE_DIR}/device)
+target_include_directories(sim_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+                                            ${CMAKE_CURRENT_SOURCE_DIR}/device
+                                            ${CMAKE_CURRENT_BINARY_DIR})
 add_test(NAME sim_test COMMAND sim_test )
 endif()
 

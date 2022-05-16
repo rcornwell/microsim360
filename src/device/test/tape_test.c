@@ -100,6 +100,7 @@ create_tape_file (const char *filename, int recs, int type)
 }
 
 CTEST_DATA(tape_test) {
+   int dummy;
 };
 
 CTEST_SETUP(tape_test) {

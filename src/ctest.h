@@ -91,7 +91,11 @@ struct ctest {
 #ifdef __APPLE__
 #define CTEST_IMPL_SECTION __attribute__ ((used, section ("__DATA, .ctest"), aligned(1)))
 #else
+#ifdef _WIN32
+#define CTEST_IMPL_SECTION
+#else
 #define CTEST_IMPL_SECTION __attribute__ ((used, section (".ctest"), aligned(1)))
+#endif
 #endif
 
 #define CTEST_IMPL_STRUCT(sname, tname, tskip, tdata, tsetup, tteardown) \
@@ -191,11 +195,17 @@ void assert_equal(intmax_t exp, intmax_t real, const char* caller, int line);
 void assert_equal_u(uintmax_t exp, uintmax_t real, const char* caller, int line);
 #define ASSERT_EQUAL_U(exp, real) assert_equal_u(exp, real, __FILE__, __LINE__)
 
+void assert_equal_x(uintmax_t exp, uintmax_t real, const char* caller, int line);
+#define ASSERT_EQUAL_X(exp, real) assert_equal_x(exp, real, __FILE__, __LINE__)
+
 void assert_not_equal(intmax_t exp, intmax_t real, const char* caller, int line);
 #define ASSERT_NOT_EQUAL(exp, real) assert_not_equal(exp, real, __FILE__, __LINE__)
 
 void assert_not_equal_u(uintmax_t exp, uintmax_t real, const char* caller, int line);
 #define ASSERT_NOT_EQUAL_U(exp, real) assert_not_equal_u(exp, real, __FILE__, __LINE__)
+
+void assert_not_equal_x(uintmax_t exp, uintmax_t real, const char* caller, int line);
+#define ASSERT_NOT_EQUAL_X(exp, real) assert_not_equal_x(exp, real, __FILE__, __LINE__)
 
 void assert_interval(intmax_t exp1, intmax_t exp2, intmax_t real, const char* caller, int line);
 #define ASSERT_INTERVAL(exp1, exp2, real) assert_interval(exp1, exp2, real, __FILE__, __LINE__)
@@ -225,15 +235,48 @@ void assert_dbl_far(double exp, double real, double tol, const char* caller, int
 
 #ifdef CTEST_MAIN
 
+#include "config.h"
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/time.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#else
+#ifdef _WIN32
+#define STDOUT_FILENO  _fileno(stdout)
+#endif
+#endif
 #include <stdint.h>
 #include <stdlib.h>
 #include <wchar.h>
+
+#ifndef _WIN32
+#include <sys/time.h>
+#else
+#include <windows.h>
+
+int gettimeofday(struct timeval * tp, struct timezone * tzp)
+{
+    /* Note: some broken versions only have 8 trailing zero's, the correct epoch has 9
+     * trailing zero's. This magic number is the number of 100 nanosecond intervals since
+     * January 1, 1601 (UTC) until 00:00:00 January 1, 1970  */
+    static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
+
+    SYSTEMTIME  system_time;
+    FILETIME    file_time;
+    uint64_t    time;
+
+    GetSystemTime( &system_time );
+    SystemTimeToFileTime( &system_time, &file_time );
+    time =  ((uint64_t)file_time.dwLowDateTime )      ;
+    time += ((uint64_t)file_time.dwHighDateTime) << 32;
+
+    tp->tv_sec  = (long) ((time - EPOCH) / 10000000L);
+    tp->tv_usec = (long) (system_time.wMilliseconds * 1000);
+    return 0;
+}
+#endif
 
 static size_t ctest_errorsize;
 static char* ctest_errormsg;
@@ -375,6 +418,12 @@ void assert_equal_u(uintmax_t exp, uintmax_t real, const char* caller, int line)
     }
 }
 
+void assert_equal_x(uintmax_t exp, uintmax_t real, const char* caller, int line) {
+    if (exp != real) {
+        CTEST_ERR("%s:%d  expected %" PRIXMAX ", got %" PRIXMAX, caller, line, exp, real);
+    }
+}
+
 void assert_not_equal(intmax_t exp, intmax_t real, const char* caller, int line) {
     if ((exp) == (real)) {
         CTEST_ERR("%s:%d  should not be %" PRIdMAX, caller, line, real);
@@ -384,6 +433,12 @@ void assert_not_equal(intmax_t exp, intmax_t real, const char* caller, int line)
 void assert_not_equal_u(uintmax_t exp, uintmax_t real, const char* caller, int line) {
     if ((exp) == (real)) {
         CTEST_ERR("%s:%d  should not be %" PRIuMAX, caller, line, real);
+    }
+}
+
+void assert_not_equal_x(uintmax_t exp, uintmax_t real, const char* caller, int line) {
+    if ((exp) == (real)) {
+        CTEST_ERR("%s:%d  should not be %" PRIXMAX, caller, line, real);
     }
 }
 
@@ -490,7 +545,11 @@ static void sighandler(int signum)
 
 int ctest_main(int argc, const char *argv[]);
 
+#ifdef __GNUCC__
 __attribute__((no_sanitize_address)) int ctest_main(int argc, const char *argv[])
+#else
+int ctest_main(int argc, const char *argv[])
+#endif
 {
     static int total = 0;
     static int num_ok = 0;

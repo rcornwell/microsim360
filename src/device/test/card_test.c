@@ -53,6 +53,7 @@ int create_card_file (const char *filename, int cards)
 }
 
 CTEST_DATA(card_test) {
+   int dummy;
 };
 
 CTEST_SETUP(card_test) {

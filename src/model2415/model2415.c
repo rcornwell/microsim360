@@ -30,6 +30,7 @@
 #include <SDL_ttf.h>
 #include <SDL_image.h>
 #include <string.h>
+#include "panel.h"
 #include "logger.h"
 #include "event.h"
 #include "device.h"
@@ -1680,9 +1681,10 @@ static int supply_label[8] = {1, 1, 1, 1, 1, 1, 1, 1};
 static int takeup_label[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 void
-model2415_draw(struct _device *unit, SDL_Renderer *render)
+model2415_draw(struct _device *unit, void *rend)
 {
     struct _2415_context *ctx = (struct _2415_context *)unit->dev;
+    SDL_Renderer *render = (SDL_Renderer *)rend;
     struct _tape_image   *reel;
     SDL_Rect     rect;
     SDL_Rect     rect2;
@@ -1704,7 +1706,11 @@ model2415_draw(struct _device *unit, SDL_Renderer *render)
             rect2.y = 0;
             rect2.w = unit->rect[i].w;
             rect2.h = unit->rect[i].h;
-            SDL_RenderCopy(render, model2415_img, &rect2, &unit->rect[i]);
+            rect.x = x;
+            rect.y = y;
+            rect.w = unit->rect[i].w;
+            rect.h = unit->rect[i].h;
+            SDL_RenderCopy(render, model2415_img, &rect2, &rect);
             sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
             text = TTF_RenderText_Solid(font14, buf, c1);
             txt = SDL_CreateTextureFromSurface(render, text);
@@ -1810,7 +1816,11 @@ model2415_draw(struct _device *unit, SDL_Renderer *render)
             rect2.y = 0;
             rect2.w = unit->rect[i].w;
             rect2.h = unit->rect[i].h;
-            SDL_RenderCopy(render, model2415_img, &rect2, &unit->rect[i]);
+            rect.x = x;
+            rect.y = y;
+            rect.w = unit->rect[i].w;
+            rect.h = unit->rect[i].h;
+            SDL_RenderCopy(render, model2415_img, &rect2, &rect);
             sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
             text = TTF_RenderText_Solid(font14, buf, c1);
             txt = SDL_CreateTextureFromSurface(render, text);
@@ -1944,7 +1954,7 @@ static char *ring_mode[] = { "Ring", "No Ring", NULL };
 static char *reel_color[] = { "Clear", "Red", "Blue" };
 static char *label_mode[] = { "No", "Yes" };
 
-static SDL_Renderer *render;
+//static SDL_Renderer *render;
 struct _popup *
 model2415_control(struct _device *unit, int hd, int wd, int u)
 {
@@ -2330,7 +2340,8 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
 }
 
 struct _device *
-model2415_init(SDL_Renderer *render, uint16_t addr) {
+model2415_init(void *rend, uint16_t addr) {
+     SDL_Renderer *render = (SDL_Renderer *)rend;
      SDL_Surface *text;
      struct _device *dev2415;
      struct _2415_context *tape;

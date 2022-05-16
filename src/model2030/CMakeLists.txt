@@ -20,16 +20,17 @@
 
 
 # Program to convert ROS text into C data.
+set(CROS30 ${CMAKE_CURRENT_SOURCE_DIR}/ccros2030.txt)
 add_executable(cros2030 cros2030.c)
 target_include_directories(cros2030 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 add_custom_target(model2030_ros.h
-       COMMAND cros2030 ${CMAKE_CURRENT_SOURCE_DIR}/ccros2030.txt model2030_ros.h
+       COMMAND cros2030 ${CROS30} model2030_ros.h
        COMMENT "Building model 2030 ROS data"
-       DEPENDS cros2030 ${CMAKE_CURRENT_SOURCE_DIR}/ccros2030.txt)
+       DEPENDS cros2030 ${CROS30})
 
-set(model2030_src cpu2030.c model1050.c model2030_ros.c)
-target_sources(${PROJECT_NAME} PUBLIC ${model2030_src} panel2030.c)
+set(model2030_src cpu2030.c model2030_ros.c)
+target_sources(${PROJECT_NAME} PUBLIC ${model2030_src} panel2030.c model1050.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(${PROJECT_NAME} model2030_ros.h)
@@ -44,10 +45,10 @@ add_custom_command(TARGET inst2030_test
             COMMENT "Test instructions for 2030"
             VERBATIM)
 target_include_directories(inst2030_test PRIVATE
-                                ${SDL2_INCLUDE_DIRS}
                                 ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_BINARY_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/..
+                                ${CMAKE_CURRENT_BINARY_DIR}/..
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 add_test(NAME inst2030_test COMMAND inst2030_test )
 endif()

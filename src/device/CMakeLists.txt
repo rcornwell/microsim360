@@ -33,8 +33,8 @@ add_custom_command(TARGET device_test
             COMMENT "Test device emulators"
             VERBATIM)
 target_include_directories(device_test PRIVATE
-                                ${SDL2_INCLUDE_DIRS}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/..
+                                ${CMAKE_CURRENT_BINARY_DIR}/..
                                 ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_BINARY_DIR})
 add_test(NAME device_test COMMAND device_test )

@@ -38,13 +38,14 @@ extern FILE *log_file;
 #define LOG_ITRACE   0x0008              /* Log Instruction trace */
 #define LOG_MICRO    0x0010              /* Log micro instructions */
 #define LOG_REG      0x0020              /* Log Micro register state */
-#define LOG_MPXCHN   0x0040              /* Log muliplex channel status */
-#define LOG_SELCHN   0x0080              /* Log selecter channel status */
-#define LOG_DEVICE   0x0100              /* Log device messages */
-#define LOG_CONSOLE  0x0200              /* Log console traffic */
-#define LOG_TAPE     0x0400              /* Log detailed tape information */
-#define LOG_DISK     0x0800              /* Log detailed disk information */
-#define LOG_CARD     0x1000              /* Log detailed card information */
+#define LOG_MEM      0x0040              /* Log memory access */
+#define LOG_MPXCHN   0x0080              /* Log muliplex channel status */
+#define LOG_SELCHN   0x0100              /* Log selecter channel status */
+#define LOG_DEVICE   0x0200              /* Log device messages */
+#define LOG_CONSOLE  0x0400              /* Log console traffic */
+#define LOG_TAPE     0x0800              /* Log detailed tape information */
+#define LOG_DISK     0x1000              /* Log detailed disk information */
+#define LOG_CARD     0x2000              /* Log detailed card information */
 
 void log_init(char *filename);
 void log_print_c(int level, const char *fmt, ...);
@@ -74,6 +75,9 @@ void log_print(int level, char *filename, int line, const char *fmt, ...);
 
 #define log_reg(...) if ((log_level & LOG_REG) != 0) \
                               log_print( LOG_REG, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_mem(...) if ((log_level & LOG_MEM) != 0) \
+                              log_print( LOG_MEM, __FILE__, __LINE__, __VA_ARGS__)
 
 #define log_mpxchn(...) if ((log_level & LOG_MPXCHN) != 0) \
                               log_print( LOG_MPXCHN, __FILE__, __LINE__, __VA_ARGS__)

@@ -30,6 +30,7 @@
 #include <SDL_image.h>
 #include <stdio.h>
 #include <string.h>
+#include "panel.h"
 #include "logger.h"
 #include "event.h"
 #include "xlat.h"
@@ -973,9 +974,10 @@ static SDL_Color     cx = {0x10, 0x83, 0xd9};
 
 
 void
-draw_model1443(struct _device *unit, SDL_Renderer *render)
+draw_model1443(struct _device *unit, void *rend)
 {
     struct _1443_context *ctx = (struct _1443_context *)unit->dev;
+    SDL_Renderer *render = (SDL_Renderer *)rend;
     int          i, j;
     SDL_Rect     rect;
     SDL_Rect     rect2;
@@ -1141,7 +1143,7 @@ static struct _l {
 
 static char *type_label[] = { "LEGACY", "STD1", NULL};
 
-static SDL_Renderer *render;
+//static SDL_Renderer *render;
 struct _popup
 *model1443_control(struct _device *unit, int hd, int wd, int u)
 {
@@ -1324,8 +1326,9 @@ struct _popup
 }
 
 struct _device *
-model1443_init(SDL_Renderer *render, uint16_t addr)
+model1443_init(void *rend, uint16_t addr)
 {
+     SDL_Renderer *render = (SDL_Renderer *)rend;
      SDL_Surface *text;
      struct _device *dev1443;
      struct _1443_context *lpr;

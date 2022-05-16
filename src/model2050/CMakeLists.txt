@@ -44,10 +44,10 @@ add_custom_command(TARGET inst2050_test
             COMMENT "Test instructions for 2050"
             VERBATIM)
 target_include_directories(inst2050_test PRIVATE
-                                ${SDL2_INCLUDE_DIRS}
                                 ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_BINARY_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/..
+                                ${CMAKE_CURRENT_BINARY_DIR}/..
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 add_test(NAME inst2050_test COMMAND inst2050_test )
 endif()

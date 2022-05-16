@@ -39,5 +39,5 @@
 #include <stdint.h>
 #include "device.h"
 
-struct _device *model1442_init(SDL_Renderer *render, uint16_t addr);
+struct _device *model1442_init(void *render, uint16_t addr);
 #endif
