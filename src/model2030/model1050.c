@@ -23,6 +23,8 @@
  *
  */
 
+#include <SDL.h>
+#include <SDL_thread.h>
 #include <stdio.h>
 #include <stdint.h>
 #ifndef _WIN32

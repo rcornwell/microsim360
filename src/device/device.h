@@ -26,9 +26,7 @@
 #ifndef _DEVICE_H_
 #define _DEVICE_H_
 
-#include <SDL.h>
 #include <stdint.h>
-#include "panel.h"
 
 #define BIT0    0x80
 #define BIT1    0x40
@@ -84,19 +82,24 @@ struct _device {
                           uint16_t *tags,
                           uint16_t bus_out,
                           uint16_t *bus_in);
-    void      (*draw_model)(struct _device *unit, SDL_Renderer *render);
+    void      (*draw_model)(struct _device *unit, void *render);
     struct _popup *(*create_ctrl)(struct _device *unit, int hd, int wd, int u);
     void       *dev;               /* Pointer to device function */
-    SDL_Rect    rect[8];           /* Display area */
     int         n_units;           /* Number of units */
     uint16_t    addr;              /* Device address and channel */
+    struct _rect {
+        int     x;                 /* X offset for device image */
+        int     y;                 /* Y offset for device image */
+        int     w;                 /* Width of device image */
+        int     h;                 /* Height of image */
+    }           rect[8];
     struct _device *next;          /* Next device in chain */
 };
 
 struct _control {
     char *name;
     int  (*create)(char *line);
-    struct _device *(*init)(SDL_Renderer *render, uint16_t addr);
+    struct _device *(*init)(void *render, uint16_t addr);
 };
 
 struct _unit {
