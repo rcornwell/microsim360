@@ -254,7 +254,7 @@ static int        cg_mask[4] = { 0x00, 0x0f, 0xf0, 0xff };
 
 static char  dis_buffer[1024];
 void
-cycle()
+cycle_2030()
 {
    uint16_t   nextWX = cpu_2030.WX;
    struct ROS_2030  *sal;
