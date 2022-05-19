@@ -49,6 +49,7 @@
 
 uint64_t         step_count;
 int              testcycles = 100;
+int              irq_mask = 0xe1;
 
 #define FTEST(a, b)   CTEST_SKIP(a, b)
 #define DTEST(a, b)   CTEST(a, b)
@@ -285,7 +286,7 @@ init_cpu()
     PROC_SW = 1;
     cpu_2030.mem_max = 0xffff;
     do {
-        cycle();
+        cycle_2030();
         step_count++;
     } while (cpu_2030.WX != 0x328);
 }
@@ -306,7 +307,7 @@ test_inst(int mask)
     cpu_2030.I_REG = 0x4;
     cpu_2030.J_REG = 0x100;
     do {
-        cycle();
+        cycle_2030();
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
@@ -314,7 +315,7 @@ test_inst(int mask)
     } while (cpu_2030.WX != 0x100);
     log_trace("first\n");
     do {
-        cycle();
+        cycle_2030();
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
@@ -336,7 +337,7 @@ test_inst2()
     cpu_2030.I_REG = 0x4;
     cpu_2030.J_REG = 0x100;
     do {
-        cycle();
+        cycle_2030();
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
@@ -344,7 +345,7 @@ test_inst2()
     } while (cpu_2030.WX != 0x100);
     log_trace("first\n");
     do {
-        cycle();
+        cycle_2030();
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
@@ -352,7 +353,7 @@ test_inst2()
     } while (cpu_2030.WX != 0x100);
     log_trace("second\n");
     do {
-        cycle();
+        cycle_2030();
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;

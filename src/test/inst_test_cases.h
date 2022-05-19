@@ -1003,6 +1003,7 @@
       set_reg(4, 0x100);
       set_reg(5, 0x200);
       set_mem(0x400, 0x44100100); /* EX 1,100(0,0) */
+      set_mem(0x404, 0x00000000); /* Prevent fetch of next instruction */
       test_inst2();
       ASSERT_EQUAL_X(0x300, get_reg(4));
   }
@@ -1013,6 +1014,7 @@
       set_mem(0x100, 0x44100100); /* Target instruction EX 1,100(0,0) */
       set_reg(1, 0x00000045);     /* Modification: EX 4,100(5,0) */
       set_mem(0x400, 0x44100100); /* EX 1,100(0,0) */
+      set_mem(0x404, 0x00000000); /* Prevent fetch of next instruction */
       test_inst2();
       ASSERT_TRUE(trap_flag);
   }
@@ -1042,29 +1044,31 @@
       ASSERT_EQUAL_X(0x00005788, IAR);
   }
 
-  /* Test branch on condition with random values */
+  /* Test branch on condition with all values of CC */
   CTEST(instruct, bc) {
-      int i;
-      unsigned int seed = 42;
+      int i, j;
       init_cpu();
+      set_mem(0x100, 0);
       for (i = 0; i < 16; i++) {
-          uint32_t op = 0x47000100 | (i << 20);  /* BC i,100 */
-          switch(rand_r(&seed) & 3) {
-             case 0:   set_cc(CC0); break;
-             case 1:   set_cc(CC1); break;
-             case 2:   set_cc(CC2); break;
-             case 3:   set_cc(CC3); break;
-          }
-          set_mem(0x400, op);
-          test_inst(0x0);
-          if (((i & 8) && (CC_REG == CC0)) ||
-              ((i & 4) && (CC_REG == CC1)) ||
-              ((i & 2) && (CC_REG == CC2)) ||
-              ((i & 1) && (CC_REG == CC3))) {
-              /* Taken */
-              ASSERT_EQUAL_X(0x100, IAR);
-          } else {
-              ASSERT_EQUAL_X(0x404, IAR);
+          for (j = 0; j < 4; j++) {
+              uint32_t op = 0x47000100 | (i << 20);  /* BC i,100 */
+              switch(j) {
+                 case 0:   set_cc(CC0); break;
+                 case 1:   set_cc(CC1); break;
+                 case 2:   set_cc(CC2); break;
+                 case 3:   set_cc(CC3); break;
+              }
+              set_mem(0x400, op);
+              test_inst(0x0);
+              if (((i & 8) && (CC_REG == CC0)) ||
+                  ((i & 4) && (CC_REG == CC1)) ||
+                  ((i & 2) && (CC_REG == CC2)) ||
+                  ((i & 1) && (CC_REG == CC3))) {
+                  /* Taken */
+                  ASSERT_EQUAL_X(0x100, IAR);
+              } else {
+                  ASSERT_EQUAL_X(0x404, IAR);
+              }
           }
       }
   }
@@ -2105,8 +2109,8 @@
   /* Compare logical immediate */
   CTEST(instruct, cli_zero) {
       init_cpu();
-      set_reg( 1, 0x3456);
-      set_mem(0x3464, 0x12345678);
+      set_reg( 1, 0x3452);
+      set_mem(0x3460, 0x12345678);
       set_mem(0x400, 0x95561010); /* CLI 10(1),56 */
       test_inst(0x0);
       ASSERT_EQUAL(CC0, CC_REG);  /* Equal */
@@ -2115,8 +2119,8 @@
   /* Compare logical immediate */
   CTEST(instruct, cli_low) {
       init_cpu();
-      set_reg( 1, 0x3456);
-      set_mem(0x3464, 0x12345678);
+      set_reg( 1, 0x3452);
+      set_mem(0x3460, 0x12345678);
       set_mem(0x400, 0x95ff1010); /* CLI 10(1),ff */
       test_inst(0x0);
       ASSERT_EQUAL(CC1, CC_REG);  /* First operand is low */
@@ -2127,8 +2131,8 @@
       int  i;
       init_cpu();
       for (i = 0; i < 256 && i < testcycles * 3; i++) {
-          set_reg( 1, 0x3456);
-          set_mem(0x3464, 0x12345678);
+          set_reg( 1, 0x3442);
+          set_mem(0x3450, 0x12345678);
           set_mem(0x400, 0x95001010 | (i << 16)); /* CLI 10(1),i */
           test_inst(0x0);
           if (i == 0x56) {
@@ -2867,7 +2871,7 @@
       set_mem(0x110, 0xaabbccdd); /* Access byte 1 */
       set_mem(0x400, 0x80ee3100); /* "SSM 100(3); */
       test_inst(0xa);
-      ASSERT_EQUAL_X(0xa1, MASK);
+      ASSERT_EQUAL_X(0xbb & irq_mask, MASK);
       ASSERT_EQUAL_X(3, get_key());
       ASSERT_EQUAL_X(0x8, get_amwp());
       ASSERT_EQUAL(CC1, CC_REG);
@@ -2898,13 +2902,14 @@
       set_mem(0x110, 0xE1345678);
       set_mem(0x114, 0x9a003450); /* Branch to 123450 */
       set_mem(0x400, 0x82003100); /* LPSW 100(3) */
+      set_mem(0x3450, 0x00000000);  /* Nop in case things are executed */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x3, get_key());
       ASSERT_EQUAL_X(0x4, get_amwp());
-      ASSERT_EQUAL(CC_REG, CC1);
+      ASSERT_EQUAL(CC1, CC_REG);
       ASSERT_EQUAL_X(0xa, PM);
       ASSERT_EQUAL_X(0x003450, IAR);
-      ASSERT_EQUAL_X(0xE1, MASK);
+      ASSERT_EQUAL_X(0xE1 & irq_mask, MASK);
       set_key(0);
   }
 
@@ -2914,19 +2919,20 @@
       set_key(0);
       set_amwp(1);
       MASK = 0xE1;
-      set_cc(1);
+      set_cc(CC1);
       set_mem(0x60, 0xE1345678);
       set_mem(0x64, 0x9a003450);  /* Branch to 3450 */
       set_mem(0x400, 0x0a120000); /* SVC 12 */
-      test_inst(0x0);
+      set_mem(0x3450, 0x00000000);  /* Nop in case things are executed */
+      test_inst(0x4);
       ASSERT_EQUAL_X(0x3, get_key());  /* Validate that PSW got set */
       ASSERT_EQUAL_X(0x4, get_amwp());
-      ASSERT_EQUAL(CC_REG, CC1);
+      ASSERT_EQUAL(CC1, CC_REG);
       ASSERT_EQUAL_X(0xa, PM);
       ASSERT_EQUAL_X(0x003450, IAR);
-      ASSERT_EQUAL_X(0xE1, MASK);
+      ASSERT_EQUAL_X(0xE1 & irq_mask, MASK);
       ASSERT_EQUAL_X(0xE1010012, get_mem(0x20)); /* Validate OPSW */
-      ASSERT_EQUAL_X(0x70000402, get_mem(0x24));
+      ASSERT_EQUAL_X(0x54000402, get_mem(0x24));
       set_key(0);
   }
 
@@ -3145,7 +3151,7 @@ struct _dec_case {
      { MP,  "00004c", "023c", "00092c", CC0},
      { MP,  "007c", "9c", "063c", CC0},
      { MP,  "009d", "8c", "072d", CC0},
-     { MP,  "018c", "2c", "018c", CC0, 7},
+     { MP,  "018c", "2c", "036c", CC0, 7},
      { MP,  "008d", "3d", "024c", CC0},
      { MP,  "001d", "0c", "000d", CC0},
      { MP,  "000c", "052d", "000c", CC0, 6},
@@ -3368,11 +3374,11 @@ struct _dec_case {
                }
           }
           result[i] = '\0';
-          ASSERT_STR(test->out, result);
           if (test->ex) {
               ASSERT_TRUE(trap_flag);
               ASSERT_EQUAL_X(test->ex, get_mem(0x28) & 0xffff);
           } else {
+          ASSERT_STR(test->out, result);
               ASSERT_EQUAL(test->cc, CC_REG);
               ASSERT_FALSE(trap_flag);
               ASSERT_EQUAL_X(test->ex, get_mem(0x28) & 0xffff);
@@ -3389,8 +3395,8 @@ struct _dec_case {
       set_reg(2, 0x300);
       set_mem(0x400, 0x60012100);  /* STD 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x12345678, get_mem(0x500));
-      ASSERT_EQUAL(0xaabbccdd, get_mem(0x504));
+      ASSERT_EQUAL_X(0x12345678, get_mem(0x500));
+      ASSERT_EQUAL_X(0xaabbccdd, get_mem(0x504));
   }
 
   /* Test floating point load double */
@@ -3400,8 +3406,8 @@ struct _dec_case {
       set_mem(0x104, 0xaabbccdd);
       set_mem(0x400, 0x68000100);  /*  LD 0,100(0,0) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x12345678, get_fpreg_s(0));
-      ASSERT_EQUAL(0xaabbccdd, get_fpreg_s(1));
+      ASSERT_EQUAL_X(0x12345678, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
   }
 
   /* Test floating point load double */
@@ -3411,8 +3417,8 @@ struct _dec_case {
       set_mem(0x104, 0xaabbccdd);
       set_mem(0x400, 0x68000100);  /*  LD 0,100(0,0) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x44000000, get_fpreg_s(0)); /* Stays unnormalized */
-      ASSERT_EQUAL(0xaabbccdd, get_fpreg_s(1));
+      ASSERT_EQUAL_X(0x44000000, get_fpreg_s(0)); /* Stays unnormalized */
+      ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
   }
 
   /* Test compare double */
@@ -3438,8 +3444,8 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x6a60d000);  /* AD 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x42833345, get_fpreg_s(6));
-      ASSERT_EQUAL(0x60000000, get_fpreg_s(7));
+      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x60000000, get_fpreg_s(7));
   }
 
   /* Subtract double */
@@ -3452,8 +3458,8 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x6b60d000);  /* SD 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x42833345, get_fpreg_s(6));
-      ASSERT_EQUAL(0x60000000, get_fpreg_s(7));
+      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x60000000, get_fpreg_s(7));
   }
 
   /* Multiply double */
@@ -3466,7 +3472,7 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x6c60d000);  /* MD 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
   }
 
   /* Divide double */
@@ -3479,7 +3485,7 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x6d60d000);  /* DD 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
   }
 
   /* Add double unnormalized */
@@ -3492,7 +3498,7 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x7e60d000);  /* AU 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
   }
 
   /* Subtract double unnormalized */
@@ -3505,7 +3511,7 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x7f60d000);  /* SU 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
   }
 
   /* Store float point */
@@ -3518,8 +3524,8 @@ struct _dec_case {
       set_mem(0x404, 0x11223344);
       set_mem(0x400, 0x70012100);  /* STE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x12345678, get_mem(0x500));
-      ASSERT_EQUAL(0x11223344, get_mem(0x504));
+      ASSERT_EQUAL_X(0x12345678, get_mem(0x500));
+      ASSERT_EQUAL_X(0xaabbccdd, get_mem(0x504));
   }
 
   /* Load floating point */
@@ -3532,8 +3538,8 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x78012100);  /* LE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x11223344, get_fpreg_s(0));
-      ASSERT_EQUAL(0xaabbccdd, get_fpreg_s(1));
+      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
   }
 
   /* Compare floating point */
@@ -3546,7 +3552,7 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x79012100);  /* CE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
   }
 
   /* Add floating point */
@@ -3559,7 +3565,7 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x7a012100);  /* AE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
   }
 
   /* Subtract floating point */
@@ -3572,7 +3578,7 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x7b012100);  /* SE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
   }
 
   /* Multiply floating point */
@@ -3585,7 +3591,7 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x7c012100);  /* ME 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
   }
 
   /* Divide floating point */
@@ -3598,7 +3604,7 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x7d012100);  /* DE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
   }
 
   /* Add floating point unnormalized */
@@ -3612,7 +3618,7 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x7e60d000);  /* AU 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x43083334, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x43083334, get_fpreg_s(6));
   }
 
   /* Subtract floating point unnormalized */
@@ -3625,5 +3631,5 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x7f60d000);  /* SU 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL(0x43083334, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x43083334, get_fpreg_s(6));
   }

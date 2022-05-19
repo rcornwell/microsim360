@@ -23,18 +23,21 @@
  *
  */
 
+#include "config.h"
+#include <stdio.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#include <fcntl.h>
+
 #include <SDL.h>
 #include <SDL_timer.h>
 #include <SDL_thread.h>
 #include <SDL_ttf.h>
 #include <SDL_image.h>
-#include <stdio.h>
 #ifndef _WIN32
-#include <unistd.h>
-#else
 #include <SDL_main.h>
 #endif
-#include <fcntl.h>
 
 #include "logger.h"
 #include "event.h"
@@ -1248,7 +1251,8 @@ int main(int argc, char *argv[]) {
                         struct _device *dev;
                         for (dev = chan[i]; dev != NULL; dev = dev->next) {
                              for (j = 0; j < dev->n_units; j++) {
-                                 if (inrect(event.button.x, event.button.y, dev->rect[j])) {
+                                 if (dev->create_ctrl != NULL &&
+                                       inrect(event.button.x, event.button.y, dev->rect[j])) {
                                      pop_wind = dev->create_ctrl(dev, f1_hd, f1_wd, j);
                                      mPopID = SDL_GetWindowID( pop_wind->screen );
                                      break;
@@ -1562,7 +1566,7 @@ int process(void *data) {
           }
           SDL_UnlockMutex(display_mutex);
        }
-       cycle();
+       cycle_2030();
        advance();
     }
     return 0;

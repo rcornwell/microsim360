@@ -337,11 +337,13 @@ uint16_t    GD[2];                /* Select channel count */
 uint16_t    GU[2];                /* Select channel address */
 uint16_t    GV[2];                /* Select channel address */
 
-uint16_t    GHY;               /* Incrementer bus. */
+uint16_t    GHY;                  /* Incrementer bus. */
 uint16_t    GHZ;
 
-uint16_t    SEL_TAGS[2];         /* Select channel tags. */
-uint16_t    SEL_TI[2];           /* Input tags. */
+uint16_t    SEL_TAGS[2];          /* Select channel tags. */
+uint16_t    SEL_TI[2];            /* Input tags. */
+
+struct _device  *console;         /* Console device */
 
 } cpu_2030;
 
@@ -360,7 +362,7 @@ extern uint8_t     load_mode;
 #define LOCAL  2
 #define MPX    4
 
-void  cycle();
+void  cycle_2030();
 
 
 /* Select channel I/O sequence.
