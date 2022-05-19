@@ -121,7 +121,7 @@ extern struct ROS_2050 {
     tr = 12
     al = 30
  */
- 
+
 /* Modify storage when:
     tr = 4, 17,29
  */
@@ -167,6 +167,7 @@ uint8_t     F_REG;               /* F shift output register */
 uint8_t     MD_REG;              /* 4 bit register */
 uint8_t     MB_REG;              /* Memory byte selector */
 uint8_t     LB_REG;              /* Memory byte selector */
+uint8_t     ED_REG;              /* Exponent difference register */
 uint8_t     G_REG;               /* G1 and G2 counter registers */
 uint8_t     J_REG;               /* J register */
 uint8_t     Q_REG;               /* Q register */

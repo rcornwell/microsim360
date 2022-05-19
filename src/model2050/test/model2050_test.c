@@ -52,17 +52,27 @@
 
 #define get_ilc()     cpu_2050.ILC
 
-#define set_amwp(n)   cpu_2050.AMWP = n
+void
+set_amwp(int n) {
+   cpu_2050.LS[0x17] &= 0xfff0ffff;
+   cpu_2050.LS[0x17] |= (n << 16);
+   cpu_2050.AMWP = n;
+}
 
 #define get_amwp()    cpu_2050.AMWP
 
-#define set_key(n)
+void
+set_key(int n) {
+    cpu_2050.LS[0x17] = (MASK << 24) | (n << 20);
+    cpu_2050.KEY = n;
+}
 
-#define get_key()      0
+#define get_key()     cpu_2050.KEY
 
 #define set_cc(n)     CC_REG = n
 uint64_t         step_count;
 int              testcycles = 100;
+int              irq_mask = 0xff;
 
 /* Read register */
 uint32_t
@@ -137,7 +147,7 @@ set_fpreg_s(int num, uint32_t data)
 {
     cpu_2050.LS[num + 0x20] = data;
 }
-    
+
 /* Get a floating point register */
 uint64_t
 get_fpreg_d(int num)
@@ -240,6 +250,7 @@ init_cpu()
     CHK_SW = 2;
     RATE_SW = 1;
     PROC_SW = 1;
+    set_amwp(0);
 #if 0
     do {
         cycle();
@@ -260,16 +271,15 @@ test_inst(int mask)
     cpu_2050.ROAR = 0x190;
     cpu_2050.REFETCH = 1;
     cpu_2050.mem_state = 0;
+        log_trace("Start inst\n");
     do {
         cycle_2050();
         step_count++;
         max++;
-        if (cpu_2050.ROAR == 0x148)
+        if ((cpu_2050.ROAR & 0xffc) == 0x148)
            break;
-        if (cpu_2050.ROAR == 0x735) {
-           cycle_2050();
+        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
            break;
-        }
         if (cpu_2050.ROAR == 0x10e)
            trap_flag = 1;
         log_trace("ROAR = [%03X]\n", cpu_2050.ROAR);
@@ -300,11 +310,7 @@ test_inst2()
            if (count++ == 2)
                break;
         }
-        if (cpu_2050.ROAR == 0x735) {
-           cycle_2050();
-           break;
-        }
-        if (cpu_2050.ROAR == 0x10f)
+        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
            break;
         if (cpu_2050.ROAR == 0x10e)
            trap_flag = 1;
