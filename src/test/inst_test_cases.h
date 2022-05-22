@@ -70,14 +70,15 @@
       for (int i = 0; i < 20; i++) {
           double f = rand_r(&seed) / (double)(RAND_MAX);
           int p = (rand_r(&seed) / (double)(RAND_MAX) * 400) - 200;
+          double fp, ratio;
           f = f * pow(2, p);
           if (rand_r(&seed) & 1) {
               f = -f;
           }
           (void)floatToFpreg(0, f);
-          double fp = cnvt_32_float(0);
+          fp = cnvt_32_float(0);
           // Compare within tolerance
-          double ratio = abs((fp - f) / f);
+          ratio = fabs((fp - f) / f);
           ASSERT_TRUE(ratio < .000001);
       }
   }
@@ -109,12 +110,13 @@
       for (int i = 0; i < 20; i++) {
           double f = rand_r(&seed) / (double)(RAND_MAX);
           int p = (rand_r(&seed) / (double)(RAND_MAX) * 400) - 200;
+          double fp;
           f = f * pow(2, p);
           if (rand_r(&seed) & 1) {
               f = -f;
           }
           (void)floatToFpreg(0, f);
-          double fp = cnvt_64_float(0);
+          fp = cnvt_64_float(0);
           ASSERT_EQUAL(f, fp);
       }
   }
@@ -1862,6 +1864,39 @@
       ASSERT_EQUAL(CC0, CC_REG);
   }
 
+  /* Test under mask */
+  CTEST(instruct, tm3) {
+      /* From Princ Ops p147 */
+      init_cpu();
+      set_mem(0x9998, 0xaa3caaaa);
+      set_reg( 9, 0x00009990);
+      set_mem(0x400, 0x91009008); /* TM 9(9),c3 */
+      test_inst(0x0);
+      ASSERT_EQUAL(CC0, CC_REG);
+  }
+
+  /* Test under mask */
+  CTEST(instruct, tm4) {
+      /* From Princ Ops p147 */
+      init_cpu();
+      set_mem(0x9998, 0xf03caaaa);
+      set_reg( 9, 0x00009990);
+      set_mem(0x400, 0x91f09008); /* TM 9(9),c3 */
+      test_inst(0x0);
+      ASSERT_EQUAL(CC3, CC_REG);
+  }
+
+  /* Test under mask */
+  CTEST(instruct, tm5) {
+      /* From Princ Ops p147 */
+      init_cpu();
+      set_mem(0x9998, 0xa0f8aaaa);
+      set_reg( 9, 0x00009990);
+      set_mem(0x400, 0x910c9009); /* TM 9(9),c3 */
+      test_inst(0x0);
+      ASSERT_EQUAL(CC1, CC_REG);
+  }
+
   /* Test to convert to binary */
   CTEST(instruct, cvb) {
       /* Example from Principles of Operation p122 */
@@ -3424,15 +3459,41 @@ struct _dec_case {
   /* Test compare double */
   FTEST(instruct, cd) {
       init_cpu();
+      set_fpreg_s(0, 0x43000000);
+      set_fpreg_s(1, 0x00000000);
+      set_mem(0x100, 0x32123456);
+      set_mem(0x104, 0x789ABCDE);
+      set_mem(0x400, 0x69000100);  /* CD 0,100(0,0) */
+      set_mem(0x404, 0x00000000);
+      test_inst(0x0);
+      ASSERT_EQUAL(CC2, CC_REG);   /* Greater */
+  }
+
+  /* Test compare double */
+  FTEST(instruct, cd2) {
+      init_cpu();
       set_fpreg_s(0, 0x12345678);
       set_fpreg_s(1, 0xaabbccdd);
       set_mem(0x100, 0x44000000);
       set_mem(0x104, 0xaabbccdd);
       set_mem(0x400, 0x69000100);  /* CD 0,100(0,0) */
+      set_mem(0x404, 0x00000000);
+      test_inst(0x0);
+      ASSERT_EQUAL(CC1, CC_REG);   /* Less */
+  }
+
+  /* Test compare double */
+  FTEST(instruct, cd3) {
+      init_cpu();
+      set_fpreg_s(0, 0x43082100);
+      set_fpreg_s(1, 0xaabbccdd);
+      set_mem(0x100, 0x43082100);
+      set_mem(0x104, 0xaabbccdd);
+      set_mem(0x400, 0x69000100);  /* CD 0,100(0,0) */
+      set_mem(0x404, 0x00000000);
       test_inst(0x0);
       ASSERT_EQUAL(CC0, CC_REG);   /* Equal */
   }
-
   /* Add double */
   FTEST(instruct, ad) {
       /* Princ Ops 153 */
@@ -3443,9 +3504,37 @@ struct _dec_case {
       set_mem(0x2004, 0x00000000);
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x6a60d000);  /* AD 6,0(0, 13) */
+      set_mem(0x404, 0x00000000);
       test_inst(0x0);
       ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
       ASSERT_EQUAL_X(0x60000000, get_fpreg_s(7));
+  }
+
+  FTEST(instruct, ad_rand) {
+      int i;
+      double f1;
+      double f2;
+      double result;
+      double desired;
+      double ratio;
+      unsigned int seed = 5;
+      int did = 0;
+      for (i = 0; i < 100; i++) {
+          f1 = randfloat(&seed, 200);
+          f2 = randfloat(&seed, 200);
+          if (floatToFpreg(0, f1) != 0)
+              continue;
+          if (floatToFpreg(2, f2) != 0)
+              continue;
+          desired = f1 + f2;
+          set_mem(0x400, 0x2a020000);  /* ADR 0,2 */
+          test_inst(0x0);
+          result = cnvt_64_float(0);
+          ratio = fabs((result - desired) / desired);
+//          printf("%e + %e = %e, %e diff %e %e\n", f1, f2, desired, result, desired - result, ratio);
+          ASSERT_TRUE(ratio < .000001);
+          did++;
+      }
   }
 
   /* Subtract double */
@@ -3457,9 +3546,37 @@ struct _dec_case {
       set_mem(0x2004, 0x00000000);
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x6b60d000);  /* SD 6,0(0, 13) */
+      set_mem(0x404, 0x00000000);
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
-      ASSERT_EQUAL_X(0x60000000, get_fpreg_s(7));
+      ASSERT_EQUAL_X(0x4280ECBA, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0xA0000000, get_fpreg_s(7));
+  }
+
+  FTEST(instruct, sd_rand) {
+      int i;
+      double f1;
+      double f2;
+      double result;
+      double desired;
+      double ratio;
+      unsigned int seed = 5;
+      int did = 0;
+      for (i = 0; i < 100; i++) {
+          f1 = randfloat(&seed, 200);
+          f2 = randfloat(&seed, 200);
+          if (floatToFpreg(0, f1) != 0)
+              continue;
+          if (floatToFpreg(2, f2) != 0)
+              continue;
+          desired = f1 - f2;
+          set_mem(0x400, 0x2b020000);  /* SDR 0,2 */
+          test_inst(0x0);
+          result = cnvt_64_float(0);
+          ratio = fabs((result - desired) / desired);
+//          printf("%e - %e = %e, %e diff %e %e\n", f1, f2, desired, result, desired - result, ratio);
+          ASSERT_TRUE(ratio < .000001);
+          did++;
+      }
   }
 
   /* Multiply double */
@@ -3472,7 +3589,40 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x6c60d000);  /* MD 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x4293fb6f, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x16000000, get_fpreg_s(7));
+  }
+
+  FTEST(instruct, md_rand) {
+      int i;
+      double f1;
+      double f2;
+      double result;
+      double desired;
+      double ratio;
+      unsigned int seed = 5;
+      int did = 0;
+      for (i = 0; i < 100; i++) {
+          f1 = randfloat(&seed, 200);
+          f2 = randfloat(&seed, 200);
+          if (floatToFpreg(0, f1) != 0)
+              continue;
+          if (floatToFpreg(2, f2) != 0)
+              continue;
+          desired = f1 * f2;
+          set_mem(0x400, 0x2c020000);  /* MDR 0,2 */
+          test_inst(0x0);
+          result = cnvt_64_float(0);
+          ratio = fabs((result - desired) / desired);
+          printf("%e * %e = %e, %e diff %e %e %d\n", f1, f2, desired, result, desired - result, ratio, trap_flag);
+          if (fabs(desired) < 5.4e-79 || fabs(desired) > 7.2e75) {
+              ASSERT_TRUE(trap_flag);
+          } else {
+  //          ASSERT_TRUE(ratio < .000001);
+          }
+          did++;
+      }
+      ASSERT_TRUE(did > 80);
   }
 
   /* Divide double */
@@ -3485,33 +3635,69 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x6d60d000);  /* DD 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x42725012, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0xf5527d99, get_fpreg_s(7));
+  }
+
+  FTEST(instruct, dd_rand) {
+      int i;
+      double f1;
+      double f2;
+      double result;
+      double desired;
+      double ratio;
+      unsigned int seed = 1;
+      int did = 0;
+      for (i = 0; i < 100; i++) {
+          f1 = randfloat(&seed, 200);
+          f2 = randfloat(&seed, 200);
+          if (floatToFpreg(0, f1) != 0)
+              continue;
+          if (floatToFpreg(2, f2) != 0)
+              continue;
+          desired = f1 / f2;
+          if (fabs(desired) < 5.4e-79 || fabs(desired) > 7.2e75)
+              continue;
+          set_mem(0x400, 0x2d020000);  /* DDR 0,2 */
+          test_inst(0x0);
+          result = cnvt_64_float(0);
+          ratio = fabs((result - desired) / desired);
+          if (fabs(desired) < 5.4e-79 || fabs(desired) > 7.2e75) {
+              ASSERT_TRUE(trap_flag);
+          } else {
+              ASSERT_TRUE(ratio < .000001);
+          }
+          did++;
+      }
+      ASSERT_TRUE(did > 80);
   }
 
   /* Add double unnormalized */
-  FTEST(instruct, au) {
+  FTEST(instruct, aw) {
       init_cpu();
       set_fpreg_s(6, 0x43082100);
       set_fpreg_s(7, 0x00000000);
       set_mem(0x2000, 0x41123456);
       set_mem(0x2004, 0x00000000);
       set_reg(13, 0x00002000);
-      set_mem(0x400, 0x7e60d000);  /* AU 6,0(0, 13) */
+      set_mem(0x400, 0x6e60d000);  /* AU 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x43083334, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x56000000, get_fpreg_s(7));
   }
 
   /* Subtract double unnormalized */
-  FTEST(instruct, su) {
+  FTEST(instruct, sw) {
       init_cpu();
       set_fpreg_s(6, 0x43082100);
       set_fpreg_s(7, 0x00000000);
       set_mem(0x2000, 0x41123456);
       set_mem(0x2004, 0x00000000);
       set_reg(13, 0x00002000);
-      set_mem(0x400, 0x7f60d000);  /* SU 6,0(0, 13) */
+      set_mem(0x400, 0x6f60d000);  /* SU 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x42833345, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x43080ecb, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0xaa000000, get_fpreg_s(7));
   }
 
   /* Store float point */
@@ -3552,7 +3738,8 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x79012100);  /* CE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x12345678, get_fpreg_s(0));
+      ASSERT_EQUAL(CC2, CC_REG);
   }
 
   /* Add floating point */
@@ -3565,7 +3752,8 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x7a012100);  /* AE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x123679ac, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
   }
 
   /* Subtract floating point */
@@ -3578,37 +3766,38 @@ struct _dec_case {
       set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x7b012100);  /* SE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x12323343, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
   }
 
   /* Multiply floating point */
   FTEST(instruct, me) {
       init_cpu();
-      set_fpreg_s(0, 0x12345678);
+      set_fpreg_s(0, 0x43082100);
       set_fpreg_s(1, 0xaabbccdd);
+      set_mem(0x500, 0x41123456);
       set_reg(1, 0x100);
       set_reg(2, 0x300);
-      set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x7c012100);  /* ME 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x4293fb6f, get_fpreg_s(0));
   }
 
   /* Divide floating point */
   FTEST(instruct, de) {
       init_cpu();
-      set_fpreg_s(0, 0x12345678);
+      set_fpreg_s(0, 0x43082100);
       set_fpreg_s(1, 0xaabbccdd);
+      set_mem(0x500, 0x41123456);
       set_reg(1, 0x100);
       set_reg(2, 0x300);
-      set_mem(0x500, 0x11223344);
       set_mem(0x400, 0x7d012100);  /* DE 0,100(1,2) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
+      ASSERT_EQUAL_X(0x42725012, get_fpreg_s(0));
   }
 
   /* Add floating point unnormalized */
-  FTEST(instruct, au2) {
+  FTEST(instruct, au) {
       /* Princ Ops 153 */
       init_cpu();
       set_fpreg_s(6, 0x43082100);
@@ -3622,7 +3811,7 @@ struct _dec_case {
   }
 
   /* Subtract floating point unnormalized */
-  FTEST(instruct, su2) {
+  FTEST(instruct, su) {
       init_cpu();
       set_fpreg_s(6, 0x43082100);
       set_fpreg_s(7, 0x00000000);
@@ -3631,5 +3820,5 @@ struct _dec_case {
       set_reg(13, 0x00002000);
       set_mem(0x400, 0x7f60d000);  /* SU 6,0(0, 13) */
       test_inst(0x0);
-      ASSERT_EQUAL_X(0x43083334, get_fpreg_s(6));
+      ASSERT_EQUAL_X(0x43080ecb, get_fpreg_s(6));
   }
