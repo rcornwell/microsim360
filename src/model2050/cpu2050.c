@@ -179,7 +179,7 @@ static    char     *sf_name[] = {    /* Local Storage controlles */
                   "LS>R>LS",
                   "3",
                   "L>LS",
-                  "L>R,L>LS",
+                  "LS>R,L>LS",
                   "LS>L>LS",
                   "7",
               };
@@ -952,7 +952,7 @@ cycle_2050()
             a_bit = (cpu_2050.F_REG == 0);
             break;
     case 33: /* UNORM,  T8-11 zero and not S0  */
-            a_bit = ((cpu_2050.alu_out & 0x00f00000) != 0 &&
+            a_bit = ((cpu_2050.alu_out & 0x00f00000) == 0 &&
                         (cpu_2050.S_REG & BIT0) == 0);
             break;
     case 34: /* TZ*BS */
@@ -1091,8 +1091,8 @@ cycle_2050()
             break;
     case 14: /* Unknown */
             break;
-    case 15: /* T13=0 */
-            b_bit |= ((cpu_2050.alu_out & 0x00ffffff) == 0);
+    case 15: /* T13=0 bits 8-13 == 0 */
+            b_bit |= ((cpu_2050.alu_out & 0x00fc0000) == 0);
             break;
     case 16: /* T(0) */
             b_bit |= ((cpu_2050.alu_out & 0x80000000) != 0);
@@ -1600,7 +1600,7 @@ F
             cpu_2050.left_bus = 4;
             break;
     case 7: /*  64C  */
-            cpu_2050.left_bus = 0;
+            cpu_2050.left_bus = 0xc0000000;
             break;
     }
 
@@ -1932,16 +1932,15 @@ log_trace("Mover u=%02x v=%02x w=%02x\n", cpu_2050.u_bus, cpu_2050.v_bus, cpu_20
          case 3: /* G1-1  */
                  if ((cpu_2050.G_REG & 0xf0) == 0) {
                      cpu_2050.G1NEG = 1;
-                 } else {
-                     cpu_2050.G1NEG = 0;
                  }
                  cpu_2050.G_REG = (cpu_2050.G_REG & 0x0f) | ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
          case 4: /* HOT1,G-1 */
                  if (cpu_2050.G_REG == 0) {
                      cpu_2050.G1NEG = 1;
-                 } else {
-                     cpu_2050.G1NEG = 0;
+                 }
+                 if ((cpu_2050.G_REG & 0xf) == 0) {
+                     cpu_2050.G2NEG = 1;
                  }
                  cpu_2050.G_REG = cpu_2050.G_REG - 1;
                  carry_in = 1;
@@ -1949,36 +1948,27 @@ log_trace("Mover u=%02x v=%02x w=%02x\n", cpu_2050.u_bus, cpu_2050.v_bus, cpu_20
          case 5: /* G2-1 */
                  if ((cpu_2050.G_REG & 0x0f) == 0) {
                      cpu_2050.G2NEG = 1;
-                 } else {
-                     cpu_2050.G2NEG = 0;
                  }
                  cpu_2050.G_REG = (cpu_2050.G_REG & 0xf0) | ((cpu_2050.G_REG - 0x01) & 0x0f);
                  break;
          case 6: /* G-1 */
                  if ((cpu_2050.G_REG & 0x0f) == 0) {
                      cpu_2050.G2NEG = 1;
-                 } else {
-                     cpu_2050.G2NEG = 0;
                  }
                  if (cpu_2050.G_REG == 0) {
                      cpu_2050.G1NEG = 1;
-                 } else {
-                     cpu_2050.G1NEG = 0;
                  }
                  cpu_2050.G_REG = cpu_2050.G_REG - 1;
                  break;
          case 7: /* G1,2-1 */
                  if ((cpu_2050.G_REG & 0xf0) == 0) {
                      cpu_2050.G1NEG = 1;
-                 } else {
-                     cpu_2050.G1NEG = 0;
                  }
                  if ((cpu_2050.G_REG & 0x0f) == 0) {
                      cpu_2050.G2NEG = 1;
-                 } else {
-                     cpu_2050.G2NEG = 0;
                  }
-                 cpu_2050.G_REG = ((cpu_2050.G_REG & 0x0f) - 0x1) | ((cpu_2050.G_REG - 0x10) & 0xf0);
+                 t = ((cpu_2050.G_REG & 0xf) - 1) & 0xf;
+                 cpu_2050.G_REG = (t) | ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
          }
      }
@@ -2003,17 +1993,26 @@ log_trace("Mover u=%02x v=%02x w=%02x\n", cpu_2050.u_bus, cpu_2050.v_bus, cpu_20
         case 5: /* BC^C */  /* Set carry based on xor of carry from 0 and 1 */
                 carry_out = ((carries ^ (carries << 1)) & 0x80000000) != 0;
                 break;
-        case 6: /* BC1B */ /* Set carry out from position 1  for Order al == 23 */
+        case 6: /* BC1B */ /* Set carry out from position 1 */
                            /* Block carry between 8 and 7 */
+                           /* When AL == 23 (1>FPSR4>F) force hot carry to position 7 */
                 if (sal->al == 23) {
-                    t1 = (cpu_2050.left_bus & 0xff000000) + (cpu_2050.right_bus & 0xff000000) + 0x010000000;
+                    t1 = (cpu_2050.left_bus & 0xff000000) + (cpu_2050.right_bus & 0xff000000) + 0x01000000;
                 } else {
                     t1 = (cpu_2050.left_bus & 0xff000000) + (cpu_2050.right_bus & 0xff000000);
                 }
-                cpu_2050.alu_out =  (t1 & 0xff000000) + (cpu_2050.alu_out & 0x00ffffff);
+log_trace("t1=%08x %08x\n", t1, cpu_2050.alu_out);
+                cpu_2050.alu_out =  (t1 & 0xff000000) | (cpu_2050.alu_out & 0x00ffffff);
                 carries = (cpu_2050.left_bus & cpu_2050.right_bus) |
-                           ((cpu_2050.left_bus ^ cpu_2050.right_bus) & ~t1);
-        case 7: /* BC8 */  /* Same */
+                             ((cpu_2050.left_bus ^ cpu_2050.right_bus) & ~cpu_2050.alu_out);
+                carry_out = (carries & 0x40000000) != 0;
+                cpu_2050.CAR = carry_out;
+                break;
+        case 7: /* BC8 */
+                t1 = (cpu_2050.left_bus & 0xff000000) + (cpu_2050.right_bus & 0xff000000);
+                cpu_2050.alu_out =  (t1 & 0xff000000) | (cpu_2050.alu_out & 0x00ffffff);
+                carries = (cpu_2050.left_bus & cpu_2050.right_bus) |
+                             ((cpu_2050.left_bus ^ cpu_2050.right_bus) & ~cpu_2050.alu_out);
                 carry_out = (carries & 0x00800000) != 0;
                 cpu_2050.CAR = carry_out;
                 break;
@@ -2028,7 +2027,6 @@ log_trace("Mover u=%02x v=%02x w=%02x\n", cpu_2050.u_bus, cpu_2050.v_bus, cpu_20
         case 9: /* DC0 */ /* Set L to 6 if carry out of sum between digits */
                 t1 = 0x88888888 & ~carries;
                 l_update = ((t1 >> 1) | (t1 >> 2));
-log_trace("t1=%08x %08x\n", t1, carries);
                 if ((carries & 0x80000000) != 0) {
                     s_update |= BIT1;
                 } else {
@@ -2057,13 +2055,19 @@ log_trace("t=%08x %08x\n", l_update, carries);
                 t1 = 0x88888888 & ~carries;
                 l_update = ((t1 >> 1) | (t1 >> 2));
                 /* Find left most digit which has BS on */
-                t1 = 0x80000000;
-                for (t2 = 0x8; (cpu_2050.BS_REG & t2) == 0 && t2 != 0; t2 >>= 1 ) {
-                    t1 >>= 8;
-                }
                 s_update &= ~BIT1;
-                if (carries & t1) {
-                   s_update |= BIT1;
+                if ((cpu_2050.BS_REG & 0x8) != 0) {
+                    if ((carries & 0x80000000) != 0)
+                        s_update |= BIT1;
+                } else if ((cpu_2050.BS_REG & 0x4) != 0) {
+                    if ((carries & 0x00800000) != 0)
+                        s_update |= BIT1;
+                } else if ((cpu_2050.BS_REG & 0x2) != 0) {
+                    if ((carries & 0x00008000) != 0)
+                        s_update |= BIT1;
+                } else if ((cpu_2050.BS_REG & 0x1) != 0) {
+                    if ((carries & 0x00000080) != 0)
+                        s_update |= BIT1;
                 }
                 break;
         case 13:
@@ -2108,7 +2112,7 @@ log_trace("t=%08x %08x\n", l_update, carries);
                 cpu_2050.aob_latch |= 0x80000000;
             cpu_2050.F_REG = ((cpu_2050.alu_out & 1) << 3) | (cpu_2050.F_REG >> 1);
             break;
-    case 2: /* L0->-S4-> */
+    case 2: /* L0,-S4-> */
             t1 = ((cpu_2050.S_REG & BIT4) == 0) ? 0x80000000 : 0;
             cpu_2050.aob_latch = t1 | (cpu_2050.L_REG & 0x7f000000) |
                            (cpu_2050.alu_out & 0xffffff);
@@ -2138,8 +2142,9 @@ log_trace("t=%08x %08x\n", l_update, carries);
             cpu_2050.F_REG = (((cpu_2050.alu_out >>31) & 1) | (cpu_2050.F_REG << 1)) & 0xf;
             break;
     case 9: /* F->SL1->F */
-            cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | ((cpu_2050.F_REG >> 3) & 1);
-            cpu_2050.F_REG = (((cpu_2050.alu_out >>31) & 1) | (cpu_2050.F_REG << 1)) & 0xf;
+            cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | ((cpu_2050.F_REG & 8) != 0);
+            cpu_2050.F_REG = (((cpu_2050.alu_out & 0x80000000) != 0) |
+                                       (cpu_2050.F_REG << 1)) & 0xf;
             break;
     case 10: /* SL1->Q */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1);
@@ -2193,18 +2198,17 @@ log_trace("t=%08x %08x\n", l_update, carries);
             cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
     case 22: /* FPSR4->F */
-            cpu_2050.aob_latch = ((cpu_2050.alu_out >> 4) & 0x0fffff) |
-                                      (cpu_2050.alu_out & 0xff000000);
+            cpu_2050.aob_latch = ((cpu_2050.alu_out & 0x00ffffff) >> 4);
             cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
     case 23: /* 1->FPSR4->F */
-            cpu_2050.aob_latch = ((cpu_2050.alu_out >> 4) & 0xffffff) |
+            cpu_2050.aob_latch = ((cpu_2050.alu_out & 0xffffff) >> 4) |
                                       (cpu_2050.alu_out & 0xff000000) | 0x100000;
             cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
     case 24: /* SR4->H */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4);
-            cpu_2050.H_REG = (cpu_2050.alu_out & 0xF0000000) | (cpu_2050.H_REG & 0xfffffff);
+            cpu_2050.H_REG = ((cpu_2050.alu_out & 0xF) << 28) | (cpu_2050.H_REG & 0x0fffffff);
             cpu_2050.R_REG = ((cpu_2050.aob_latch & 0x0F000000) << 4) |
                                   (cpu_2050.R_REG & 0xfffffff);
             break;
@@ -2216,7 +2220,7 @@ log_trace("t=%08x %08x\n", l_update, carries);
                                   (cpu_2050.alu_out & 0xff000000) | (sal->ce & 0xf);
             break;
     case 27: /* F->SR1->Q */
-            cpu_2050.aob_latch = (cpu_2050.alu_out >> 1) | ((cpu_2050.F_REG & 0x8) << 28);
+            cpu_2050.aob_latch = (cpu_2050.alu_out >> 1) | ((cpu_2050.F_REG & 0x1) << 31);
             cpu_2050.Q_REG = (cpu_2050.alu_out & 1);
             break;
     case 28: /* DKEY-> */
@@ -2487,7 +2491,8 @@ log_trace("t=%08x %08x\n", l_update, carries);
                 s_update |= BIT0;
             else
                 s_update &= ~BIT0;
-            cpu_2050.FN = (sal->ce & 0x3) << 4;
+            cpu_2050.LSA &= 0xf;
+            cpu_2050.LSA |= (sal->ce & 0x3) << 4;
             break;
     case 15: /* B0,1SYL */
             s_update &= ~(BIT1);
@@ -2538,31 +2543,40 @@ log_trace("t=%08x %08x\n", l_update, carries);
     case 27: /* S47,ED*FP */
             s_update &= 0xf0;
             t = (cpu_2050.alu_out >> 24) & 0xff;
-            t1 = (carries & 0x4000000) != 0;
+            t1 = (carries & 0x40000000) != 0;
             /* Compute ED value */
-            /* Carry from bit 1. and sum 4-7 != 0
-               or no carry from bit 1 and sum 4-7 = 1111 */
-            if ((t1 != 0 && (t & 0xf) != 0) || (t1 == 0 && (t & 0xf) == 0xf))
+            /* Carry from bit 1. and sum 1-4 != 0
+               or no carry from bit 1 and sum 4-4 = 1111 */
+            if ((t1 != 0 && (t & 0x78) != 0) || (t1 == 0 && (t & 0x78) == 0x78))
                 cpu_2050.ED_REG = 0x8 | (t & 07);
             else
                 cpu_2050.ED_REG = t & 07;
-            t = t1;
+            t = (carries & 0x80000000) != 0;
             t1 = (cpu_2050.right_bus & 0x80000000) != 0;
-            t2 = (cpu_2050.left_bus & 0x80000000) != 0;
+            t2 = ((cpu_2050.left_bus & 0x80000000) != 0);
+            /* S0 = add
+               S1 = sub
+               S2 = unorm
+            */
             /* Stat 4 turned on:
                    If S0 or S1 and right adder input bit 0 is 1, and carry out bit 1
-                   If S0 or S1 and carry out bit 1 and either adder left input 1 or S1.
-                      But not both.
+                   If S0 or S1 and carry out bit 1 and either adder left input 0 or S1.
+                      But not both. (Add type result minus)
                    If S0 and S1 == 0 and left adder input bit 0 != right adder input
                      bit 0 */
-            if (((s_update & (BIT0|BIT1)) != 0 && t1 && t) ||
-                ((s_update & (BIT0|BIT1)) != 0 && t && ((t2 ^ ((s_update & BIT1) != 0))))||
+            if (((s_update & (BIT0)) != 0 && t1 == 0 && t2 == 0 && carry_out) ||
+                ((s_update & (BIT0)) != 0 && t1 == 0 && t2 != 0 && !t && carry_out) ||
+                ((s_update & (BIT1)) != 0 && t1 == 0 && t2 != 0 && t && carry_out) ||
+                ((s_update & (BIT0|BIT1)) != 0 && t1 != 0 && t2 == 0 && !t) ||
+                ((s_update & (BIT0)) != 0 && t1 != 0 && t2 == 0 && t && carry_out) ||
+                ((s_update & (BIT0)) != 0 && t1 != 0 && t2 != 0 && !carry_out) ||
+                ((s_update & (BIT1)) != 0 && t1 != 0 && t2 != 0) ||
                 ((s_update & (BIT0|BIT1)) == 0 && t1 != t2))
                 s_update |= BIT4;
             /* Stat 5 turned on:
                    If right adder bit 0, left adder bit 0 and S1 have even number
                    of bits. (True add required). */
-            if ((((s_update & BIT1) != 0) ^ t1 ^ t2) == 0)
+            if ((((s_update & BIT1) != 0) ^ t1 ^ t2) != 0)
                 s_update |= BIT5;
             /* Stat 6 turned on:
                    If abs(ED) < 16. */
@@ -2572,6 +2586,11 @@ log_trace("t=%08x %08x\n", l_update, carries);
                    If ED == 0 */
             if (cpu_2050.ED_REG == 0)
                 s_update |= BIT7;
+
+log_trace("\nl=%08x r=%08x c=%08x C=%d t=%d S0=%x S1=%x S4=%x\n", cpu_2050.left_bus, cpu_2050.right_bus,
+            carries, carry_out, t, (s_update & BIT0) != 0, (s_update & BIT1) != 0, (s_update & BIT4) != 0);
+//printf("\nl=%08x r=%08x c=%08x C=%d t=%d S0=%x S1=%x S4=%x\n", cpu_2050.left_bus, cpu_2050.right_bus,
+ //           carries, carry_out, t, (s_update & BIT0) != 0, (s_update & BIT1) != 0, (s_update & BIT4) != 0);
             break;
     case 28: /* OPPANEL->S47 */
             cpu_2050.S_REG &= 0xf0;
@@ -2982,7 +3001,7 @@ channel:
          dev->bus_func(dev, &cpu_2050.MPX_TI, cpu_2050.BFR1, &cpu_2050.BUS_IN);
     }
 
-#if 0 
+#if 0
 142  STPR  Storage protection
 149  DATA  Invalid Decimal data or sign
 1c0  IVAD  Invalid Opnd address

@@ -24,7 +24,7 @@ target_include_directories(cros2050 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 add_custom_target(model2050_ros.h
        COMMAND cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt model2050_ros.h
-       COMMENT "Building model 2030 ROS data"
+       COMMENT "Building model 2050 ROS data"
        DEPENDS cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt)
 
 set(model2050_src cpu2050.c model2050_ros.c)
