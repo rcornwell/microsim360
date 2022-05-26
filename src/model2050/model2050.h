@@ -88,7 +88,7 @@ extern struct ROS_2050 {
     int      lx;
     int      tc;
     int      ry;
-    int      ad;   /* CT field in I/O */
+    int      ad;   /* CL field in I/O */
     int      ab;
     int      bb;
     int      ux;
@@ -206,15 +206,17 @@ uint16_t    ROAR;               /* ROAR address register. */
 uint16_t    BROAR;              /* Backup ROAR address. */
 uint8_t     break_in;           /* Break in cycle requested */
 uint8_t     break_out;          /* In break out cycle */
+uint16_t    ROUTINE;            /* Current breaking routine */
 uint8_t     first_cycle;        /* First cycle of breakout */
 uint8_t     last_cycle;         /* Last cycle of breakout */
+uint8_t     polling;            /* Polling state */
 uint8_t     CHCTL;              /* Channel control register */
 
-uint8_t     IOS;                /* I/O Status registers */
 uint8_t     BRC;                /* Branch control register */
 uint16_t    BFR1;               /* MPX buffer 1 */
 uint16_t    BFR2;               /* MPX buffer 1 */
 uint16_t    BUS_IN;             /* MPX bus in */
+uint16_t    BUS_OUT;            /* MPX bus out */
 uint16_t    MPX_TAGS;           /* MPX tags */
 uint16_t    MPX_TI;             /* MPX tags in */
 uint8_t     IBFULL;             /* IB full */

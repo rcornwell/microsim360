@@ -32,25 +32,14 @@
 #include "xlat.h"
 #include "logger.h"
 #include "model2050.h"
-
-#define CC_REG cpu_2050.CC
-#define CC0    0x0
-#define CC1    0x1
-#define CC2    0x2
-#define CC3    0x3
+#include "model_test.h"
 
 #define FTEST(a, b)   CTEST(a, b)
 #define DTEST(a, b)   CTEST(a, b)
 
-#define IAR  (cpu_2050.IA_REG)
-
-#define MASK cpu_2050.MASK
-
-#define PM            cpu_2050.PMASK
-
-#define set_ilc(n)    cpu_2050.ILC = n
-
-#define get_ilc()     cpu_2050.ILC
+uint64_t         step_count;
+int              testcycles = 100;
+int              irq_mask = 0xff;
 
 void
 set_amwp(int n) {
@@ -59,20 +48,11 @@ set_amwp(int n) {
    cpu_2050.AMWP = n;
 }
 
-#define get_amwp()    cpu_2050.AMWP
-
 void
 set_key(int n) {
     cpu_2050.LS[0x17] = (MASK << 24) | (n << 20);
     cpu_2050.KEY = n;
 }
-
-#define get_key()     cpu_2050.KEY
-
-#define set_cc(n)     CC_REG = n
-uint64_t         step_count;
-int              testcycles = 100;
-int              irq_mask = 0xff;
 
 /* Read register */
 uint32_t
@@ -202,13 +182,13 @@ int floatToFpreg(int num, double val)
 /* load floating point register as double */
 double cnvt_32_float(int num)
 {
-    uint32_t        t32 = get_fpreg_s(num);
+    uint64_t        t64 = get_fpreg_d(num);
     double          d;
     int             e;
-    e = ((t32 >> 24) & 0x7f) - 64;
-    d = (double)(((uint64_t)(0x00ffffff & t32)) << 32);
+    e = ((t64 >> 56) & 0x7f) - 64;
+    d = (double)(0x00ffffff00000000LL & t64);
     d *= exp2(-56 + 4*e);
-    if ((0x80000000 & t32) != 0)
+    if ((0x8000000000000000LL & t64) != 0)
         d *= -1.0;
     return d;
 }
@@ -283,8 +263,8 @@ test_inst(int mask)
         if (cpu_2050.ROAR == 0x10e)
            trap_flag = 1;
         log_trace("ROAR = [%03X]\n", cpu_2050.ROAR);
-    } while (max < 500);
-    if (max > 200)
+    } while (max < 1000);
+    if (max > 900)
         log_trace("overrun\n");
 
 }
