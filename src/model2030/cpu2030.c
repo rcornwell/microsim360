@@ -918,7 +918,7 @@ cycle_2030()
           }
 
           /* Disassemble micro instruction */
-          if ((log_level & LOG_MICRO) != 0) {
+          if ((log_level & LOG_MICRO) != 0 && (cpu_2030.WX != 0xAE)) {
               sprintf (dis_buffer, "%s %03X: %02x ", sal->note, cpu_2030.WX, sal->CK);
               if (sal->CK < 0x10) {
                   if (sal->PK != 0 || sal->CB == 3 || sal->CU == 2) {
@@ -2316,6 +2316,7 @@ cycle_2030()
                                     (((cpu_2030.Alu_out & 0xff)== 0) ? BIT4 : 0);
            }
 
+          if ((cpu_2030.WX != 0xAE)) {
 
            log_reg("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
                    cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG, cpu_2030.Q_REG, cpu_2030.R_REG,
@@ -2325,6 +2326,7 @@ cycle_2030()
                    cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX, cpu_2030.STAT_REG,
                    cpu_2030.O_REG, carries, priority_lch, allow_write, read_call, second_err_stop);
 
+          }
         }
 
 chan_scan:
@@ -2375,8 +2377,8 @@ chan_scan:
             mpx_start_sel = 0;
             cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
         }
-        /* Drop address out when we get address in */
-        if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_ADR_IN)) == (CHAN_ADR_OUT|CHAN_ADR_IN)) {
+        /* Drop address out when we get operation in */
+        if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_OPR_IN)) == (CHAN_ADR_OUT|CHAN_OPR_IN)) {
             cpu_2030.MPX_TAGS &= ~CHAN_ADR_OUT;
         }
         /* If device responded drop select out */
