@@ -23,6 +23,7 @@
  *
  */
 
+#include "config.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <stdio.h>
@@ -30,7 +31,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <ctype.h>
-#ifndef _WIN32
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <fcntl.h>

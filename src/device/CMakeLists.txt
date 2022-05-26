@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 
-target_sources(${PROJECT_NAME} PUBLIC card.c disassem.c device.c tape.c xlat.c)
+target_sources(${PROJECT_NAME} PUBLIC card.c disassem.c device.c tape.c xlat.c dasd.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 

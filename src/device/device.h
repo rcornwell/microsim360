@@ -96,14 +96,15 @@ struct _device {
     struct _device *next;          /* Next device in chain */
 };
 
+struct _unit {
+    char *name;
+};
+
 struct _control {
     char *name;
     int  (*create)(char *line);
     struct _device *(*init)(void *render, uint16_t addr);
-};
-
-struct _unit {
-    char *name;
+    struct _unit *units;
 };
 
 extern struct _device *chan[6];         /* Channels */
