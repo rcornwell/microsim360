@@ -77,7 +77,7 @@
           }
           (void)floatToFpreg(0, f);
           fp = cnvt_32_float(0);
-          // Compare within tolerance
+          /* Compare within tolerance */
           ratio = fabs((fp - f) / f);
           ASSERT_TRUE(ratio < .000001);
       }
@@ -1099,7 +1099,7 @@
       set_mem(0x400, 0x86142200); /* BXH 1, 4, 200(2) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345677, get_reg(1));
-      ASSERT_EQUAL_X(0x404, IAR); // Branch not taken);
+      ASSERT_EQUAL_X(0x404, IAR); /* Branch not taken */
   }
 
   /* Add increment to first operand, compare with odd register after R3 */
@@ -1136,7 +1136,7 @@
       set_mem(0x400, 0x87142200); /* BXLE 1, 4, 200(2) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345679, get_reg(1));
-      ASSERT_EQUAL_X(0x404, IAR); // Branch not taken);
+      ASSERT_EQUAL_X(0x404, IAR); /* Branch not taken */
   }
 
   /* Add increment to first operand, compare with odd register after R3 */
@@ -1488,7 +1488,7 @@
       set_mem(0x400, 0x54123454); /* N 1,454(2,3) */
       test_inst(0x0);
       ASSERT_EQUAL_X((0x11223344 & 0x12345678), get_reg(1));
-      ASSERT_EQUAL(CC1, CC_REG); // Not zero);
+      ASSERT_EQUAL(CC1, CC_REG); /* Not zero */
   }
 
   /* Test compare logical */
@@ -2588,14 +2588,14 @@
       set_mem(0x1008, 0x202040c3);
       set_mem(0x100c, 0xd9ffffff);
       set_mem(0x400, 0xdf0cc000);
-      set_mem(0x404, 0xc200aaaa); //}, "ED 0(13,12),200(12)");
+      set_mem(0x404, 0xc200aaaa); /* ED 0(13,12),200(12) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x40404040, get_mem(0x1000));
       ASSERT_EQUAL_X(0x40404040, get_mem(0x1004));
       ASSERT_EQUAL_X(0xf2f640c3, get_mem(0x1008));
       ASSERT_EQUAL_X(0xd9ffffff, get_mem(0x100c));
-      ASSERT_EQUAL(CC1, CC_REG); // Result less than zero);
-      ASSERT_EQUAL_X(0xaa001008, get_reg(1)); // Need to adjust this address);
+      ASSERT_EQUAL(CC1, CC_REG); /* Result less than zero) */
+      ASSERT_EQUAL_X(0xaa001008, get_reg(1)); /* Need to adjust this address) */
   }
 
   /* Edit and mark */
@@ -2609,14 +2609,14 @@
       set_mem(0x1008, 0x202040c3);
       set_mem(0x100c, 0xd9ffffff);
       set_mem(0x400, 0xdf0cc000);
-      set_mem(0x404, 0xc200aaaa); //}, "ED 0(13,12),200(12)");
+      set_mem(0x404, 0xc200aaaa); /* ED 0(13,12),200(12) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x4040f26b, get_mem(0x1000));
       ASSERT_EQUAL_X(0xf5f7f44b, get_mem(0x1004));
       ASSERT_EQUAL_X(0xf2f640c3, get_mem(0x1008));
       ASSERT_EQUAL_X(0xd9ffffff, get_mem(0x100c));
-      ASSERT_EQUAL(CC1, CC_REG); // Result less than zero);
-      ASSERT_EQUAL_X(0xaa001002, get_reg(1)); // Need to adjust this address);
+      ASSERT_EQUAL(CC1, CC_REG); /* Result less than zero */
+      ASSERT_EQUAL_X(0xaa001002, get_reg(1)); /* Need to adjust this address */
   }
 
   /* Move offset */
@@ -2812,9 +2812,9 @@
 
       set_reg( 1, 0x7fffffff);
       set_reg( 2, 0x8fffffff);
-      set_mem(0x400, 0x15120000); //}, "CLR 1,2");
+      set_mem(0x400, 0x15120000); /* CLR 1,2 */
       test_inst(0x0);
-      ASSERT_EQUAL(CC1, CC_REG); // first operand is low);
+      ASSERT_EQUAL(CC1, CC_REG); /* first operand is low */
   }
 
   /* Compare logical */
@@ -2878,8 +2878,8 @@
     init_cpu();
     for (i = 0; i < 31; i++) {
       set_reg( 1, 1);
-      set_reg( 2, 0x12340000 + i); // Shift i bits
-      set_mem(0x400, 0x891f2100); //}, "SLL 1,100(2)");
+      set_reg( 2, 0x12340000 + i); /* Shift i bits */
+      set_mem(0x400, 0x891f2100); /* SLL 1,100(2) */
       test_inst(0x0);
       ASSERT_EQUAL_X((uint32_t)(1 << i), get_reg(1));
     }
@@ -2888,8 +2888,8 @@
 
   CTEST(instruct, spm) {
     init_cpu();
-    set_reg( 1, 0x12345678); // Mask 2
-    set_mem(0x400, 0x041f0000); //, "SPM 1");
+    set_reg( 1, 0x12345678); /* Mask 2 */
+    set_mem(0x400, 0x041f0000); /* SPM 1 */
       test_inst(0x0);
     ASSERT_EQUAL(CC1, CC_REG);
     ASSERT_EQUAL_X(0x2, PM);
@@ -3055,6 +3055,7 @@
       set_mem_key(0x5600, 4);
       set_mem(0x400, 0x50102008); /* st 1,0(2) */
       test_inst(0x0);
+      set_key(0);
       ASSERT_EQUAL_X(0, get_mem(0x5678)); /* Make sure memory not changed */
       ASSERT_TRUE(trap_flag);
   }
@@ -3070,6 +3071,7 @@
       set_mem_key(0x5600, 4);
       set_mem(0x400, 0x50102008); /* st 1,0(2) */
       test_inst(0x0);
+      set_key(0);
       ASSERT_EQUAL_X(0x11223344, get_mem(0x5678)); /* Make sure updated */
   }
 
@@ -3084,6 +3086,7 @@
       set_mem_key(0x5600, 4);
       set_mem(0x400, 0x58102008); /* l 1,0(2) */
       test_inst(0x0);
+      set_key(0);
       ASSERT_EQUAL_X(0x12345678, get_reg(1)); /* Read should work */
       ASSERT_FALSE(trap_flag);
   }
@@ -3099,6 +3102,7 @@
       set_mem_key(0x5600, 4);
       set_mem(0x400, 0x58102008); /* l 1,0(2) */
       test_inst(0x0);
+      set_key(0);
       ASSERT_EQUAL_X(0x12345678, get_reg(1));
       ASSERT_FALSE(trap_flag);
   }
@@ -3124,6 +3128,90 @@
       test_inst(0x0);
       ASSERT_EQUAL(CC1, CC_REG);  /* Set */
       ASSERT_EQUAL_X(0x8385ff89, get_mem(0x100));
+  }
+
+  /* Test load halfword */
+  CTEST(instruct, lh_iva) {
+      uint32_t   psw1, psw2;
+      init_cpu();
+      set_amwp(0);
+      set_cc(CC1);
+      set_reg(3, 0xffffffff);
+      set_reg(4, 0x1000);
+      set_reg(5, 0x201);
+      set_mem(0x28, 0xffffffff);
+      set_mem(0x2c, 0xffffffff);
+      set_mem(0x1b84, 0x87654321);
+      set_mem(0x400, 0x48345986); /* LH 3,986(4,5) */
+      test_inst(0x0);
+      psw1 = get_mem(0x28);
+      psw2 = get_mem(0x2c);
+      ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00000006, psw1);
+      ASSERT_EQUAL_X(0x90000404, psw2);
+  }
+
+  /* Test load word */
+  CTEST(instruct, l_iva1) {
+      uint32_t   psw1, psw2;
+      init_cpu();
+      set_amwp(0);
+      set_cc(CC1);
+      set_reg(3, 0xffffffff);
+      set_reg(4, 0x1000);
+      set_reg(5, 0x201);
+      set_mem(0x28, 0xffffffff);
+      set_mem(0x2c, 0xffffffff);
+      set_mem(0x1b84, 0x68654321);
+      set_mem(0x400, 0x58345984); /* L 3,984(4,5) */
+      test_inst(0x0);
+      psw1 = get_mem(0x28);
+      psw2 = get_mem(0x2c);
+      ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00000006, psw1);
+      ASSERT_EQUAL_X(0x90000404, psw2);
+  }
+
+  /* Test load word */
+  CTEST(instruct, l_iva2) {
+      uint32_t   psw1, psw2;
+      init_cpu();
+      set_amwp(0);
+      set_cc(CC1);
+      set_reg(3, 0xffffffff);
+      set_reg(4, 0x1000);
+      set_reg(5, 0x202);
+      set_mem(0x28, 0xffffffff);
+      set_mem(0x2c, 0xffffffff);
+      set_mem(0x1b84, 0x68654321);
+      set_mem(0x400, 0x58345984); /* L 3,984(4,5) */
+      test_inst(0x0);
+      psw1 = get_mem(0x28);
+      psw2 = get_mem(0x2c);
+      ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00000006, psw1);
+      ASSERT_EQUAL_X(0x90000404, psw2);
+  }
+
+  /* Test load word */
+  CTEST(instruct, l_iva3) {
+      uint32_t   psw1, psw2;
+      init_cpu();
+      set_amwp(0);
+      set_cc(CC1);
+      set_reg(3, 0xffffffff);
+      set_reg(4, 0x1000);
+      set_reg(5, 0x203);
+      set_mem(0x28, 0xffffffff);
+      set_mem(0x2c, 0xffffffff);
+      set_mem(0x1b84, 0x68654321);
+      set_mem(0x400, 0x58345984); /* L 3,984(4,5) */
+      test_inst(0x0);
+      psw1 = get_mem(0x28);
+      psw2 = get_mem(0x2c);
+      ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00000006, psw1);
+      ASSERT_EQUAL_X(0x90000404, psw2);
   }
 
 #define ED  0xde
@@ -3391,7 +3479,11 @@ struct _dec_case {
           }
           set_reg(10, 0x1000);
           set_reg(12, 0x2000);
-          set_mem(0x400, (test->op << 24) | ((l1 -1) << 20) | ((l2 -1) << 16) | 0xa000);
+          if (test->op == 0xde) {
+             set_mem(0x400, (test->op << 24) | (((l1) -1) << 16) | 0xa000);
+          } else {
+             set_mem(0x400, (test->op << 24) | ((l1 -1) << 20) | ((l2 -1) << 16) | 0xa000);
+          }
           set_mem(0x404, 0xc0000000);
           set_mem(0x28, 0);
           test_inst(0x4);
@@ -3466,7 +3558,7 @@ struct _dec_case {
       set_mem(0x400, 0x69000100);  /* CD 0,100(0,0) */
       set_mem(0x404, 0x00000000);
       test_inst(0x0);
-      ASSERT_EQUAL(CC2, CC_REG);   /* Greater */
+      ASSERT_EQUAL(CC1, CC_REG);   /* Less */
   }
 
   /* Test compare double */
@@ -3531,7 +3623,6 @@ struct _dec_case {
           test_inst(0x0);
           result = cnvt_64_float(0);
           ratio = fabs((result - desired) / desired);
-//          printf("%e + %e = %e, %e diff %e %e\n", f1, f2, desired, result, desired - result, ratio);
           ASSERT_TRUE(ratio < .000001);
           did++;
       }
@@ -3573,7 +3664,6 @@ struct _dec_case {
           test_inst(0x0);
           result = cnvt_64_float(0);
           ratio = fabs((result - desired) / desired);
-//          printf("%e - %e = %e, %e diff %e %e\n", f1, f2, desired, result, desired - result, ratio);
           ASSERT_TRUE(ratio < .000001);
           did++;
       }
@@ -3611,14 +3701,15 @@ struct _dec_case {
               continue;
           desired = f1 * f2;
           set_mem(0x400, 0x2c020000);  /* MDR 0,2 */
-          test_inst(0x0);
+          test_inst(0x2);
           result = cnvt_64_float(0);
+          if (floatToFpreg(4, desired) != 0)
+              continue;
           ratio = fabs((result - desired) / desired);
-          printf("%e * %e = %e, %e diff %e %e %d\n", f1, f2, desired, result, desired - result, ratio, trap_flag);
           if (fabs(desired) < 5.4e-79 || fabs(desired) > 7.2e75) {
               ASSERT_TRUE(trap_flag);
           } else {
-  //          ASSERT_TRUE(ratio < .000001);
+              ASSERT_TRUE(ratio < .000001);
           }
           did++;
       }
@@ -3756,6 +3847,40 @@ struct _dec_case {
       ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
   }
 
+  FTEST(instruct, ae_rand) {
+      int i;
+      double f1;
+      double f2;
+      double result;
+      double desired;
+      double ratio;
+      unsigned int seed = 5;
+      int did = 0;
+      for (i = 0; i < 100; i++) {
+          f1 = randfloat(&seed, 200);
+          f2 = randfloat(&seed, 200);
+          if (floatToFpreg(0, f1) != 0)
+              continue;
+          if (floatToFpreg(2, f2) != 0)
+              continue;
+          if (floatToFpreg(4, f1) != 0)
+              continue;
+          desired = f1 + f2;
+          if (floatToFpreg(6, desired) != 0)
+              continue;
+          set_mem(0x400, 0x3a020000);  /* AER 0,2 */
+          test_inst(0x2);
+          result = cnvt_32_float(0);
+          ratio = fabs((result - desired) / desired);
+          if (fabs(desired) < 5.4e-79 || fabs(desired) > 7.2e75) {
+              ASSERT_TRUE(trap_flag);
+          } else {
+              ASSERT_TRUE(ratio < .000001);
+          }
+          did++;
+      }
+  }
+
   /* Subtract floating point */
   FTEST(instruct, se) {
       init_cpu();
@@ -3768,6 +3893,34 @@ struct _dec_case {
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12323343, get_fpreg_s(0));
       ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
+  }
+
+  FTEST(instruct, se_rand) {
+      int i;
+      double f1;
+      double f2;
+      double result;
+      double desired;
+      double ratio;
+      unsigned int seed = 5;
+      int did = 0;
+      for (i = 0; i < 100; i++) {
+          f1 = randfloat(&seed, 200);
+          f2 = randfloat(&seed, 200);
+          if (floatToFpreg(0, f1) != 0)
+              continue;
+          if (floatToFpreg(2, f2) != 0)
+              continue;
+          f1 = cnvt_32_float(0);
+          f2 = cnvt_32_float(2);
+          desired = f1 - f2;
+          set_mem(0x400, 0x3b020000);  /* SER 0,2 */
+          test_inst(0x0);
+          result = cnvt_32_float(0);
+          ratio = fabs((result - desired) / desired);
+          ASSERT_TRUE(ratio < .000001);
+          did++;
+      }
   }
 
   /* Multiply floating point */
@@ -3783,6 +3936,39 @@ struct _dec_case {
       ASSERT_EQUAL_X(0x4293fb6f, get_fpreg_s(0));
   }
 
+  FTEST(instruct, me_rand) {
+      int i;
+      double f1;
+      double f2;
+      double result;
+      double desired;
+      double ratio;
+      unsigned int seed = 5;
+      int did = 0;
+      for (i = 0; i < 100; i++) {
+          f1 = randfloat(&seed, 200);
+          f2 = randfloat(&seed, 200);
+          if (floatToFpreg(0, f1) != 0)
+              continue;
+          if (floatToFpreg(2, f2) != 0)
+              continue;
+          f1 = cnvt_32_float(0);
+          f2 = cnvt_32_float(2);
+          desired = f1 * f2;
+          set_mem(0x400, 0x3c020000);  /* MER 0,2 */
+          test_inst(0x2);
+          result = cnvt_32_float(0);
+          ratio = fabs((result - desired) / desired);
+          if (fabs(desired) < 5.4e-79 || fabs(desired) > 7.2e75) {
+              ASSERT_TRUE(trap_flag);
+          } else {
+              ASSERT_TRUE(ratio < .000001);
+          }
+          did++;
+      }
+      ASSERT_TRUE(did > 80);
+  }
+
   /* Divide floating point */
   FTEST(instruct, de) {
       init_cpu();
@@ -3794,6 +3980,41 @@ struct _dec_case {
       set_mem(0x400, 0x7d012100);  /* DE 0,100(1,2) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x42725012, get_fpreg_s(0));
+  }
+
+  FTEST(instruct, de_rand) {
+      int i;
+      double f1;
+      double f2;
+      double result;
+      double desired;
+      double ratio;
+      unsigned int seed = 5;
+      int did = 0;
+      for (i = 0; i < 100; i++) {
+          f1 = randfloat(&seed, 200);
+          f2 = randfloat(&seed, 200);
+          if (floatToFpreg(0, f1) != 0)
+              continue;
+          if (floatToFpreg(2, f2) != 0)
+              continue;
+          f1 = cnvt_32_float(0);
+          f2 = cnvt_32_float(2);
+          desired = f1 / f2;
+          if (fabs(desired) < 5.4e-79 || fabs(desired) > 7.2e75)
+              continue;
+          set_mem(0x400, 0x3d020000);  /* DER 0,2 */
+          test_inst(0x2);
+          result = cnvt_32_float(0);
+          ratio = fabs((result - desired) / desired);
+          if (fabs(desired) < 5.4e-79 || fabs(desired) > 7.2e75) {
+              ASSERT_TRUE(trap_flag);
+          } else {
+              ASSERT_TRUE(ratio < .000001);
+          }
+          did++;
+      }
+      ASSERT_TRUE(did > 80);
   }
 
   /* Add floating point unnormalized */
