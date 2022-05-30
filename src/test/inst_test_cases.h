@@ -49,6 +49,8 @@
   }
 
   CTEST(instruct, fp_32_conversion) {
+      int   i;
+
       ASSERT_EQUAL(0, floatToFpreg(0, 0.0));
 
       set_fpreg_s(0, 0xff000000);
@@ -66,13 +68,13 @@
       set_fpreg_s(0, 0xc1f00000);
       ASSERT_EQUAL(-15.0, cnvt_32_float(0));
 
-      unsigned int seed = 1;
-      for (int i = 0; i < 20; i++) {
-          double f = rand_r(&seed) / (double)(RAND_MAX);
-          int p = (rand_r(&seed) / (double)(RAND_MAX) * 400) - 200;
+      srand(1);
+      for (i = 0; i < 20; i++) {
+          double f = rand() / (double)(RAND_MAX);
+          int p = (rand() / (double)(RAND_MAX) * 400) - 200;
           double fp, ratio;
           f = f * pow(2, p);
-          if (rand_r(&seed) & 1) {
+          if (rand() & 1) {
               f = -f;
           }
           (void)floatToFpreg(0, f);
@@ -84,6 +86,7 @@
   }
 
   CTEST(instruct, fp_64_conversion) {
+      int   i;
       ASSERT_EQUAL(0, floatToFpreg(0, 0.0));
 
       set_fpreg_s(0, 0xff000000);
@@ -106,13 +109,13 @@
       set_fpreg_s(1, 0);
       ASSERT_EQUAL(-15.0, cnvt_64_float(0));
 
-      unsigned int seed = 1;
-      for (int i = 0; i < 20; i++) {
-          double f = rand_r(&seed) / (double)(RAND_MAX);
-          int p = (rand_r(&seed) / (double)(RAND_MAX) * 400) - 200;
+      srand(1);
+      for (i = 0; i < 20; i++) {
+          double f = rand() / (double)(RAND_MAX);
+          int p = (rand() / (double)(RAND_MAX) * 400) - 200;
           double fp;
           f = f * pow(2, p);
-          if (rand_r(&seed) & 1) {
+          if (rand() & 1) {
               f = -f;
           }
           (void)floatToFpreg(0, f);
@@ -123,11 +126,13 @@
 
   /* Roughly test characteristics of random number generator */
   CTEST(instruct, randfloat) {
-      unsigned int seed = 5;
       int pos = 0, neg = 0;
       int big = 0, small = 0;
+      int i;
+
+      srand(5);
       for (int i = 0; i < 100; i++) {
-          double f = randfloat(&seed, 200);
+          double f = randfloat(200);
           if (f < 0) {
               neg ++;
           } else {
@@ -147,8 +152,8 @@
       /* Test scaling */
       big = 0;
       small = 0;
-      for (int i = 0; i < 100; i++) {
-          double f = randfloat(&seed, 10);
+      for (i = 0; i < 100; i++) {
+          double f = randfloat(10);
           if (f < 0) {
               neg ++;
           } else {
@@ -630,11 +635,11 @@
 
   /* Test multiply with random values */
   CTEST(instruct, mult_rand) {
-      unsigned int seed = 1;
+      srand(1);
       init_cpu();
       for (int i = 0; i < testcycles; i++) {
-          int n1 = (int)((double)rand_r(&seed) / (double)(RAND_MAX) * 1000.0);
-          int n2 = (int)((double)rand_r(&seed) / (double)(RAND_MAX) * 1000.0);
+          int n1 = (int)((double)rand() / (double)(RAND_MAX) * 1000.0);
+          int n2 = (int)((double)rand() / (double)(RAND_MAX) * 1000.0);
           if (n1 * n2 >= 0x10000) continue;
           set_reg(3, n1);
           set_reg(4, n2);
@@ -1288,11 +1293,11 @@
   /* Test Add instruction with random numbers */
   CTEST(instruct, add_rand) {
     int i;
-    unsigned int seed = 42;
+    srand(42);
     init_cpu();
     for (i = 0; i < testcycles; i++) {
-      int n1 = rand_r(&seed);
-      int n2 = rand_r(&seed);
+      int n1 = rand();
+      int n2 = rand();
       int sum = (n1) + (n2);
       set_reg(1, n1);
       set_mem(0x100, n2);
@@ -1314,12 +1319,12 @@
 
   /* Test subtract instruction with random numbers */
   CTEST(instruct, sub_rand) {
-    unsigned int seed = 123;
     int   i;
+    srand(123);
     init_cpu();
     for (i = 0; i < testcycles; i++) {
-      int n1 = rand_r(&seed);
-      int n2 = rand_r(&seed);
+      int n1 = rand();
+      int n2 = rand();
       int result = (n1) - (n2);
       set_reg(1, n1);
       set_mem(0x100, n2);
@@ -1341,12 +1346,12 @@
 
   /* Test multiply with random numbers */
   CTEST(instruct, mult_rand2) {
-      unsigned int seed = 42;
       int  i;
+      srand(42);
       init_cpu();
       for (i = 0; i < testcycles; i++) {
-        int n1 = rand_r(&seed);
-        int n2 = rand_r(&seed);
+        int n1 = rand();
+        int n2 = rand();
         int64_t desired = (int64_t)(n1) * (int64_t)(n2);
         int64_t result;
         set_reg(3, n1); /* Note: multiplicand in reg 3 but reg 2 specified. */
@@ -1363,18 +1368,18 @@
 
   /* Test divide instruction with random numbers */
   CTEST(instruct, div_rand) {
-      unsigned int seed = 124;
       int   i;
       int   ov;
+      srand(124);
       init_cpu();
       for (i = 0; i < testcycles; i++) {
           int64_t divisor;
           int64_t dividend;
           int64_t quotient;
           int64_t remainder;
-          dividend = (int64_t)(((uint64_t)rand_r(&seed) << 32) |
-                              (uint64_t)rand_r(&seed))/ 100;
-          divisor = ((int64_t)(int32_t)rand_r(&seed)) / 4;
+          dividend = (int64_t)(((uint64_t)rand() << 32) |
+                              (uint64_t)rand())/ 100;
+          divisor = ((int64_t)(int32_t)rand()) / 4;
           quotient = dividend / divisor;
           remainder = dividend % divisor;
           set_reg(2, (uint32_t)(dividend >> 32));
@@ -1399,12 +1404,12 @@
 
   /* Test add logical with random values */
   CTEST(instruct, add_log_rand) {
-      unsigned int seed = 125;
       int       i;
+      srand(125);
       init_cpu();
       for (i = 0; i < testcycles; i++) {
-          uint32_t n1 = rand_r(&seed);
-          uint32_t n2 = rand_r(&seed);
+          uint32_t n1 = rand();
+          uint32_t n2 = rand();
           uint64_t result = n1+n2;
           int carry = 0;
           set_reg(2, n1);
@@ -1434,12 +1439,12 @@
 
   /* Test subtract logical with random values */
   CTEST(instruct, sub_log_rand) {
-      unsigned int seed = 44;
       int    i;
+      srand(44);
       init_cpu();
       for (i = 0; i < testcycles; i++) {
-          int64_t   n1 = rand_r(&seed);
-          int64_t   n2 = rand_r(&seed);
+          int64_t   n1 = rand();
+          int64_t   n2 = rand();
           int64_t   result = n1 + ((n2 ^ 0xffffffff)) + 1;
           int carry = 0;
           set_reg(2,  ((uint32_t)n1) & 0xffffffff);
@@ -3609,11 +3614,12 @@ struct _dec_case {
       double result;
       double desired;
       double ratio;
-      unsigned int seed = 5;
       int did = 0;
-      for (i = 0; i < 100; i++) {
-          f1 = randfloat(&seed, 200);
-          f2 = randfloat(&seed, 200);
+
+      srand(5);
+      for (i = 0; i < testcycles; i++) {
+          f1 = randfloat(200);
+          f2 = randfloat(200);
           if (floatToFpreg(0, f1) != 0)
               continue;
           if (floatToFpreg(2, f2) != 0)
@@ -3650,11 +3656,11 @@ struct _dec_case {
       double result;
       double desired;
       double ratio;
-      unsigned int seed = 5;
       int did = 0;
-      for (i = 0; i < 100; i++) {
-          f1 = randfloat(&seed, 200);
-          f2 = randfloat(&seed, 200);
+      srand(5);
+      for (i = 0; i < testcycles; i++) {
+          f1 = randfloat(200);
+          f2 = randfloat(200);
           if (floatToFpreg(0, f1) != 0)
               continue;
           if (floatToFpreg(2, f2) != 0)
@@ -3690,11 +3696,11 @@ struct _dec_case {
       double result;
       double desired;
       double ratio;
-      unsigned int seed = 5;
       int did = 0;
-      for (i = 0; i < 100; i++) {
-          f1 = randfloat(&seed, 200);
-          f2 = randfloat(&seed, 200);
+      srand(5);
+      for (i = 0; i < testcycles; i++) {
+          f1 = randfloat(200);
+          f2 = randfloat(200);
           if (floatToFpreg(0, f1) != 0)
               continue;
           if (floatToFpreg(2, f2) != 0)
@@ -3737,11 +3743,11 @@ struct _dec_case {
       double result;
       double desired;
       double ratio;
-      unsigned int seed = 1;
       int did = 0;
+      srand(1);
       for (i = 0; i < 100; i++) {
-          f1 = randfloat(&seed, 200);
-          f2 = randfloat(&seed, 200);
+          f1 = randfloat(200);
+          f2 = randfloat(200);
           if (floatToFpreg(0, f1) != 0)
               continue;
           if (floatToFpreg(2, f2) != 0)
@@ -3854,11 +3860,11 @@ struct _dec_case {
       double result;
       double desired;
       double ratio;
-      unsigned int seed = 5;
       int did = 0;
+      srand(5);
       for (i = 0; i < 100; i++) {
-          f1 = randfloat(&seed, 200);
-          f2 = randfloat(&seed, 200);
+          f1 = randfloat(200);
+          f2 = randfloat(200);
           if (floatToFpreg(0, f1) != 0)
               continue;
           if (floatToFpreg(2, f2) != 0)
@@ -3902,11 +3908,11 @@ struct _dec_case {
       double result;
       double desired;
       double ratio;
-      unsigned int seed = 5;
       int did = 0;
-      for (i = 0; i < 100; i++) {
-          f1 = randfloat(&seed, 200);
-          f2 = randfloat(&seed, 200);
+      srand(5);
+      for (i = 0; i < testcycles; i++) {
+          f1 = randfloat(200);
+          f2 = randfloat(200);
           if (floatToFpreg(0, f1) != 0)
               continue;
           if (floatToFpreg(2, f2) != 0)
@@ -3943,11 +3949,11 @@ struct _dec_case {
       double result;
       double desired;
       double ratio;
-      unsigned int seed = 5;
       int did = 0;
-      for (i = 0; i < 100; i++) {
-          f1 = randfloat(&seed, 200);
-          f2 = randfloat(&seed, 200);
+      srand(5);
+      for (i = 0; i < testcycles; i++) {
+          f1 = randfloat(200);
+          f2 = randfloat(200);
           if (floatToFpreg(0, f1) != 0)
               continue;
           if (floatToFpreg(2, f2) != 0)
@@ -3989,11 +3995,11 @@ struct _dec_case {
       double result;
       double desired;
       double ratio;
-      unsigned int seed = 5;
       int did = 0;
-      for (i = 0; i < 100; i++) {
-          f1 = randfloat(&seed, 200);
-          f2 = randfloat(&seed, 200);
+      srand(5);
+      for (i = 0; i < testcycles; i++) {
+          f1 = randfloat(200);
+          f2 = randfloat(200);
           if (floatToFpreg(0, f1) != 0)
               continue;
           if (floatToFpreg(2, f2) != 0)

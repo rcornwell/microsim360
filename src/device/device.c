@@ -77,3 +77,29 @@ add_chan(struct _device *dev, uint16_t addr)
           d->next = dev;
       }
 }
+
+void
+del_chan(struct _device *dev, uint16_t addr)
+{
+      uint16_t    ch = (addr >> 8) & 0x7;
+      struct   _device *d;
+
+      /* If channel empty, nothing to do. */
+      if (chan[ch] == NULL) {
+          return;
+      }
+      /* Check if at head */
+      if (chan[ch] == dev) {
+          chan[ch] = dev->next;
+          return;
+      }
+      /* Walk to end of list */
+      for (d = chan[ch]; d->next != NULL; d = d->next) {
+           /* If match, then remove it */
+           if (d->next == dev) {
+               d->next = d->next->next;
+               return;
+           }
+      }
+}
+     

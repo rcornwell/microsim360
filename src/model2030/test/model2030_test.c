@@ -252,12 +252,12 @@ set_fpreg_d(int num, uint64_t data)
 /* Return a random floating point number scaled roughly
    to 2**-powRange to 2**powRange */
 double
-randfloat(unsigned int *seed, int powRange)
+randfloat(int powRange)
 {
-    double f = (double)(rand_r(seed) + rand_r(seed)) / pow(2, 32);
-    double p = (double)rand_r(seed) / ((double)RAND_MAX);
+    double f = (double)(rand() + rand()) / pow(2, 32);
+    double p = (double)rand() / ((double)RAND_MAX);
     int pw = (int)(p * (double)powRange * 2.0) - powRange;
-    int    s = rand_r(seed);
+    int    s = rand();
     f = f * pow(2, (double)pw) * 4;
     if (s < (RAND_MAX/2)) {
        f = -f;

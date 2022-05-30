@@ -26,7 +26,10 @@ extern "C" {
 #define CTEST_IMPL_FORMAT_PRINTF(a, b)
 #endif
 
-#include <inttypes.h> /* intmax_t, uintmax_t, PRI* */
+#define __STDC_FORMAT_MACROS
+
+#include <inttypes.h>
+#include <stdint.h> /* intmax_t, uintmax_t, PRI* */
 #include <stddef.h> /* size_t */
 
 typedef void (*ctest_nullary_run_func)(void);

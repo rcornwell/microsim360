@@ -115,6 +115,8 @@ void print_inst(uint8_t *val);
 
 void add_chan(struct _device *dev, uint16_t addr);
 
+void del_chan(struct _device *dev, uint16_t addr);
+
 
 /******************************************************************
  *
