@@ -38,7 +38,9 @@ if (RUN_TESTS)
 add_executable(inst2050_test test/ctest_main.c test/model2050_test.c test/io_test.c
            ../logger.c ../device/disassem.c ../device/xlat.c ../device/device.c
            ../test/test_device.c ${model2050_src})
+if (!WIN32)
 target_link_libraries(inst2050_test m)
+endif()
 add_dependencies(inst2050_test model2050_ros.h)
 add_custom_command(TARGET inst2050_test
             COMMAND inst2050_test
