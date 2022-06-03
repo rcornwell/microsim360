@@ -188,7 +188,6 @@ static void
 done_callback(struct _device *unit, void *arg, int iarg)
 {
     struct _1443_context *ctx = (struct _1443_context *)unit->dev;
-    ctx->status |= SNS_DEVEND;
     ctx->feed_done = 1;
 }
 
@@ -211,6 +210,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
            *tags &= ~(CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SRV_IN|CHAN_STA_IN);
         }
         ctx->selected = 0;
+        ctx->status = 0;
         ctx->state = STATE_IDLE;
         ctx->sense = 0;
         ctx->cmd = 0;
@@ -386,6 +386,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  /* If initial status has channel end, go wait for device to finish */
                  if ((ctx->status & SNS_CHNEND) != 0) {
                      *tags &= ~(CHAN_OPR_IN|CHAN_SEL_OUT);  /* Clear select out, oper in */
+                     ctx->status &= ~SNS_CHNEND;
                      ctx->selected = 0;
                      ctx->state = STATE_WAIT;
                      break;
@@ -402,7 +403,15 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  log_device("printer state done\n");
                  break;
              }
-             *tags &= ~(CHAN_SEL_OUT);                 /* Clear select out and in */
+             /* If operin dropped, continue to process */
+             if (*tags == (CHAN_OPR_OUT)) {
+                 /* Wait for device to have some data to transmit */
+                 ctx->state = STATE_OPR;
+                 log_device("printer bus idle\n");
+                 break;
+             }
+             if (ctx->selected)
+                *tags &= ~(CHAN_SEL_OUT);                 /* Clear select out and in */
              break;
 
     case STATE_OPR:
@@ -456,6 +465,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 *tags &= ~(CHAN_SEL_OUT);              /* Clear select out and in */
                 *tags |= CHAN_STA_IN;                  /* Indicate busy status */
                 *bus_in = SNS_BSY;
+                *bus_in |= odd_parity[*bus_in];
                 ctx->selected = 1;
                 log_device("printer reselect\n");
                 break;
@@ -482,7 +492,8 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 /* Device selected */
                 *tags &= ~(CHAN_SEL_OUT);              /* Clear select out and in */
                 *tags |= CHAN_STA_IN;                  /* Indicate busy status */
-                *bus_in = SNS_CHNEND|SNS_DEVEND|0x100;
+                *bus_in = SNS_CHNEND|SNS_DEVEND;
+                *bus_in |= odd_parity[*bus_in];
                 break;
              }
 
@@ -522,7 +533,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                   ctx->selected = 1;
-                  if (ctx->data_end) {
+                  if (ctx->data_end || ctx->feed_done) {
                       ctx->state = (ctx->status & SNS_DEVEND) ? STATE_END : STATE_DATA_END;
                   } else {
                       ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
@@ -642,8 +653,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                           *tags == (CHAN_OPR_OUT|CHAN_OPR_IN))) {
                  *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;
-                 *bus_in = ctx->status/* & SNS_CHNEND*/;
-                 *bus_in |= odd_parity[*bus_in];
+                 *bus_in = ctx->status | odd_parity[ctx->status];
                  log_device("printer End channel status %02x %02x\n", ctx->status, ctx->cmd);
                  break;
              }
@@ -676,7 +686,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                   break;
              }
 
-             *bus_in = ctx->status |= odd_parity[ctx->status];
+             *bus_in = ctx->status | odd_parity[ctx->status];
              /* Mark channel still in use */
              *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
              *tags |= CHAN_OPR_IN;
@@ -829,6 +839,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 /* Device selected */
                 *tags |= CHAN_STA_IN;
                 *bus_in = SNS_BSY;
+                *bus_in |= odd_parity[*bus_in];
                 ctx->selected = 1;
                 log_device("printer wait select attempt\n");
              }
@@ -842,12 +853,15 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              }
 
              if (ctx->feed_done) {
+                 log_device("printer feed done\n");
                  ctx->status |= SNS_DEVEND;
                  ctx->state = STATE_END;
              }
              break;
 
     }
+    if (ctx->selected)
+        log_device("bus in %03x\n", *bus_in);
 }
 
 
@@ -864,8 +878,9 @@ print_line(struct _1443_context *ctx)
     int                 f = 1;
     int                 r = 0;     /* Rows skipped */
     uint16_t            mask;
-    uint16_t            ch9, ch12;
+    int                 ch9, ch12;
 
+    ch9 = ch12 = 0;
     /* Dump buffer if full */
     if ((ctx->cmd & 0x7) == 01) {
 
@@ -903,10 +918,13 @@ print_line(struct _1443_context *ctx)
             memset(&ctx->output[14][0], 0, 120);
             r++;
             f = 0;
-            if (ctx->fcb[ctx->row] & (0x1000 >> 9) != 0)
+            log_device( " Printer fcb: %04x\n", ctx->fcb[ctx->row]);
+            if ((ctx->fcb[ctx->row] & (0x1000 >> 9)) != 0)
                 ch9 = 1;
-            if (ctx->fcb[ctx->row] & (0x1000 >> 12) != 0)
+            if ((ctx->fcb[ctx->row] & (0x1000 >> 12)) != 0) {
+        log_device( " Printer chan 12\n");
                 ch12 = 1;
+            }
             ctx->row++;
             if (ctx->row > ctx->lpp)
                 break;
@@ -924,6 +942,7 @@ print_line(struct _1443_context *ctx)
            ctx->sense |= SENSE_CHAN9;
         }
         if (ch12 && (ctx->cmd & 0x3) == 0x1) {
+        log_device( " Printer chan 12\n");
            ctx->status |= SNS_UNITEXP;
         }
         return r;
@@ -1048,6 +1067,7 @@ static void lpr_update(struct _popup *popup, void *device, int index)
           if (ctx->state == STATE_IDLE && ctx->file != NULL) {
               ctx->state = STATE_END;
               ctx->status |= SNS_DEVEND;
+              ctx->data_end = 1;
               ctx->stop = 0;
               ctx->single = 0;
               ctx->ready = 1;

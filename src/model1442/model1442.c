@@ -970,6 +970,7 @@ static void model1442_update(struct _popup *popup, void *device, int index)
               if (ctx->rdr_full) {
                   ctx->state = STATE_END;
                   ctx->status = SNS_DEVEND;
+                  ctx->data_end = 1;
               }
           }
           break;
