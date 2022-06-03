@@ -412,4 +412,74 @@ double cnvt_64_float(int num)
     return d;
 }
 
+/* Run one instructions */
+void
+test_io_inst(int mask)
+{
+    cpu_2030.LS[0xAA] = 0x100;
+    cpu_2030.LS[0xA9] = 0x04;
+    cpu_2030.LS[0xBB] = mask | (cpu_2030.LS[0xBB] & 0xf0);
+    cpu_2030.LS[0xBB] |= odd_parity[cpu_2030.LS[0xBB]];
+    trap_flag = 0;
+    cpu_2030.WX = 0x102;
+    START = 1;
+    cpu_2030.I_REG = 0x4;
+    cpu_2030.J_REG = 0x100;
+    do {
+        cycle_2030();
+        step_count++;
+        if (cpu_2030.WX == 0x147)
+           trap_flag = 1;
+        log_trace("WX = [%03X]\n", cpu_2030.WX);
+    } while (cpu_2030.WX != 0x100);
+    log_trace("first\n");
+    do {
+        cycle_2030();
+        step_count++;
+        if (cpu_2030.WX == 0x147)
+           trap_flag = 1;
+        log_trace("WX = [%03X]\n", cpu_2030.WX);
+    } while (cpu_2030.WX != 0x100);
+    log_trace("second\n");
+}
+
+/* Execute two instructions */
+void
+test_io_inst2()
+{
+    cpu_2030.LS[0xAA] = 0x100;
+    cpu_2030.LS[0xA9] = 0x04;
+    cpu_2030.LS[0xBB] = 0;
+    set_cc(CC3);
+    cpu_2030.WX = 0x102;
+    START = 1;
+    cpu_2030.I_REG = 0x4;
+    cpu_2030.J_REG = 0x100;
+    do {
+        cycle_2030();
+        step_count++;
+        if (cpu_2030.WX == 0x147)
+           trap_flag = 1;
+        log_trace("WX = [%03X]\n", cpu_2030.WX);
+    } while (cpu_2030.WX != 0x100);
+    log_trace("first\n");
+    do {
+        cycle_2030();
+        step_count++;
+        if (cpu_2030.WX == 0x147)
+           trap_flag = 1;
+        log_trace("WX = [%03X]\n", cpu_2030.WX);
+    } while (cpu_2030.WX != 0x100);
+    log_trace("second\n");
+    do {
+        cycle_2030();
+        step_count++;
+        if (cpu_2030.WX == 0x147)
+           trap_flag = 1;
+        log_trace("WX = [%03X]\n", cpu_2030.WX);
+    } while (cpu_2030.WX != 0x100);
+    log_trace("third\n");
+}
+
+
 #include "inst_test_cases.h"

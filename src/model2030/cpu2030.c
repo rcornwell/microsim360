@@ -900,7 +900,9 @@ cycle_2030()
                  mem[i] = cpu_2030.M[cpu_2030.MN_REG + i] & 0xff;
              }
              print_inst(mem);
-             log_itrace_c(" IC=%02x%02x CC=%02x", cpu_2030.I_REG & 0xff, cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB]);
+             log_itrace_c(" IC=%02x%02x CC=%02x MSK=%02x AMWP=%x MC=%02x", cpu_2030.I_REG & 0xff,
+                      cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB], cpu_2030.MASK,
+                      cpu_2030.LS[0xb9] & 0x0f, cpu_2030.MC_REG);
              log_itrace("\n");
 
              log_itrace_s(" ");
@@ -911,7 +913,7 @@ cycle_2030()
                       cpu_2030.LS[(i << 4) + 2] & 0xff,
                       cpu_2030.LS[(i << 4) + 3] & 0xff);
                  if ((i & 0x3) == 0x3) {
-                      log_itrace("\n");
+//                      log_itrace("\n");
                       log_itrace_s(" ");
                  }
              }
@@ -1491,7 +1493,7 @@ cycle_2030()
            /* Check parity on B bus */
            if (!second_err_stop &&
                      ((odd_parity[cpu_2030.Bbus & 0xff] ^ cpu_2030.Bbus) & 0x100) != 0) {
-               //printf("Set B bus\n");
+               log_warn("Set B bus %03x\n", cpu_2030.Bbus);
                cpu_2030.MC_REG |= BIT1;
            }
 
@@ -1733,7 +1735,7 @@ cycle_2030()
 
            if (allow_a_reg_chk &&
                      ((odd_parity[cpu_2030.Abus & 0xff] ^ cpu_2030.Abus) & 0x100) != 0) {
-               //printf("Set A bus\n");
+               log_itrace("Set A bus %03x\n", cpu_2030.Abus);
                cpu_2030.MC_REG |= BIT0;
            }
 
@@ -2013,6 +2015,7 @@ cycle_2030()
                    if ((sal->CK & BIT6) != 0 && (sal->CK & BIT7) != 0)  {
                           /* Set interrupt mask */
                           cpu_2030.MASK = (BIT0|BIT1|BIT2|BIT7) & cpu_2030.R_REG;
+log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
                    }
                    /* 1001 Set or reset based on S<0,1,2>
                          S<0> set XX high latch on.

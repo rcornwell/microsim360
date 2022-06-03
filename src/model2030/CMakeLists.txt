@@ -39,7 +39,7 @@ if (RUN_TESTS)
 add_executable(inst2030_test test/ctest_main.c test/model2030_test.c test/io_test.c
            ../logger.c ../device/disassem.c ../device/xlat.c ../device/device.c
            ../test/test_device.c ${model2030_src})
-if (!WIN32)
+if (UNIX)
 target_link_libraries(inst2030_test m)
 endif()
 add_dependencies(inst2030_test model2030_ros.h)

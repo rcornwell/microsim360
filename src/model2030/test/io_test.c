@@ -64,6 +64,75 @@ CTEST2(io_test, tio) {
 }
 
 CTEST2(io_test, sio) {
+     int i;
+     init_cpu();
+     data->test_ctx.max_data = 0x10;
+     data->test_ctx.burst = 1;
+     for (i = 0; i < 0x10; i++) {
+         data->test_ctx.buffer[i] = 0xf0 + i;
+     }
+     MASK = 0x00;
+     set_mem(0x78, 0x00000000);
+     set_mem(0x7c, 0x00000420);
+     set_mem(0x48, 0x500);   /* Set CAW */
+     set_mem(0x500, 0x02000600); /* Set channel words */
+     set_mem(0x504, 0x00000010);
+     set_mem(0x600, 0xffffffff);
+     set_mem(0x400, 0x9c00000f);
+     set_mem(0x404, 0x82000410);
+//     set_mem(0x404, 0x9d00000f);
+     set_mem(0x420, 0x9d00000f);
+     set_mem(0x424, 0x47000424);
+     set_mem(0x410, 0xff060000);
+     set_mem(0x414, 0x14000408);
+
+     test_io_inst2();
+     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
+             get_mem(0x60c), get_mem(0x610));
+     for (i = 0; i < 0x10; i++) {
+          ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x600 + i));
+     }
+     ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
+     ASSERT_EQUAL_X(0xff06000f, get_mem(0x38));
+     ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
+}
+
+CTEST2(io_test, sio2) {
+     int i;
+     init_cpu();
+     data->test_ctx.max_data = 0x10;
+     data->test_ctx.burst = 0;
+     for (i = 0; i < 0x10; i++) {
+         data->test_ctx.buffer[i] = 0xf0 + i;
+     }
+     MASK = 0x00;
+     set_mem(0x78, 0x00000000);
+     set_mem(0x7c, 0x00000420);
+     set_mem(0x48, 0x500);   /* Set CAW */
+     set_mem(0x500, 0x02000600); /* Set channel words */
+     set_mem(0x504, 0x00000010);
+     set_mem(0x600, 0xffffffff);
+     set_mem(0x400, 0x9c00000f);
+     set_mem(0x404, 0x82000410);
+//     set_mem(0x404, 0x9d00000f);
+     set_mem(0x420, 0x9d00000f);
+     set_mem(0x424, 0x47000424);
+     set_mem(0x410, 0xff060000);
+     set_mem(0x414, 0x14000408);
+
+     test_io_inst2();
+     for (i = 0; i < 0x10; i++) {
+          ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x600 + i));
+     }
+     ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
+     ASSERT_EQUAL_X(0xff06000f, get_mem(0x38));
+     ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
+}
+
+CTEST2(io_test, sio3) {
      init_cpu();
      set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x04000600); /* Set channel words */
