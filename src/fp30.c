@@ -336,6 +336,7 @@ draw_screen()
         SDL_RenderDrawLine( render, marks[i].x1, marks[i].y1,
                                     marks[i].x2, marks[i].y2);
     }
+
     /* Draw ROS lights */
     for (i = 0; i < ros_ptr; i++) {
         int row = 0;
@@ -455,8 +456,8 @@ draw_screen()
               SDL_RenderDrawLine( render, dial[i].pos_x[j], dial[i].pos_y[j],
                                       dial[i].center_x, dial[i].center_y);
           }
-          draw_circle(dial[i].center_x, dial[i].center_y, (2 *f1_hd) , c);
-          draw_circle(dial[i].center_x, dial[i].center_y, (2 *f1_hd) - (f1_hd/2), c1);
+          draw_circle(dial[i].center_x, dial[i].center_y, 15 , c);
+          draw_circle(dial[i].center_x, dial[i].center_y, 10, c1);
           SDL_SetRenderDrawColor( render, c1.r, c1.g, c1.b, 0xff);
           SDL_RenderDrawLine( render, dial[i].pos_x[*(dial[i].value)],
                                       dial[i].pos_y[*(dial[i].value)],
@@ -523,7 +524,7 @@ draw_screen()
         rect2.y = 0;
         rect2.w = 15;
         rect2.h = 15;
-        for (j = 0; j <= 36; j++) {
+        for (j = 0; j < 36; j++) {
              uint32_t      v = LAMP_TEST;
 
              rect2.y = 0;
@@ -531,7 +532,7 @@ draw_screen()
                  v = *roller[i].disp[roller[i].sel].value[j];
              }
              /* Handle uint8_t types as well */
-             if (roller[i].disp[roller[i].sel].value8[j] != 0) {
+             else if (roller[i].disp[roller[i].sel].value8[j] != 0) {
                  v = (uint32_t)(*roller[i].disp[roller[i].sel].value8[j]);
              }
              v >>= roller[i].disp[roller[i].sel].shift[j];
@@ -548,7 +549,7 @@ draw_screen()
                  }
                  v = p;
              }
-             if (v)
+             if (LAMP_TEST || v)
                 rect2.y = 15;
              SDL_RenderCopy(render, lamps, &rect2, &rect);
              rect.x += roller_light_offset[j];
@@ -1050,7 +1051,7 @@ int main(int argc, char *argv[]) {
 
     step_count = 0;
     log_init("debug.log");
-    log_level = LOG_TRACE|LOG_ITRACE|LOG_REG|LOG_MICRO|LOG_DEVICE|LOG_TAPE|LOG_CONSOLE;
+    log_level = LOG_ITRACE|LOG_DEVICE|LOG_TAPE;
     /* Start SDL */
     SDL_Init( SDL_INIT_EVERYTHING );
     TTF_Init();
@@ -1098,6 +1099,7 @@ int main(int argc, char *argv[]) {
 
     cpu_2030.mem_max = 0x3fff;
     setup_fp2030(render);
+    //setup_fp2050(render);
 
     model1050_init();
     (void)model1443_init(render2, 0x00b);
