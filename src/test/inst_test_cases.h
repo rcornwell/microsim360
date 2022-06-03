@@ -470,6 +470,36 @@
       ASSERT_EQUAL(CC2, CC_REG);   /* Positive */
   }
 
+  /* Subtract instruction */
+  CTEST(instruct, subtract3) {
+      init_cpu();
+      set_reg(1, 0x8fffffff);
+      set_mem(0x400, 0x1b110000);  /* SR 1,1 */
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0x0, get_reg(1));
+      ASSERT_EQUAL(CC0, CC_REG);   /* Zero */
+  }
+
+  /* Subtract instruction */
+  CTEST(instruct, subtract4) {
+      init_cpu();
+      set_reg(1, 0xffffffff);
+      set_mem(0x400, 0x1b110000);  /* SR 1,1 */
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0x0, get_reg(1));
+      ASSERT_EQUAL(CC0, CC_REG);   /* Zero */
+  }
+
+  /* Subtract instruction */
+  CTEST(instruct, subtract5) {
+      init_cpu();
+      set_reg(1, 0x80000000);
+      set_mem(0x400, 0x1b110000);  /* SR 1,1 */
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0x0, get_reg(1));
+      ASSERT_EQUAL(CC0, CC_REG);   /* Zero */
+  }
+
   /* Subtract half */
   CTEST(instruct, sub_half) {
       init_cpu();

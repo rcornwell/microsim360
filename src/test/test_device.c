@@ -28,6 +28,7 @@
 #include "xlat.h"
 #include "logger.h"
 #include "device.h"
+#include "test_device.h"
 
 #define SENSE_CMDREJ    BIT0  /* Invalid command */
 #define SENSE_INTERV    BIT1  /* Operator intervention, test empty */
@@ -53,24 +54,6 @@
 #define STATE_STACK_CMD 13    /* Stack command */
 #define STATE_STACK_HLD 14    /* Stack hold */
 #define STATE_WAIT      15    /* After data transfer wait motion */
-
-
-struct _test_context {
-    int                    addr;         /* Device address */
-    int                    chan;         /* Channel address */
-    int                    state;        /* Current channel state */
-    int                    selected;     /* Device currently selected */
-    int                    sense;        /* Current sense value */
-    int                    cmd;          /* Current command */
-    int                    status;       /* Current bus status */
-    int                    data;         /* Current byte to send/recieve */
-    int                    data_rdy;     /* Data is valid */
-    int                    data_end;     /* Data transfer over */
-    int                    cmd_done;     /* Command finished */
-    uint8_t                buffer[256];  /* Data buffer. */
-    int                    max_data;     /* Max counter. */
-    int                    data_cnt;     /* Data counter */
-};
 
 void
 test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in)
@@ -233,7 +216,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                  }
 
                  /* If select out has dropped, drop operator in if no data to send */
-                 if ((*tags & CHAN_SEL_OUT) == 0 && ctx->data_rdy == 0) {
+                 if ((*tags & CHAN_SEL_OUT) == 0 && ctx->data_rdy == 0 && ctx->burst == 0) {
                      *tags &= ~(CHAN_OPR_IN);           /* Clear select out and in */
                      ctx->selected = 0;
                  }
@@ -248,21 +231,15 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              break;
 
     case STATE_OPR:
-             log_device("test opr %d\n", ctx->selected);
+             log_device("test opr %d r=%d e=%d\n", ctx->selected, ctx->data_rdy, ctx->data_end);
 
              /* If we are selected clear select in */
              if (ctx->selected)
                  *tags &= ~CHAN_SEL_OUT;
 
+             
              /* If data ready, try and get/send it */
              if (ctx->data_rdy) {
-                 if (ctx->cmd == 2) {
-                     ctx->data = ctx->buffer[ctx->data_cnt];
-                     if (ctx->data_cnt > ctx->max_data)
-                         ctx->data_end = 1;
-                     else
-                         ctx->data_cnt++;
-                 }
                  ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
                  break;
              }
@@ -277,6 +254,20 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                  }
                  if ((ctx->status & SNS_DEVEND) != 0) {
                     ctx->state = STATE_END;
+                 }
+                 break;
+             }
+
+             if (ctx->cmd == 2) {
+log_trace("Test send data %d\n", ctx->max_data);
+                 ctx->data = ctx->buffer[ctx->data_cnt];
+                 if (ctx->data_cnt >= ctx->max_data) {
+                     ctx->data_end = 1;
+                     ctx->data_rdy = 0;
+                     ctx->status |= SNS_CHNEND|SNS_DEVEND;
+                 } else {
+                     ctx->data_rdy = 1;
+                     ctx->data_cnt++;
                  }
                  break;
              }
@@ -350,7 +341,9 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              }
 
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                  /* Put our address on the bus */
                  *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
@@ -373,12 +366,6 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                   break;
               }
 
-              /* See if another device got it. */
-              if ((*tags & (CHAN_OPR_IN|CHAN_STA_IN)) != 0) {
-                  /* Drop request out until channel free again */
-                  log_device("test Other device\n");
-                  break;
-              }
               /* Put request in up */
               *tags |= CHAN_REQ_IN;
               break;

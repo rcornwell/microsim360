@@ -41,6 +41,7 @@ struct _test_context {
     int                    selected;     /* Device currently selected */
     int                    sense;        /* Current sense value */
     int                    cmd;          /* Current command */
+    int                    cmd_done;     /* Command finished */
     int                    status;       /* Current bus status */
     int                    data;         /* Current byte to send/recieve */
     int                    data_rdy;     /* Data is valid */
@@ -48,6 +49,7 @@ struct _test_context {
     uint8_t                buffer[256];  /* Data buffer. */
     int                    max_data;     /* Max counter. */
     int                    data_cnt;     /* Data counter */
+    int                    burst;        /* Transfer in burst mode */
 };
 
 void test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
