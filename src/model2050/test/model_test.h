@@ -102,3 +102,9 @@ void test_inst(int mask);
 /* Execute two instructions */
 void test_inst2();
 
+/* Run one instructions */
+void test_io_inst(int mask);
+
+/* Run one instructions */
+void test_io_inst2();
+

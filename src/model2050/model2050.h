@@ -173,6 +173,8 @@ uint8_t     J_REG;               /* J register */
 uint8_t     Q_REG;               /* Q register */
 uint8_t     S_REG;               /* S status bits */
 uint8_t     BS_REG;              /* Byte mask regiser */
+uint8_t     BI_REG;              /* Byte mask in I/O mode */
+uint8_t     IO_REG;
 uint8_t     LSGNS;               /* Left sign flag */
 uint8_t     RSGNS;               /* Right sign flag */
 uint8_t     SYLS1;               /* One sylabal opcode */

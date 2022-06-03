@@ -297,4 +297,63 @@ test_inst2()
     } while (max < 500);
 }
 
+void
+test_io_inst(int mask)
+{
+    int      max = 0;
+    cpu_2050.IA_REG = 0x400;
+    cpu_2050.PMASK = (mask & 0xf);
+    trap_flag = 0;
+    cpu_2050.ROAR = 0x190;
+    cpu_2050.REFETCH = 1;
+    cpu_2050.mem_state = 0;
+        log_trace("Start inst\n");
+    do {
+        cycle_2050();
+        step_count++;
+        max++;
+        if ((cpu_2050.ROAR & 0xffc) == 0x148)
+           break;
+        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
+           break;
+        if (cpu_2050.ROAR == 0x10e)
+           trap_flag = 1;
+        log_trace("ROAR = [%03X]\n", cpu_2050.ROAR);
+    } while (max < 2000);
+    if (max > 1000)
+        log_trace("overrun\n");
+
+}
+
+void
+test_io_inst2()
+{
+    int      max = 0;
+    int      count;
+    cpu_2050.IA_REG = 0x400;
+    cpu_2050.PMASK = 0;
+    cpu_2050.ROAR = 0x190;
+    cpu_2050.REFETCH = 1;
+    cpu_2050.mem_state = 0;
+    trap_flag = 0;
+    count = 0;
+    do {
+        cycle_2050();
+        step_count++;
+        max++;
+        log_trace("ROAR = [%03X]\n", cpu_2050.ROAR);
+        if ((cpu_2050.ROAR & 0xffc) == 0x148) {
+           if (count++ == 2) {
+               log_trace("Count =2 \n");
+               break;
+           }
+        }
+        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
+           break;
+        if (cpu_2050.ROAR == 0x10e)
+           trap_flag = 1;
+    } while (max < 4000);
+    log_trace("Max = %d\n", max);
+}
+
 #include "inst_test_cases.h"
