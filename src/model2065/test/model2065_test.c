@@ -42,7 +42,7 @@
 #define FTEST(a, b)   CTEST(a, b)
 #define DTEST(a, b)   CTEST(a, b)
 
-#define IAR  (cpu_2065.IA_REG)
+#define IAR  (cpu_2065.IC_REG)
 
 #define MASK cpu_2065.MASK
 
@@ -230,12 +230,12 @@ double cnvt_64_float(int num)
 /* Return a random floating point number scaled roughly
    to 2**-powRange to 2**powRange */
 double
-randfloat(unsigned int *seed, int powRange)
+randfloat(int powRange)
 {
-    double f = (double)(rand_r(seed) + rand_r(seed)) / pow(2, 32);
-    double p = (double)rand_r(seed) / ((double)RAND_MAX);
+    double f = (double)(rand() + rand()) / pow(2, 32);
+    double p = (double)rand() / ((double)RAND_MAX);
     int pw = (int)(p * (double)powRange * 2.0) - powRange;
-    int    s = rand_r(seed);
+    int    s = rand();
     f = f * pow(2, (double)pw) * 4;
     if (s < (RAND_MAX/2)) {
        f = -f;
@@ -265,20 +265,16 @@ void
 test_inst(int mask)
 {
     int      max = 0;
-    cpu_2065.IA_REG = 0x400;
+    cpu_2065.IC_REG = 0x400;
     cpu_2065.PMASK = (mask & 0xf);
     trap_flag = 0;
     cpu_2065.ROAR = 0x190;
-    cpu_2065.REFETCH = 1;
-    cpu_2065.mem_state = 0;
         log_trace("Start inst\n");
     do {
         cycle_2065();
         step_count++;
         max++;
         if ((cpu_2065.ROAR & 0xffc) == 0x148)
-           break;
-        if ((cpu_2065.ROAR == 0x188) && (cpu_2065.SDR_REG == 0))
            break;
         if (cpu_2065.ROAR == 0x10e)
            trap_flag = 1;
@@ -294,11 +290,9 @@ test_inst2()
 {
     int      max = 0;
     int      count;
-    cpu_2065.IA_REG = 0x400;
+    cpu_2065.IC_REG = 0x400;
     cpu_2065.PMASK = 0;
     cpu_2065.ROAR = 0x190;
-    cpu_2065.REFETCH = 1;
-    cpu_2065.mem_state = 0;
     trap_flag = 0;
     count = 0;
     do {
@@ -310,8 +304,6 @@ test_inst2()
            if (count++ == 2)
                break;
         }
-        if ((cpu_2065.ROAR == 0x188) && (cpu_2065.SDR_REG == 0))
-           break;
         if (cpu_2065.ROAR == 0x10e)
            trap_flag = 1;
     } while (max < 500);

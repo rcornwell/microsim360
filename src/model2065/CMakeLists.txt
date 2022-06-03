@@ -37,7 +37,9 @@ add_dependencies(${PROJECT_NAME} model2065_ros.h)
 if (RUN_TESTS)
 add_executable(inst2065_test test/ctest_main.c test/model2065_test.c
            ../logger.c ../device/disassem.c ../device/xlat.c ${model2065_src})
-target_link_libraries(inst2050_test m)
+if (UNIX)
+target_link_libraries(inst2065_test m)
+endif()
 add_dependencies(inst2065_test model2065_ros.h)
 add_custom_command(TARGET inst2065_test
             COMMAND inst2065_test

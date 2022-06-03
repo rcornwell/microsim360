@@ -209,23 +209,22 @@ loop:
         ros_2065[addr1].row4 = bits[3];
     }
     for (addr1 = 0; addr1 < 4096; addr1++) {
-                          /*       MODE  IND    A     B     C     D     E */
-        fprintf(out, "/* %03x */ { 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, "
+                          /*       MODE    A     B     C     D     E */
+        fprintf(out, "/* %03x */ { 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, "
                    /*   F      G    H      J      K    L      M     N   P  */
                      " 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, "
                    /*    Q    R     T     U     V     W    NX  */
                      " 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, "
                    /*  row1    row2    row3     row4   note  ec */
                      " 0x%08x, 0x%08x, 0x%08x, 0x%08x, \"%s\", \"%s\"},\n",
-                  addr1, ros_2065[addr1].MODE, ros_2065[addr1].IND, ros_2065[addr1].A,
-                         ros_2065[addr1].B, ros_2065[addr1].C, ros_2065[addr1].D,
-                         ros_2065[addr1].E, ros_2065[addr1].F, ros_2065[addr1].G,
-                         ros_2065[addr1].H, ros_2065[addr1].J, ros_2065[addr1].K,
-                         ros_2065[addr1].L, ros_2065[addr1].M, ros_2065[addr1].N,
-                         ros_2065[addr1].P, ros_2065[addr1].Q, ros_2065[addr1].R,
-                         ros_2065[addr1].T, ros_2065[addr1].U, ros_2065[addr1].V,
-                         ros_2065[addr1].W, ros_2065[addr1].NX, 
-                         ros_2065[addr1].row1, ros_2065[addr1].row2,
+                  addr1, ros_2065[addr1].MODE, ros_2065[addr1].A, ros_2065[addr1].B,
+                         ros_2065[addr1].C, ros_2065[addr1].D, ros_2065[addr1].E,
+                         ros_2065[addr1].F, ros_2065[addr1].G, ros_2065[addr1].H,
+                         ros_2065[addr1].J, ros_2065[addr1].K, ros_2065[addr1].L,
+                         ros_2065[addr1].M, ros_2065[addr1].N, ros_2065[addr1].P,
+                         ros_2065[addr1].Q, ros_2065[addr1].R, ros_2065[addr1].T,
+                         ros_2065[addr1].U, ros_2065[addr1].V, ros_2065[addr1].W,
+                         ros_2065[addr1].NX, ros_2065[addr1].row1, ros_2065[addr1].row2,
                          ros_2065[addr1].row3, ros_2065[addr1].row4,
                          ros_2065[addr1].note, ros_2065[addr1].ec);
     }

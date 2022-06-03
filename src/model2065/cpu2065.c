@@ -29,6 +29,14 @@
 #include "device.h"
 #include "model2065.h"
 
+#define STAA  BIT0
+#define STAB  BIT1
+#define STAC  BIT2
+#define STAD  BIT3
+#define STAE  BIT4
+#define STAF  BIT5
+#define STAG  BIT6
+#define STAH  BIT7
 
 /* Forced address to ROSAR */
 
@@ -73,9 +81,9 @@ char *a_field[] = { "", "B", "B,IC", "A,B", "AB17", "AB", "AB38",
 char *b_field[] = { "", ">S", ">T", ">S,T" };
 
 char *c_field[] = { "", "PSW>ST", "PSW>S23", "ST04>PSW", "T", "DT", "JWT", "T,D",
-                    "MS1>T", "MS>ST", "MSO>T", "ARD-KEYS>D", "DWS", "ST", "D", 
+                    "MS1>T", "MS>ST", "MSO>T", "ARD-KEYS>D", "DWS", "ST", "D",
                     "ATRSEL RESET", "T4>PSW", "DATA-KEYS>ST", "TB>MCW", "MS>Q",
-                    "TIF", "G", "]LM>N,Q>R*IC", "DTS", "MS>T*D(21)", "S0>PSW", 
+                    "TIF", "G", "]LM>N,Q>R*IC", "DTS", "MS>T*D(21)", "S0>PSW",
                     "MSO>S", "]K", "]N1"};
 /* Card C */
 char *d_field[] = { "", "NEOP", "EEOP", "BEOP", "DIR-CNTL>F", "F0", "F1", "F"};
@@ -92,7 +100,7 @@ char *f_field[] = { "", "RESET", "SIGNS>STATS", "1>STAA*J47=0", "0>STAA*J47!0", 
                     "DVD-CHECK", "1>INV-OP-TGR", "1>INTREQ-TGR", "1>OFLO/UFLO", "SAJOS",
                     "]512CRY>ICLT", "SASCR", "0>INT-TGR", "1>ASC*J57=0", "0>ASC,XEC", "0>TIME-STEP",
                     "1>TIME-GATE", "0>TIME-GATE", "INH-W-PAR-CK", "]0>CC", "]1>CC", "]2>CC", "]3>CC",
-                    "STAC>STAF", "]512CRY>DLT}", "IF-INV>TGR", "1>STAB*J31=1", "RSLT-SIGN>LS", 
+                    "STAC>STAF", "]512CRY>DLT}", "IF-INV>TGR", "1>STAB*J31=1", "RSLT-SIGN>LS",
                     "1>SCAN-MODE", "1>XEC-TGR", "J7>STC", "0>STP,STPLP", "0>STAG",
                     "J7>ABC", "D>STC", "ABC,STC-1", "ABC-1", "STC-1", "0>STC",
                     "ABC,STC+1", "ABC+1", "STC+1", "3>STC", "E3>ABC,STC",
@@ -104,7 +112,7 @@ char *g_field[] = {  "", "1>STAA*W!0", "1>STAA*J18=0", "FXPOFLO>STAB",
                      "]SE-DEF>F", "0>STAH", "DECOFLO>STAB", "1>STAB,STAG",
                      "1>STAG", "Q->R*D", "]1>INTR-GATE", "]0>INTR-GATE",
                      "", "1>STAH", "1>STAB*J2623", "RASCR",
-                     "0>IC(21,22)", "1>IC(21,22)", "2>IC(21,22)", "3>IC(21,22)", 
+                     "0>IC(21,22)", "1>IC(21,22)", "2>IC(21,22)", "3>IC(21,22)",
                      "DVDLO", "DVDL1", "1>INST-MSREQ", "0>BR-INV-ADR",
                      "INV-ADR>TGR", "INH-MS-PROT", "SET-KEY", "INSERT-KEY",
                      "]CE-ID>F", "]PIR>F", "SEL-MPL*E3", "TEST-AND-SET" };
@@ -116,24 +124,24 @@ char *h_field[] = { "", "]T>EXTREG", "]T>PSBAR", "]T>SELREG",
                    "RF*E3|1", "RF*E3", "RG*E3|1", "W*E11-15", "R*E3", "x", "y",
                    "R*E11-15", "RF*R2", "RG*R2", "R*24", "W*24", "]T>DARMSK", "]ST04>ATR",
     };
-                  
+
 /* Card R */
 /* Set ROSAR Bit 11 */
 char *j_field[] = { "0", "1", "W-CRY", "T(32)", "JCRY28", "LS-PB", "]TCS",
              "ABC=0", "J47=0.OFLO", "J57=0", "J47=0", "BCNM|", "]LMT", "IC3=3", "~F04",
              "D2=3", "E3!1", "E3!1", "]STAC", "MCW04", "XECTGR", "STO-PB", "E(03)",
              "STC=7", "]E3.RR", "DIS-PB", "HSMOVE", "]ATRSEL", "UFLO", "M/DVD",
-             "IPL]PSW", "IC-PB", "E3!4", "E2=E3", "STT-PB", "]FLT", "HLD]IN", 
+             "IPL]PSW", "IC-PB", "E3!4", "E2=E3", "STT-PB", "]FLT", "HLD]IN",
              "SB-PB", "D22=1", "ABC=7", "]T(63)", "]IOCE", "]IOERR", "]STATE0",
-             "]REG-SET", "]512CRY", "]SAS=18", "", "E3=255", "SAS=0", "STAB", 
+             "]REG-SET", "]512CRY", "]SAS=18", "", "E3=255", "SAS=0", "STAB",
              "", "RELI/O", "SAS=13", "", "STC!3", "", "", "", "", "", "", "", "",
              /* 64 */"4<E3", "ABC!3", "STAH", "CONTIN", "W=0", "TCS/ST", "",
              "3<STC", "", "", "", "", "", "", "", "", "J47=1", "STAA" "DECDIV",
              "]TIC", "STAF=C", "ROS-PB", "JCRY4", "", "", "", "", "", "", "", "", "",
-             "DREG(18-23)", "NEXTINST", "DECIMAL", "IC(21-22)", "W1=(01-15)", 
-             "STAE,F1SGN+", "E(04-07)>ROA", "E02-07)>ROA", "EDIT", "FLPT-UN,COMP", 
+             "DREG(18-23)", "NEXTINST", "DECIMAL", "IC(21-22)", "W1=(01-15)",
+             "STAE,F1SGN+", "E(04-07)>ROA", "E02-07)>ROA", "EDIT", "FLPT-UN,COMP",
              "]W(01-02)", "LOGIC-COMP", "STAD,STAG", "J1=0/1,J18=0", "SAS2,3,4",
-             "J1=0,J17=0", "", "", "", "", "", "", "", "", "FLT", "NEXT-INST*D", 
+             "J1=0,J17=0", "", "", "", "", "", "", "", "", "FLT", "NEXT-INST*D",
              "J(58-63)", "A1=0,J5=0", "ALT,MS-TEST", "]J47!0." };
 
 /* Card R */
@@ -171,7 +179,7 @@ char *t_field[] = { "0", "BL2", "IC", "DEC", "F1", "ABL2", "8", "B8J9",
 
 /* Card A */
 char *u_field[] = { "0", "-TL1", "-D", "+D", "+S", "-DTL1", "+TL1", "+DTL1",
-                   "+T45R", "+T67", "-D+7", "+DJ13", "-DT", "-T", "+T", 
+                   "+T45R", "+T67", "-D+7", "+DJ13", "-DT", "-T", "+T",
                    "+DT", "+]K", "]FMT0*E13-15", "]FMTN*E13-15", "]FMTW*E13-15",
                    "+]2", "+]32", "", "", "+]T45R", "+]T67" };
 /* Card A */
@@ -185,20 +193,35 @@ char *w_field[] = { "0", "]13>ADR-SQCR", "]LMT1", "]LMT2", "SAMLE]VALUE", "]MS>L
 /* Card C */
 char *sd_field[] = { "", "", "ADRSQNCR-1", "]16>ADR-SQCR", "]15>ADR>SQCR", "MSK-ADR>SAB",
                       "SCAN-SREG" };
-char *sf_field[] = { "", "1>CTRCTL-TGR", "", "", "STOP.1>UNCND", "0>TIC,GAP", 
+char *sf_field[] = { "", "1>CTRCTL-TGR", "", "", "STOP.1>UNCND", "0>TIC,GAP",
                      "1>MCH-CK TRP", "SCANOUT-TREG", "0>PASS/FAIL" };
 
 char *sg_feild[] = { "", "SCANOUT-RTWD", "", "", "SCANOUT-LTWD", "", "", "",
                   "1>PASS/FAIL", "]INVERT-BFR1", "FLT]INITLIZE", "]7>ADR-SQCR",
                   "]MACH-RESET", "0>SCAN-MODE", "SCAN-IN", "]23>ADR-SQCR" };
+
+struct CPU_2065 cpu_2065;
+
 void
 cycle_2065()
 {
     struct ROS_2065 *sal;
+    uint16_t    next_roar;
+    int         a_bit;
+    int         b_bit;
+    uint64_t    carry_in;
+    uint64_t    carries;
 
+    sal = &ros_2065[cpu_2065.ROAR];
+    next_roar = sal->NX;
+
+    a_bit = b_bit = 0;
     switch(sal->J) {
     case 0:    /* 0 */
+            break;
     case 1:    /* 1 */
+            a_bit = 1;
+            break;
     case 2:    /* if carry out of serial adder */
     case 3:    /* if T32=1 */
     case 4:    /* if PAL 28 carry = 0 */
@@ -206,7 +229,7 @@ cycle_2065()
     case 6:    /* if clock step */
     case 7:    /* if ABC == 0 */
     case 8:    /* if Pal63 == 0 and (stag & F4-7==Pos or not stag & F4-7==neg) */
-    csae 9:    /* if Pal 40-64==0 */
+    case 9:    /* if Pal 40-64==0 */
     case 10:   /* if Pal 32-63 == 0 */
     case 11:   /* if condition not met for bc or if rr format and e12-15==0 */
     case 12:   /* if limit latch is on */
@@ -216,8 +239,8 @@ cycle_2065()
     case 16:   /* If e12-15 != 0001 */
     case 17:   /* if e14-15!= 11 */
     case 18:   /* stac == 0 */
-    csae 19:   /* maint control word 04 =1 */
-    csae 20:   /* if execute tgr = 1 */
+    case 19:   /* maint control word 04 =1 */
+    case 20:   /* if execute tgr = 1 */
     case 21:   /* if sotr pushbutton on */
     case 22:   /* if e03=1 */
     case 23:   /* if stc=111 */
@@ -227,7 +250,7 @@ cycle_2065()
     case 27:   /* if receive atr select on */
     case 28:   /* if sal0=1 and ingating not inhibited or f0=1 */
     case 29:   /* if decimal mult or divide */
-    csae 30:   /* If IPL or PSW restrt pushbutton */
+    case 30:   /* If IPL or PSW restrt pushbutton */
     case 31:   /* If instr counter pushbutton */
     case 32:   /* If e12-15 not = 100 */
     case 33:   /* If e08-11 = E12-15 */
@@ -303,8 +326,8 @@ cycle_2065()
                   Set ROSAR 11 if fltg pt compare oper */
     case 106:  /* Set ROSAR 10 if SAL bit 01 == 1.
                   Set ROSAR 11 if SAL bit 02 == 1. */
-    case 107:  /* Set ROSAR 09 if SAL00-07 == 0. 
-                  Set ROSAR 10 if (ABC==111 and SAL00-07 == 0) or 
+    case 107:  /* Set ROSAR 09 if SAL00-07 == 0.
+                  Set ROSAR 10 if (ABC==111 and SAL00-07 == 0) or
                                  (SAL00-07 != 0 and carry out s adder.
                   Set ROSAR 11 if STC==111 or E08-15 == 0 */
     case 108:  /* Set ROSAR 10 if STAD==1.
@@ -335,11 +358,15 @@ cycle_2065()
                   Set ROSAR 11 if Test is storage FLT. */
     case 125:  /* Set ROSAR 10 if no carry from PAL32 and PAL32-63 != 0.
                   Set ROSAR 11 if carry from PAL32 and PAL32-63 != 0. */
+            break;
     }
 
     switch(sal->K) {
     case 0:    /* 0 */
+            break;
     case 1:    /* 1 */
+            b_bit = 1;
+            break;
     case 2:    /* if E12-15 == 1111 */
     case 3:    /* If E08-11 incr latches == 0000 or STC = 000 */
     case 4:    /* if E08-11 == 1111 */
@@ -363,26 +390,35 @@ cycle_2065()
     case 20:   /* if E12-15 == 0000 or STC=111 */
     case 21:   /* If program interrupt */
     case 22:   /* If F04-07 != 0001 */
-    case 23:   /* If F04-07 != 1001 */ 
+    case 23:   /* If F04-07 != 1001 */
     case 24:   /* Set ROSAR 00-11 to T40-51 Scan */
     case 25:   /* If exception force address of ROSAR per source of exception */
     case 26:   /* If E08-15 > 6 */
     case 27:   /* If move operation */
-    case 28:   /* If f01==1 and psw bit 38==0 or 
+    case 28:   /* If f01==1 and psw bit 38==0 or
                      STAD==0 and PSW bit 38 == 0 and mult or dvd */
     case 31:   /* If interrupt and force addr 010 */
+            break;
     }
 
     switch(sal->L) {
-    case 0:     
+    case 0:
     case 1:     /* Inhibit rise of next P2 for 1 cycle */
     case 2:     /* Inhibit rise of next P2 for 2 cycle */
     case 3:     /* Request logout words from storage per ABC */
     case 4:     /* Set mark 0-7 */
+             cpu_2065.MARKS = 0xff;
+             break;
     case 5:     /* Set mark 0-3 */
+             cpu_2065.MARKS = 0xf0;
+             break;
     case 6:     /* Set marks per stc */
+             cpu_2065.MARKS = 0x80 >> cpu_2065.STC_REG;
+             break;
     case 7:     /* set marks 0-3 if PAL61 == 0,
                    set marks 4-7 if pal61 == 1 */
+             cpu_2065.MARKS = (cpu_2065.pal & 0x40) ? 0xf : 0xf0;
+             break;
     case 8:     /* IC request store (3 cycle) */
     case 9:     /* IC request store (4 cycle) */
     case 10:    /* D request store (3 cycle) */
@@ -390,38 +426,11 @@ cycle_2065()
     case 12:    /* if D21-23=3 IC request store (3 cycle) turn on instruction mem tgr */
     case 13:    /* Scan request store (4 cycle ) */
     case 14:    /* Request to store XY reg (requires set marks */
+            break;
     };
 
-    /* Ingate to A,B,IC */ 
-    switch (sal->A) {
-    case 0:  /*       Nop */
-    case 1:  /* B     PAL32-63 to B32-63 */
-    case 2:  /* B,IC  PAL32-63 to B32-63 and PAL 40-63 to IC00-23 */
-    case 3:  /* A,B   PAL32-63 to A00-31 and B32-63 */
-    case 4:  /* AB17  PAL 0-63 to AB08-63 A0-7 untouched */
-    case 5:  /* AB    PAL 4-67 to AB04-67, zero to A0-3 */
-    case 6:  /* AB38  PAL24-67 to AB24-67 */
-    case 7:  /* B38M  PAL24-67 to AB24-67 if PAL66,67 == 0 M1M2 to PAL64,65 */
-    case 8:  /* J9B8  PAL28-31 to B64-67 (PAL24-27 must be 0000) */
-    case 9:  /* MS>AB SDB0 00-63 to AB00-63 */
-    case 10: /* IC    PAL40-63 to IC00-23 */
-    case 11: /* A     PAL32-63 to A00-31 */
-    case 12: /* J49B  PAL32-63 to B32-63, PAL 28-31 to B64-67, PAL24-27 must be 0000 */
-    case 13: /* B8    PAL64-67 to B64-67 */
-    case 14: /* AB18  PAL08-67 to AB08-67, A0-7 unchanged */
-    case 15: /*       Nop */
-             break;
-    }
 
-    /* Ingate local store to S,T */
-    switch (sal->B) {
-    case 0:  /* nop */
-    case 1:  /* Local Store data to S00-31 */
-    case 2:  /* Local store data to T32-63 */
-    case 3:  /* Local store data to S00-31 and T32-63 */
-    }
-
-    /* Misc controls */                       
+    /* Misc controls */
     switch (sal->F) {
     case 0:  /* Nop */
     case 1:  /* Reset STAA thru STAH. Set LALO if flpop, E8-11 to LAL on RR Branch.
@@ -436,7 +445,7 @@ cycle_2065()
     case 3:  /* Set staa if PAL 32-63=0 */
     case 4:  /* Set staa if PAL 32-63!= 0 or staa latch== 0 */
     case 5:  /* Set stab if SAL00-07==0. */
-    case 6:  /* Set stat c if flpt and (sub or comp) and 
+    case 6:  /* Set stat c if flpt and (sub or comp) and
                       sbb 0== 0 or flpt and not (sub or comp) and sbb0==1.
                 Set stat d if flpt (mult or div) and sal0 == 1.
                 Set stat e if not flpt and sbb4-7 = invalid sign.
@@ -446,7 +455,7 @@ cycle_2065()
     case 9:  /* Set stad */
     case 10: /* Inhibit ingating for 1 cycle to f,d,ab,st,rosar if a07=0 */
     case 11: /* Inhibit ingating for 1 cycle to f,d,ab,st,rosar, if a08-11 does not == 0000 */
-    case 12: /* Selects multiplier bits from S per E12-15 and tx tgr during terminal 
+    case 12: /* Selects multiplier bits from S per E12-15 and tx tgr during terminal
                 cycle of fiex and flpt mult */
     case 13: /* Read direct time out interrupt. turn on machine check and psw bit 29 */
     case 14: /* ic21-23 and abc incr latches */
@@ -454,7 +463,7 @@ cycle_2065()
     case 16: /* sets specification interrupt, psw bits 29, 30 unconditional if 9020 op. */
     case 17: /* Sets time clock at limit tgr. */
     case 18: /* set program interrupt tgrs per significance or divide chk conditions. */
-    case 19: /* Set program interrupt tgr 1 (invalid op).
+    case 19: /* Set program interrupt tgr 1 (invalid op). */
     case 20: /* Set supervisor call tgr and prog interrupt tgrs if supervisor call. */
     case 21: /* Set program interrupt tgrs per flpt or decimal overflow or underflow */
     case 22: /* Set staa if e06=1 and pal 32-63 == 0, gate result sign onto local
@@ -483,10 +492,10 @@ cycle_2065()
     case 40: /* get result sign onto local store bus (t32 = 1 if result sign minus,
                 =0 if result sign plus */
     case 41: /* set scan mode tgr */
-    case 42: /* Set execute tgr and make store req. (4 cyc) per D if ss format and 
+    case 42: /* Set execute tgr and make store req. (4 cyc) per D if ss format and
                 D21-22 = 10. */
     case 43: /* pal61-63 to stc */
-    case 44: /* reset stop, stop loop (manual), and pulse mode adjust tgrs, 
+    case 44: /* reset stop, stop loop (manual), and pulse mode adjust tgrs,
                 block interrupts on start if not wait state. */
     case 45: /* reset stag */
     case 46: /* PAL61-63 to ABC */
@@ -505,7 +514,7 @@ cycle_2065()
     case 59: /* 1 to STC(0) */
     case 60: /* If stag == 1, conditiona edit hardware ctls */
     case 61: /* ABC-1 to ABC incr, STC+1 to STC incr */
-    case 62: /* Set CC 1 if 
+    case 62: /* Set CC 1 if
                   1) TM and STAA *Mixed*
                   2) Not STAA and result minus and
                       (NOt logical insgtr and not fxpt cmp and fxpt or
@@ -553,6 +562,7 @@ cycle_2065()
                   3) (add or sub log and ab31 and not staa *!=0, carry*
                   4) FP overflow
              */
+            break;
     }
 
 
@@ -562,7 +572,7 @@ cycle_2065()
     case 1:   /* Gate T 32-63 to external */
     case 2:   /* Gate T 32-63 to PSBAR */
     case 3:   /* Gate T 32-63 to Select reg */
-    csae 4:   /* Read gen purpose per Q00-03 set stad if Q00-03 == 0 */
+    case 4:   /* Read gen purpose per Q00-03 set stad if Q00-03 == 0 */
     case 5:   /* Read gen purpose per Q16-19 set stad if Q16-19 == 0 */
     case 6:   /* Read gen purpose per Q32-35 set stad if Q32-35 == 0 */
     case 7:   /* Read gen purpose per Q48-51 set stad if Q48-51 == 0 */
@@ -596,27 +606,70 @@ cycle_2065()
     case 64:  case 95: /* 9020 specific */
     case 96:  case 111: /* write GP register */
     case 112: case 119: /* write FP register */
+            break;
     }
 
     /* Ingating to E,R,E increment and decrement and emit */
     switch (sal->E) {
     case 0:  /* Nop */
+            break;
     case 1:  /* E08-11 plus 1 to E08-11 */
+             cpu_2065.E_REG = (cpu_2065.E_REG & 0xff0f) |
+                    ((cpu_2065.E_REG + 0x10) & 0xf0);
+             break;
     case 2:  /* E12-15 plus 1 to E12-15 */
+             cpu_2065.E_REG = (cpu_2065.E_REG & 0xfff0) |
+                    ((cpu_2065.E_REG + 0x01) & 0x0f);
+             break;
     case 3:  /* Pal 56-63 to E08-12 */
+             cpu_2065.E_REG = (cpu_2065.E_REG & 0xff00) |
+                               ((cpu_2065.pal >> 4) & 0xff);
+             break;
     case 4:  /* E08-11 minus 1 to E08-11, E12-15 minus 1 to E12-15 */
+             cpu_2065.E_REG = (cpu_2065.E_REG & 0xff00) |
+                    ((cpu_2065.E_REG - 0x10) & 0xf0) |
+                    ((cpu_2065.E_REG - 0x01) & 0x0f);
+             break;
     case 5:  /* E08-11 minus 1 to E08-11 */
+             cpu_2065.E_REG = (cpu_2065.E_REG & 0xff0f) |
+                    ((cpu_2065.E_REG - 0x10) & 0xf0);
+             break;
     case 6:  /* E12-15 minus 1 to E12-15 */
-    case 7:  /* E08-15 minuw 1 to E08-15 */
+             cpu_2065.E_REG = (cpu_2065.E_REG & 0xfff0) |
+                    ((cpu_2065.E_REG - 0x01) & 0x0f);
+             break;
+    case 7:  /* E08-15 minus 1 to E08-15 */
+             cpu_2065.E_REG = (cpu_2065.E_REG & 0xff00) |
+                    ((cpu_2065.E_REG - 0x01) & 0xff);
+             break;
     case 8:  /* Constant to E12-15 (5 if fltg pt divide, 15 if flt pt or fxd pt mul, 0 otherwise */
     case 9:  /* D18-21 to E12-15 */
+             cpu_2065.E_REG = (cpu_2065.E_REG & 0xfff0) |
+                              ((cpu_2065.D_REG >> 2) & 0xf);
+             break;
     case 10: /* R0-15 to E0-15 also set ILC per R0-1 */
+             cpu_2065.E_REG = cpu_2065.R_REG;
+             cpu_2065.ILC = ((cpu_2065.R_REG & 0xc000) == 0) ? 1 :
+                            ((cpu_2065.R_REG & 0xc000) == 0xc000) ? 3 : 2;
+             break;
     case 11: /* PAL 56-63 to R08-15 */
+             cpu_2065.R_REG = (cpu_2065.R_REG & 0xff00) |
+                               ((cpu_2065.pal >> 4) & 0xff);
+             break;
     case 12: /* Q0-15 to R0-15 */
+             cpu_2065.R_REG = (uint16_t)((cpu_2065.Q_REG >> 48) & 0xffff);
+             break;
     case 13: /* Q16-31 to R0-15 */
+             cpu_2065.R_REG = (uint16_t)((cpu_2065.Q_REG >> 32) & 0xffff);
+             break;
     case 14: /* Q32-47 to R0-15 */
+             cpu_2065.R_REG = (uint16_t)((cpu_2065.Q_REG >> 16) & 0xffff);
+             break;
     case 15: /* Q48-63 to R0-15 */
+             cpu_2065.R_REG = (uint16_t)((cpu_2065.Q_REG >> 0) & 0xffff);
+             break;
     case 16: /* Gate N byte to SBB-0-7 per W10 or W14 micro-order */
+             break;
     case 17: /* 00010000 to SBB 0-7 */
     case 18: /* 00100000 to SBB 0-7 */
     case 19: /* 00110000 to SBB 0-7 */
@@ -632,28 +685,110 @@ cycle_2065()
     case 29: /* 11010000 to SBB 0-7 */
     case 30: /* 11000000 to SBB 0-7 */
     case 31: /* 11110000 to SBB 0-7 */
+            cpu_2065.sbb = (sal->E & 0xf) << 4;
+            break;
     }
 
 
+    /* Outgate to serial adder inbus A side */
+    if (sal->R == 0) {
+        /* AB Byte (selected by ABC) to SBA00-07 */
+        cpu_2065.sba = (cpu_2065.ABC_REG & 0x4) ?
+                    (cpu_2065.B_REG >> (8 * (3 - (cpu_2065.ABC_REG & 0x3)))) :
+                    (cpu_2065.A_REG >> (8 * (3 - (cpu_2065.ABC_REG & 0x3))));
+    } else {
+        /* F00-07 to SBA00-07 */
+        cpu_2065.sba = cpu_2065.F_REG;
+    }
+
+
+    /* Serial adder B side controls */
+    cpu_2065.sbb = (cpu_2065.STC_REG & 0x4) ?
+                    (cpu_2065.T_REG >> (8 * (3 - (cpu_2065.STC_REG & 0x3)))) :
+                    (cpu_2065.S_REG >> (8 * (3 - (cpu_2065.STC_REG & 0x3))));
+
+    cpu_2065.sb = 0;
+    switch(sal->N) {
+    case 0:      /* Zeros */
+             break;
+    case 2:      /* SBB00-07 to SB00-07 */
+             cpu_2065.sb = cpu_2065.sbb;
+             break;
+    case 3:      /* SBB04-07 to SB04-07, 00 to SB00-03 */
+             cpu_2065.sb = cpu_2065.sbb & 0xf;
+             break;
+    case 4:      /* Plus sign to SB04-07 (1100 if PSW12-0, 1010 if PSW12=1),
+                    SBB00-03 to SB00-03 */
+             cpu_2065.sb = (cpu_2065.sbb & 0xf0) |
+                           ((cpu_2065.AMWP & 0x8) ? 0xa : 0xc);
+             break;
+    case 5:      /* B66-67 to 2 bits of SAL00-07 select by multiple set, quotient
+                    insert order g20, 21 */
+    case 6:      /* SBB01-07 to SB01-07, 0 to SB00 */
+             cpu_2065.sb = cpu_2065.sbb & 0x7f;
+             break;
+    case 7:      /* 1001 to SB00-03, SBB04-07 to SB04-07 */
+             cpu_2065.sb = (cpu_2065.sbb & 0x0f) | 0x90;
+             break;
+    case 8:      /* 1100,0000 to SB00-07 */
+             cpu_2065.sb = 0xc0;
+             break;
+    case 10:     /* SBB00-03 to SB00-03 zero to SB04-07 */
+             cpu_2065.sb = (cpu_2065.sbb & 0xf0);
+             break;
+    case 11:     /* 1111,1111 to SB00-07 */
+             cpu_2065.sb = 0xff;
+             break;
+    case 12:     /* Minus sign to SB04-07 (1101 if PSW12=0, 1011 if PSW12=1),
+                    SBB00-03 to SB00-03 */
+             cpu_2065.sb = (cpu_2065.sbb & 0xf0) |
+                           ((cpu_2065.AMWP & 0x8) ? 0xb : 0xd);
+             break;
+    case 14:     /* SBB0-03 to SB00-03 and SB04-07 */
+             cpu_2065.sb = (cpu_2065.sbb & 0xf0) | ((cpu_2065.sbb >> 4) & 0xf);
+             break;
+    case 15:     /* 0000,0001 to SB00-07 */
+             cpu_2065.sb = 0x01;
+             break;
+    };
 
     /* Serial Adder A Side */
     switch(sal->M) {
     case 0:     /* +0 */
+                break;
     case 4:     /* F05-07 set bit of AB byte to SA06 zeros to SA00-05,07 */
     case 5:     /* SBA00-07 comp to SA00-07, if carry out-save in STAH */
+                cpu_2065.sal = 0xff ^ cpu_2065.sba;
+                break;
     case 7:     /* SBA00-07 comp to SA00-07, Hot carry. 1 to SA00 if not 9020 op */
+                cpu_2065.sal = 0xff ^ cpu_2065.sba;
+                break;
     case 12:    /* And function if E06-07 == 00, or function if E06-07=10,
                     xor if e06-07 == 11 */
+                if ((cpu_2065.E_REG & 0x0300) == 0) {
+                     cpu_2065.sal = cpu_2065.sba & cpu_2065.sb;
+                } else if ((cpu_2065.E_REG & 0x0300) == 0x0100) {
+                     cpu_2065.sal = cpu_2065.sba | cpu_2065.sb;
+                } else {
+                     cpu_2065.sal = cpu_2065.sba ^ cpu_2065.sb;
+                }
+                break;
     case 13:    /* SBA00-03 to SA04-07, SBA04-07 to SA00-03 */
     case 15:    /* SBA04-07 L4 to SA00-03 (SA04-07 == 0) */
     case 17:    /* SBA00-03 to SA00-03 (SA04-07 == 0) */
     case 18:    /* And function SBA00-07 to SA00-07 */
+                cpu_2065.sal = cpu_2065.sba & cpu_2065.sb;
+                break;
     case 19:    /* SBA00-07 to SA00-07 */
     case 20:    /* XOR function SBA00-07 to SA00-07 */
+                cpu_2065.sal = cpu_2065.sba ^ cpu_2065.sb;
+                break;
     case 21:    /* Zone to SA00-03 ((1111 if PSW12=0, 0101 if PSW12 == 1)
                    SBA00-03 and SBA00-03 comp to SA00-03 used.
                    SBA00-03 R4 to SA04-07 */
     case 22:    /* Or function SBA00-07 to SA00-07 */
+                cpu_2065.sal = cpu_2065.sba | cpu_2065.sb;
+                break;
     case 23:    /* Zone to SA00-03 ((111 if PSW12=0, 0101 if PSW12=1).
                    Both SBA00-03 and SBA00-03 comp to SA00-03 used).
                    SBA04-07 to SA04-07 */
@@ -685,45 +820,19 @@ cycle_2065()
                    Set STAA if sum not zero,
                    Set STAE if invalid digit */
     case 29:    /* SBA00-03 R4 to SA04-07 (SA00-03 = 0) */
-    case 30:    /* SBA00-03 comp to SA00-03, (SA04-07=0000), 
+    case 30:    /* SBA00-03 comp to SA00-03, (SA04-07=0000),
                    Carry to SA03, Decimal correct 00-03.
                    Set STAA if sum not zero,
                    Set STAE if invalid digit */
     case 31:    /* SBA01-07 to SA01-07, 0 to SA00 */
+                cpu_2065.sal = 0x7f & cpu_2065.sba;
+                break;
     };
-
-    /* Serial adder B side controls */
-
-
-    switch(sal->N) {
-    case 0:      /* Zeros */
-    case 2:      /* SBB00-07 to SB00-07 */
-    case 3:      /* SBB04-07 to SB04-07, 00 to SB00-03 */
-    case 4:      /* Plus sign to SB04-07 (1100 if PSW12-0, 1010 if PSW12=1),
-                    SBB00-03 to SB00-03 */
-    case 5:      /* B66-67 to 2 bits of SAL00-07 select by multiple set, quotient
-                    insert order g20, 21 */
-    case 6:      /* SBB01-07 to SB01-07, 0 to SB00 */
-    case 7:      /* 1001 to SB00-03, SBB04-07 to SB04-07 */
-    case 8:      /* 1100,0000 to SB00-07 */
-    case 10:     /* SBB00-03 to SB00-03 zero to SB04-07 */
-    case 11:     /* 1111,1111 to SB00-07 */
-    case 12:     /* Minus sign to SB04-07 (1101 if PSW12=0, 1011 if PSW12=1),
-                    SBB00-03 to SB00-03 */
-    case 14:     /* SBB0-03 to SB00-03 and SB04-07 */
-    case 15:     /* 0000,0001 to SB00-07 */
-    };
-
-    /* Outgate to serial adder inbus A side */
-    if (sal->R == 0) {
-        /* AB Byte (selected by ABC) to SBA00-07 */
-    } else {
-        /* F00-07 to SBA00-07 */
-    }
 
     /* End ops nd ingating to serial adder to F */
     switch (sal->D) {
     case 0:  /* Nop */
+            break;
     case 1:  /* Normal end op. set block I fetch trg if exceptional condition to I fetch.
                 Gate interrupt priority.
                 If R register op is not RR format, then gate q to lal per ic21-22,
@@ -740,104 +849,325 @@ cycle_2065()
                 check for q buffer refill and start i fetch sequence if the buffer is to be refilled. */
     case 4:   /* Direct control 00-07 to F00-7 */
     case 5:   /* Sal 0-3 to f0-3 */
+            cpu_2065.F_REG = (cpu_2065.F_REG & 0x0f) | (cpu_2065.sal & 0xf0);
+            break;
     case 6:   /* Sal 4-7 to f4-7 */
+            cpu_2065.F_REG = (cpu_2065.F_REG & 0xf0) | (cpu_2065.sal & 0xf);
+            break;
     case 7:   /* sal 0-7 to f0-7 */
+            cpu_2065.F_REG = cpu_2065.sal;
+            break;
     }
 
+
+
+    /* E and Q registers Parallel adder B side */
+    switch(sal->V) {
+    case 0:      /* 0 */
+               cpu_2065.pab = 0;
+               break;
+    case 1:      /* E12-15 to PB60-63 */
+               cpu_2065.pab = (cpu_2065.E_REG << 4) & 0xf0;
+               break;
+    case 2:      /* E08-11 to PB60-63 */
+               cpu_2065.pab = cpu_2065.E_REG & 0xf0;
+               break;
+    case 3:      /* E08-15 to PB56-63 */
+               cpu_2065.pab = (cpu_2065.E_REG << 4) & 0xff0;
+               break;
+    case 4:      /* Q52-63 sal PB52-63 */
+               cpu_2065.pab = (cpu_2065.Q_REG << 4) & 0x000fff0;
+               break;
+    case 5:      /* Q36-47 to PB52-63 */
+               cpu_2065.pab = (cpu_2065.Q_REG >> 12) & 0x000fff0;
+               break;
+    case 6:      /* Q20-31 to PB52-63 */
+               cpu_2065.pab = (cpu_2065.Q_REG >> 28) & 0x000fff0;
+               break;
+    case 7:      /* Q03-15 to PB52-63 */
+               cpu_2065.pab = (cpu_2065.Q_REG >> 44) & 0x000fff0;
+               break;
+    };
+
+    cpu_2065.paa = 0;
+    carry_in = 0;
+    /* Outgates to Padder A side from S, T, D */
+    switch(sal->U) {
+    case 0:     /* 0 */
+            break;
+    case 1:     /* T32-63 comp L1 to PA31-62 (1 + Hot carry to PA63) */
+               cpu_2065.paa = (uint64_t)(0xffffffff ^ cpu_2065.T_REG) << 4;
+               carry_in = 0x10;
+               break;
+    case 2:     /* D00-23 comp to PA40-63 (Hot carry to PA63), Insert ones to PA32-39 */
+               cpu_2065.paa = (uint64_t)(0xffffffff ^ (cpu_2065.D_REG & 0xffffff)) << 4;
+               carry_in = 0x10;
+               break;
+    case 3:     /* D00-23 to PA40-63 */
+               cpu_2065.paa = (uint64_t)(cpu_2065.D_REG & 0xffffff) << 4;
+               break;
+    case 4:     /* S00-31 to PA32-63 */
+               cpu_2065.paa = (uint64_t)(cpu_2065.S_REG & 0xffffff) << 4;
+               break;
+    case 5:     /* Ones to PA04-06, D00-23 comp L1 to PA07-30, T32-63.
+                   Comp L1 to PA31-62 (1 + hot carry to PA63) */
+               cpu_2065.paa = (uint64_t)(cpu_2065.S_REG & 0xffffff) << 4;
+               break;
+    case 6:     /* T32-63 L1 to PA31-62 (PA63 = 0) */
+               cpu_2065.paa = (uint64_t)(cpu_2065.T_REG & 0xffffff) << 4;
+               break;
+    case 7:     /* D00-23 L1 to PA07-30, T32-63 L1 to PA31-62 (PA63 = 0) */
+               cpu_2065.paa = ((uint64_t)(cpu_2065.D_REG & 0xffffff) << 37) |
+                                  ((uint64_t)(cpu_2065.T_REG & 0xffffffff) << 5);
+               break;
+    case 8:     /* T32-47 to PA48-63, 1 to PA47 if T32=0 */
+               cpu_2065.paa = ((uint64_t)(cpu_2065.T_REG & 0xffff0000) >> 12) |
+                                  ((uint64_t)(cpu_2065.T_REG & 0x80000000) ?
+                                      0 : 0x10000);
+               break;
+    case 9:     /* T48-63 to PA48-63, 1 to PA47 if T48 = 0 */
+               cpu_2065.paa = ((uint64_t)(cpu_2065.T_REG & 0x0000ffff) << 4) |
+                                  ((cpu_2065.T_REG & 0x00008000) ?
+                                      0 : 0x10000);
+               break;
+    case 10:    /* D00-23 comp to PA40-63 (Hot carry to PA63),
+                   or ones into PA61-63, Insert Ones to PA32-39 */
+               cpu_2065.paa = 0xffffff ^ ((uint64_t)cpu_2065.D_REG << 4);
+               carry_in = 0x10;
+               break;
+    case 11:    /* D00-23 to PA08-31 */
+               cpu_2065.paa = (uint64_t)(cpu_2065.D_REG) << 36;
+               break;
+    case 12:    /* One to PA04-07, D00-23 to PA08-31 Comp,
+                   T32-63 comp to PA32-63 (hot carry to PA63) */
+    case 13:    /* T32-63 comp to PA32-63 (hot carry to PA63 */
+    case 14:    /* T32-63 to PA32-63 */
+               cpu_2065.paa = (uint64_t)(cpu_2065.T_REG & 0xffffff) << 4;
+               break;
+    case 15:    /* D00-23 to PA08-31, T32-63 tyo PA32-63 */
+               cpu_2065.paa = ((uint64_t)(cpu_2065.D_REG & 0xffffff) << 36) |
+                                  ((uint64_t)(cpu_2065.T_REG & 0xffffffff) << 4);
+               break;
+    case 16:    /* K00-31 to PA32-63 */
+//               cpu_2065.paa = ((uint64_t)(cpu_2065.K_REG & 0xffffffff) << 4);
+               break;
+    case 17:    /* Format LM reg to XY reg (history) per E13-15 */
+    case 18:    /* Format LM reg to XY reg (css-new) per E13-15 */
+    case 19:    /* Format LM reg to xy reg (weather) per E14-15 */
+               break;
+    case 20:    /* Hot one to PA62 (effectively adds +2) */
+               cpu_2065.paa = 2 << 4;
+               break;
+    case 21:    /* Hot one to PA58 +32 */
+               cpu_2065.paa = 32 << 4;
+               break;
+    case 24:    /* T32-47 to PA48-63 */
+               cpu_2065.paa = ((uint64_t)(cpu_2065.T_REG & 0xffff0000) << 4);
+               break;
+    case 25:    /* T48-63 to PA48-63 */
+               cpu_2065.paa = ((uint64_t)(cpu_2065.T_REG & 0xffff) << 4);
+               break;
+    };
 
     /* Card A */
     /* Hot ones to Parrallel adder a side */
     switch (sal->Q) {
     case 0:       /* Nop */
+               break;
+
     case 1:       /* Hot ones to PA26-31 (for fixed pt non logical ops propagate
                      sign (T32) per true or comp operation ) */
+               cpu_2065.paa |= 0x3fLL << (32 + 4);
+               break;
+
     case 2:       /* Hot one to PA60 (+8) */
+               cpu_2065.paa |= 0x8 << 4;
+               break;
+
     case 3:       /* Hot carry to PA63 (blocked if in convert to decimal if SAL 00=0) */
+               cpu_2065.paa |= 1 << 4;
+               break;
+
     case 4:       /* Hot ones to PA32-59 (-16) */
-    csae 5:       /* Hot ones to PA32-52, 54, 55 (For clock update */
+               cpu_2065.paa |= 0xffffff00;
+               break;
+
+    case 5:       /* Hot ones to PA32-52, 54, 55 (For clock update */
+               cpu_2065.paa |= 0xffffff00;
+               break;
+
     case 6:       /* Hot ones to PA32-60 (-8) */
+               cpu_2065.paa |= 0xffffff00;
+               break;
+
     case 7:       /* Hot ones to PA32-63 (-1) */
-    };
-
-    /* E and Q registers Parallel adder B side */
-    switch(sal->V) {
-    case 0:      /* 0 */
-    case 1:      /* E12-15 to PB60-63 */
-    case 2:      /* E08-11 to PB60-63 */
-    case 3:      /* E08-15 to PB56-63 */
-    case 4:      /* Q52-63 to PB52-63 */
-    case 5:      /* Q36-47 to PB52-63 */
-    case 6:      /* Q20-31 to PB52-63 */
-    case 7:      /* Q03-15 to PB52-63 */
-    };
-
-    /* Outgates to Padder A side from S, T, D */
-    switch(sal->U) {
-    case 0:     /* 0 */
-    case 1:     /* T32-63 comp L1 to PA31-62 (1 + Hot carry to PA63) */
-    case 2:     /* D00-23 comp to PA40-63 (Hot carry to PA63), Insert ones to PA32-39 */
-    case 3:     /* D00-23 to PA40-63 */
-    case 4:     /* S00-31 to PA32-63 */
-    case 5:     /* Ones to PA04-06, D00-23 comp L1 to PA07-30, T32-63.
-                   Comp L1 to PA31-62 (1 + hot carry to PA63) */
-    case 6:     /* T32-63 L1 to PA31-62 (PA63 = 0) */
-    case 7:     /* D00-23 L1 to PA07-30, T32-63 L1 to PA31-62 (PA63 = 0) */
-    case 8:     /* T32-47 to PA48-63, 1 to PA47 if T32=0 */
-    case 9:     /* T48-63 to PA48-63, 1 to PA47 if T48 = 0 */
-    case 10:    /* D00-23 comp to PA40-63 (Hot carry to PA63),
-                   or ones into PA61-63, Insert Ones to PA32-39 */
-    case 11:    /* D00-23 to PA08-31 */
-    case 12:    /* One to PA04-07, D00-23 to PA08-31 Comp,
-                   T32-63 comp to PA32-63 (hot carry to PA63) */
-    case 13:    /* T32-63 comp to PA32-63 (hot carry to PA63 */
-    case 14:    /* T32-63 to PA32-63 */
-    case 15:    /* D00-23 to PA08-31, T32-63 tyo PA32-63 */
-    case 16:    /* K00-31 to PA32-63 */
-    case 17:    /* Format LM reg to XY reg (history) per E13-15 */
-    case 18:    /* Format LM reg to XY reg (css-new) per E13-15 */
-    case 19:    /* Format LM reg to xy reg (weather) per E14-15 */
-    case 20:    /* Hot one to PA62 (effectively adds +2) */
-    case 21:    /* Hot one to PA58 +32 */
-    case 24:    /* T32-47 to PA48-63 */
-    case 25:    /* T48-63 to PA48-63 */
+               cpu_2065.paa |= 0xfffffff0;
+               break;
     };
 
     /* Outgates to PADDER B side */
     switch(sal->T) {
     case 0:      /* 0 */
-    case 1:      /* B32-67 L2 to PB30-65 (PB66-67 = 00) if Exp MYP, 
+    case 1:      /* B32-67 L2 to PB30-65 (PB66-67 = 00) if Exp MYP,
                      propagate sign (B32 To PB28,29 */
     case 2:      /* IC00-23 to PB40-63 */
+               cpu_2065.pab = (uint64_t)(cpu_2065.IC_REG << 4);
+               break;
     case 3:      /* Generate excess 6 decimal correct factor to PB28-63 for
                     convert to decimal with field U6) */
     case 4:      /* F04-07 to PB60-63 */
+               cpu_2065.pab = ((uint64_t)(cpu_2065.F_REG & 0xf) << 4);
+               break;
     case 5:      /* AB06-67 L2 to PB04-65 (PB66,67=0)*/
+               cpu_2065.pab = ((uint64_t)cpu_2065.B_REG  << 6) | (uint64_t)(cpu_2065.BX_REG << 2) |
+                             ((uint64_t)cpu_2065.A_REG << 34);
+               break;
     case 6:      /* Hot one to PB60 +8 */
     case 7:      /* B64-67 to PB28-31 */
+               cpu_2065.pab = ((uint64_t)cpu_2065.BX_REG << 34);
+               break;
     case 8:      /* A00-31 to PB32-63 */
+               cpu_2065.pab = ((uint64_t)cpu_2065.A_REG << 4);
+               break;
     case 9:      /* P64-67 to PB64-67 */
     case 10:     /* A08-31 to PB32-63 */
+               cpu_2065.pab = ((uint64_t)(cpu_2065.A_REG & 0xffffff) << 4);
+               break;
     case 11:     /* B32-63 to PB32-63 */
+               cpu_2065.pab = ((uint64_t)cpu_2065.B_REG << 4);
+               break;
     case 12:     /* AB04-67 to PB04-67 (A00-03 must be zero) */
+               cpu_2065.pab = ((uint64_t)cpu_2065.B_REG  << 4) | (cpu_2065.BX_REG) |
+                             ((uint64_t)cpu_2065.A_REG << 36);
+               break;
     case 13:     /* Hot one to PB62 +2 */
     case 14:     /* AB08-63 to PB08-63 */
                  /* AB08-67 to PB08-67 FL PT Add, Sub, Cmp */
+               cpu_2065.pab = ((uint64_t)cpu_2065.B_REG  << 4) | ((uint64_t)cpu_2065.A_REG << 36);
+               break;
     case 15:     /* B32-63 to PB32-63, B64-67 to PB28-31 */
+               cpu_2065.pab = ((uint64_t)cpu_2065.B_REG  << 4) | ((uint64_t)cpu_2065.BX_REG << 32);
+               break;
     }
 
+    cpu_2065.padder = (cpu_2065.paa + cpu_2065.pab);
 
     /* Parallel adder latch control */
     switch (sal->P) {
     case 0:      /* PADDER 04-67 to PAL04-67  no shift */
+            cpu_2065.pal = cpu_2065.padder;
+            break;
+
     case 1:      /* PADDER 04-31, 64-67, to PAL 04-31, 64-67,
                     Scan out buss 32-63 to PAL 32-63 */
+            cpu_2065.pal = cpu_2065.padder & 0xfffffff00000000fL;
+            break;
+
     case 2:      /* PADDER 05-63 R4 to PAL 08-67 (PADDER 04 propagates to PAL04-08 */
+            cpu_2065.pal = (cpu_2065.padder & 0xfffffffffffffff0L) >> 4;
+            break;
     case 4:      /* Hold value in PAL04-67 for 1 cycle */
+            break;
     case 5:      /* PADDER 08-67 L4 to PAL04-63 0000 to PAL64-67 */
+            cpu_2065.pal = (cpu_2065.padder & 0x0fffffffffffffffL) << 4;
+            break;
     case 6:      /* PB64-67 2' compliment to PADDER 64-67,
                     PB64-67 != 0 block hot carry to PA63 */
+            cpu_2065.pal = (cpu_2065.pab ^ 0x0fL);
+            break;
     case 7:      /* PADDER 32-63 R1 to PAL 33-64 zeros to PAL 32 and 48 */
+            cpu_2065.pal = (cpu_2065.padder & 0x0000000ffffffff0L) >> 1;
+            break;
     };
+
+
+    /* Ingate to A,B,IC */
+    switch (sal->A) {
+    case 0:  /*       Nop */
+            break;
+    case 1:  /* B     PAL32-63 to B32-63 */
+            cpu_2065.B_REG = (cpu_2065.pal >> 4) & 0xffffffff;
+            break;
+
+    case 2:  /* B,IC  PAL32-63 to B32-63 and PAL 40-63 to IC00-23 */
+            cpu_2065.B_REG = (cpu_2065.pal >> 4) & 0xffffffff;
+            cpu_2065.IC_REG = (cpu_2065.pal >> 4) & 0xffffff;
+            break;
+
+    case 3:  /* A,B   PAL32-63 to A00-31 and B32-63 */
+            cpu_2065.B_REG = (cpu_2065.pal >> 4) & 0xffffffff;
+            cpu_2065.A_REG = (cpu_2065.pal >> 4) & 0xffffffff;
+            break;
+
+    case 4:  /* AB17  PAL 0-63 to AB08-63 A0-7 untouched */
+            cpu_2065.B_REG = (cpu_2065.pal >> 4) & 0xffffffff;
+            cpu_2065.A_REG = ((cpu_2065.pal >> 36) & 0xffffff) |
+                             (cpu_2065.A_REG & 0xff000000);
+            break;
+
+    case 5:  /* AB    PAL 4-67 to AB04-67, zero to A0-3 */
+            cpu_2065.BX_REG = cpu_2065.pal & 0xf;
+            cpu_2065.B_REG = (cpu_2065.pal & 0xffffffff0) >> 4;
+            cpu_2065.A_REG = ((cpu_2065.pal >> 36) & 0xfffffff);
+            break;
+
+    case 6:  /* AB38  PAL24-67 to AB24-67 */
+            cpu_2065.BX_REG = cpu_2065.pal & 0xf;
+            cpu_2065.B_REG = (cpu_2065.pal & 0xffffffff0) >> 4;
+            cpu_2065.A_REG = ((cpu_2065.pal >> 36) & 0xff);
+            break;
+
+    case 7:  /* B38M  PAL24-67 to AB24-67 if PAL66,67 == 0 M1M2 to PAL64,65 */
+            cpu_2065.BX_REG = cpu_2065.pal & 0xf;
+            cpu_2065.B_REG = (cpu_2065.pal & 0xffffffff0) >> 4;
+            cpu_2065.A_REG = ((cpu_2065.pal >> 36) & 0xff);
+            break;
+
+    case 8:  /* J9B8  PAL28-31 to B64-67 (PAL24-27 must be 0000) */
+            cpu_2065.BX_REG = (cpu_2065.pal >> 36) & 0xf;
+            break;
+
+    case 9:  /* MS>AB SDB0 00-63 to AB00-63 */
+            cpu_2065.B_REG = 0;
+            cpu_2065.A_REG = 0;
+            break;
+
+    case 10: /* IC    PAL40-63 to IC00-23 */
+            cpu_2065.IC_REG = (cpu_2065.pal >> 4) & 0xffffff;
+            break;
+
+    case 11: /* A     PAL32-63 to A00-31 */
+            cpu_2065.A_REG = ((cpu_2065.pal >> 4) & 0xffffffff);
+            break;
+
+    case 12: /* J49B  PAL32-63 to B32-63, PAL 28-31 to B64-67, PAL24-27 must be 0000 */
+            cpu_2065.BX_REG = (cpu_2065.pal >> 36) & 0xf;
+            cpu_2065.B_REG = (cpu_2065.pal & 0xffffffff0) >> 4;
+            break;
+
+    case 13: /* B8    PAL64-67 to B64-67 */
+            cpu_2065.BX_REG = cpu_2065.pal & 0xf;
+            break;
+
+    case 14: /* AB18  PAL08-67 to AB08-67, A0-7 unchanged */
+            cpu_2065.BX_REG = cpu_2065.pal & 0xf;
+            cpu_2065.B_REG = (cpu_2065.pal & 0xffffffff0) >> 4;
+            cpu_2065.A_REG = ((cpu_2065.pal >> 36) & 0xffffff) |
+                             (cpu_2065.A_REG & 0xff000000);
+            break;
+
+    case 15: /*       Nop */
+             break;
+    }
+
+    /* Ingate local store to S,T */
+    switch (sal->B) {
+    case 0:  /* nop */
+    case 1:  /* Local Store data to S00-31 */
+    case 2:  /* Local store data to T32-63 */
+    case 3:  /* Local store data to S00-31 and T32-63 */
+            break;
+    }
 
     /* Card D */
     /* Ingate to D,K,Q,S,T,PSW,N,G */
@@ -877,12 +1207,23 @@ cycle_2065()
     case 29: /* SDBO0-31 to S0-31 */
     case 30: /* PAL32-63 to K 00-31 */
     case 31: /* SAL0-7 to N 08-15 */
+            break;
     }
 
     switch(sal->G) {
     case 0:  /* Nop */
+            break;
+
     case 1:  /* Set STAA if SAL 00-07 != 0 */
+            if (cpu_2065.sal == 0)
+                cpu_2065.STA_REG |= STAA;
+            break;
+
     case 2:  /* Set STAA if PAL 07-67 = 0 */
+            if (cpu_2065.pal == 0)
+                cpu_2065.STA_REG |= STAA;
+            break;
+
     case 3:  /* Set STAB if fix pt overflow */
     case 4:  /* Gate SE to F00-07 */
     case 5:  /* reset STAH (serial adder cry tgr */
@@ -890,15 +1231,15 @@ cycle_2065()
     case 7:  /* Set stab if B32=1 and STAG if T32=1 */
     case 8:  /* Set stag */
     case 9:  /* Two bytes of Q to R per D21-22 */
-    case 10: /* set interrupt gate tgr */ 
-    case 11: /* clear interrupt gate tgr */ 
+    case 10: /* set interrupt gate tgr */
+    case 11: /* clear interrupt gate tgr */
     case 12: /* Undefined */
     case 13: /* Set stah (serial adder carry tgr) */
     case 14: /* set stab if left shift overflow (
                 blocks reset of stab during program interrupt) */
-    case 15: /* Reset addr store comp tgr if sum 32 carry and 
+    case 15: /* Reset addr store comp tgr if sum 32 carry and
                 PAL 40-63 does not=0 and ic 21,22 does not = 11 or
-                pal 40-62 does not = 0) and ic 21,22 = 11, and 
+                pal 40-62 does not = 0) and ic 21,22 = 11, and
                 execute not in progress. */
     case 16: /* Set ic 21-22 to 00 */
     case 17: /* Set ic 21-22 to 01 */
@@ -915,10 +1256,11 @@ cycle_2065()
     case 25: /* turn on inhinbut storage protect tgr. */
     case 26: /* Turn on set key tgr and set stad */
     case 27: /* Turn on insert key tgr. key 00-03 to f00-03. set stad */
-    csse 28: /* Gate ce indentiry bits to f06-07. zeros to f 00-05 */
+    case 28: /* Gate ce indentiry bits to f06-07. zeros to f 00-05 */
     case 29: /* gate program interrupt reg to f 04-06. zeros to f 00-03,07 */
     case 30: /* Selects muliplier bits from s per e12-15 and tx tgr */
     case 31: /* storage request per d store all one in byte with mask set */
+            break;
     }
 
 
@@ -948,8 +1290,10 @@ cycle_2065()
     case 13:    /* Generate local store buss */
     case 14:    /* Gate N08-15 to serial adder B side 00-07 ** */
     case 15:    /* Gate T32-63 to LM 32-63 */
+            break;
     };
 
+#if 0
     /* Scan mode */
 
 
@@ -983,6 +1327,7 @@ cycle_2065()
     case 14:    /* Scan in */
     case 15:    /* Set address sequencers to 23 */
     };
+#endif
 }
 
 
