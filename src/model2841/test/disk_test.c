@@ -28,22 +28,98 @@
 #include "logger.h"
 #include "device.h"
 #include "ctest.h"
+#include "xlat.h"
 #include "model2841.h"
 
 uint64_t   step_count = 0;
 struct _device *chan[6]; 
+
+uint16_t
+initial_select(struct _device *dev, uint16_t *tags, int cmd)
+{
+    uint16_t    bus_out;
+    uint16_t    bus_in;
+    uint16_t    wx;
+    uint16_t    status;
+    int         i;
+    int         sel = 0;
+    int         sts = 0;
+
+    *tags = CHAN_OPR_OUT;
+    for (i = 0; i < 200; i++) {
+        step_2841((struct _2841_context *)dev->dev);
+         wx = ((struct _2841_context *)(dev->dev))->WX;
+//         if (i > 40 && sel == 0 && (wx == 0x599 || wx == 0x5c2))
+//            break;
+log_trace("WX=%03x\n", wx);
+//        step_2841((struct _2841_context *)dev->dev);
+         wx = ((struct _2841_context *)(dev->dev))->WX;
+//         if (i > 40 && sel == 0 && (wx == 0x599 || wx == 0x5c2))
+//            break;
+log_trace("WX=%03x\n", wx);
+        step_count++;
+        if (i == 30) {
+           *tags |= CHAN_ADR_OUT;
+           bus_out = 0x190;
+        }
+        if (i == 31)
+           sel = 1;
+        if (sel)
+           *tags |= CHAN_SEL_OUT|CHAN_HLD_OUT;
+        dev->bus_func(dev, tags, bus_out, &bus_in);
+        if ((*tags & CHAN_ADR_IN) != 0) {
+           log_trace("Got address in\n");
+           ASSERT_EQUAL_X(0x190, bus_in);
+           *tags &= ~CHAN_ADR_OUT;
+           bus_out = cmd | odd_parity[cmd];
+           *tags |= CHAN_CMD_OUT;
+        }
+        if ((*tags & (CHAN_ADR_IN|CHAN_CMD_OUT)) == CHAN_CMD_OUT) {
+           log_trace("Drop command out\n");
+           bus_out = 0x100;
+           *tags &= ~CHAN_CMD_OUT;
+        }
+        if ((*tags & (CHAN_STA_IN)) != 0) {
+           log_trace("Status in\n");
+           bus_out = 0x100;
+           status = bus_in;
+           *tags |= CHAN_SRV_OUT;
+           sts = 1;
+        }
+        if ((*tags & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
+           log_trace("Status in drop\n");
+           bus_out = 0x100;
+           *tags &= ~(CHAN_SRV_OUT);
+           sel = 0;
+        }
+        if (sts && (*tags & (CHAN_STA_IN|CHAN_SRV_IN)) == (0)) {
+           log_trace("Initialize\n");
+           bus_out = 0x100;
+           *tags &= ~(CHAN_SRV_OUT);
+           break;
+        }
+    }
+    return status;
+}
 
 CTEST_DATA(disk_test) {
     struct _device *dev;
 };
 
 CTEST_SETUP(disk_test) {
+    struct _2841_context *ctx;
     data->dev = model2841_init(NULL, 0x90);
+    ctx = (struct _2841_context *)(data->dev->dev);
+    ctx->disk[0] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
 }
 
 CTEST_TEARDOWN(disk_test) {
-    if (data->dev->dev)
+    struct _2841_context *ctx;
+    if (data->dev->dev) {
+       ctx = (struct _2841_context *)(data->dev->dev);
+       free(ctx->disk[0]);
        free(data->dev->dev);
+    }
     if (data->dev)
        free(data->dev);
 }
@@ -60,25 +136,18 @@ CTEST2(disk_test, reset) {
 }
 
 /* Try to send Test I/O to controller */
-CTEST2(disk_test, select) {
+CTEST2(disk_test, test_io) {
     uint16_t    tags;
     uint16_t    bus_out;
     uint16_t    bus_in;
-    uint16_t    wx;
-    int i;
+    int         i;
     int         sel = 0;
 
     ((struct _2841_context *)(data->dev->dev))->WX = 0;
     tags = CHAN_OPR_OUT;
     for (i = 0; i < 200; i++) {
         step_2841((struct _2841_context *)data->dev->dev);
-         wx = ((struct _2841_context *)(data->dev->dev))->WX;
-         if (i > 40 && sel == 0 && (wx == 0x599 || wx == 0x5c2))
-            break;
         step_2841((struct _2841_context *)data->dev->dev);
-         wx = ((struct _2841_context *)(data->dev->dev))->WX;
-         if (i > 40 && sel == 0 && (wx == 0x599 || wx == 0x5c2))
-            break;
         step_count++;
         if (i == 30) {
            tags |= CHAN_ADR_OUT;
@@ -119,13 +188,16 @@ CTEST2(disk_test, select) {
 /* Try to send Nop to controller */
 CTEST2(disk_test, nop) {
     uint16_t    tags;
-    uint16_t    bus_out;
-    uint16_t    bus_in;
-    uint16_t    wx;
-    int i;
-    int         sel = 0;
+    uint16_t    status;
+//    uint16_t    bus_out;
+//    uint16_t    bus_in;
+//    uint16_t    wx;
+//    int i;
+//    int         sel = 0;
 
     ((struct _2841_context *)(data->dev->dev))->WX = 0;
+    status = initial_select(data->dev, &tags, 0x3);
+#if 0
     tags = CHAN_OPR_OUT;
     for (i = 0; i < 200; i++) {
         step_2841((struct _2841_context *)data->dev->dev);
@@ -173,6 +245,8 @@ log_trace("WX=%03x\n", wx);
            sel = 0;
         }
     }
+#endif
+    ASSERT_EQUAL_X(0x10c, status);
 }
 
 /* Try to send Set file mask to controller */
@@ -180,11 +254,16 @@ CTEST2(disk_test, sense) {
     uint16_t    tags;
     uint16_t    bus_out;
     uint16_t    bus_in;
-    uint16_t    wx;
+//    uint16_t    wx;
+    uint16_t    status;
     int i;
     int         sel = 0;
+    int         byte = 0;
+    int         sta_in = 0;
 
     ((struct _2841_context *)(data->dev->dev))->WX = 0;
+    status = initial_select(data->dev, &tags, 0x4);
+#if 0
     tags = CHAN_OPR_OUT;
     for (i = 0; i < 500; i++) {
         step_2841((struct _2841_context *)data->dev->dev);
@@ -229,10 +308,138 @@ CTEST2(disk_test, sense) {
            tags &= ~(CHAN_SRV_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT);
         }
     }
+#endif
+    ASSERT_EQUAL_X(0x100, status);
+    sel = 1;
+    for (i = 0; i < 500; i++) {
+        step_2841((struct _2841_context *)data->dev->dev);
+        step_2841((struct _2841_context *)data->dev->dev);
+        step_count++;
+        if (sel)
+           tags |= CHAN_SEL_OUT|CHAN_HLD_OUT;
+        data->dev->bus_func(data->dev, &tags, bus_out, &bus_in);
+        if ((tags & (CHAN_STA_IN)) != 0) {
+           log_trace("Status in\n");
+           ASSERT_EQUAL_X(0x10c, bus_in);   /* Device end and channel end */
+           bus_out = 0x100;
+           tags |= CHAN_SRV_OUT;
+           sta_in = 1;
+        }
+        if ((tags & (CHAN_STA_IN|CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
+           log_trace("Service in drop\n");
+           bus_out = 0x100;
+           tags &= ~(CHAN_SRV_OUT);
+           if (sta_in) {
+               tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
+               sel = 0;
+           }
+        }
+        if ((tags & (CHAN_SRV_OUT|CHAN_SRV_IN)) == (CHAN_SRV_IN)) {
+           log_trace("Service in %03x %02x\n", bus_in, byte);
+           bus_out = byte | odd_parity[byte];
+           byte++;
+           tags |= (CHAN_SRV_OUT);
+        }
+        if ((tags & (CHAN_OPR_IN)) == 0) {
+           log_trace("Oper in drop\n");
+           break;
+        }
+    }
+}
+
+/* Try to send Seek to controller */
+CTEST2(disk_test, seek) {
+    static uint8_t  cmd[] = { 0, 0, 0, 0x10, 0, 5 };
+    uint16_t    tags;
+    uint16_t    bus_out;
+    uint16_t    bus_in;
+    uint16_t    status;
+    int i;
+    int         sel = 0;
+    int         byte = 0;
+    int         sta_in = 0;
+
+    ((struct _2841_context *)(data->dev->dev))->WX = 0;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    sel = 1;
+    for (i = 0; i < 500; i++) {
+        step_2841((struct _2841_context *)data->dev->dev);
+        step_2841((struct _2841_context *)data->dev->dev);
+        step_count++;
+        if (sel)
+           tags |= CHAN_SEL_OUT|CHAN_HLD_OUT;
+        data->dev->bus_func(data->dev, &tags, bus_out, &bus_in);
+        if ((tags & (CHAN_STA_IN)) != 0) {
+           log_trace("Status in\n");
+//           ASSERT_EQUAL_X(0x10c, bus_in);   /* Device end and channel end */
+           bus_out = 0x100;
+           tags |= CHAN_SRV_OUT|CHAN_SUP_OUT;
+           sta_in = 1;
+        }
+        if ((tags & (CHAN_STA_IN|CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
+           log_trace("Service in drop\n");
+           bus_out = 0x100;
+           tags &= ~(CHAN_SRV_OUT);
+           if (sta_in) {
+               tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
+               sel = 0;
+           }
+        }
+        if ((tags & (CHAN_SRV_OUT|CHAN_SRV_IN)) == (CHAN_SRV_IN)) {
+           log_trace("Service in %03x %02x\n", bus_in, byte);
+           bus_out = cmd[byte];
+           bus_out = bus_out | odd_parity[bus_out];
+           byte++;
+           tags |= (CHAN_SRV_OUT);
+        }
+        if ((tags & (CHAN_OPR_IN)) == 0) {
+           log_trace("Oper in drop\n");
+           break;
+        }
+    }
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    sel = 1;
+    sta_in = 0;
+    for (i = 0; i < 500; i++) {
+        step_2841((struct _2841_context *)data->dev->dev);
+        step_2841((struct _2841_context *)data->dev->dev);
+        step_count++;
+        if (sel)
+           tags |= CHAN_SEL_OUT|CHAN_HLD_OUT;
+        data->dev->bus_func(data->dev, &tags, bus_out, &bus_in);
+        if ((tags & (CHAN_STA_IN)) != 0) {
+           log_trace("Status in\n");
+           ASSERT_EQUAL_X(0x10c, bus_in);   /* Device end and channel end */
+           bus_out = 0x100;
+           tags |= CHAN_SRV_OUT;
+           sta_in = 1;
+        }
+        if ((tags & (CHAN_STA_IN|CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
+           log_trace("Service in drop\n");
+           bus_out = 0x100;
+           tags &= ~(CHAN_SRV_OUT);
+           if (sta_in) {
+               tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
+               sel = 0;
+           }
+        }
+        if ((tags & (CHAN_SRV_OUT|CHAN_SRV_IN)) == (CHAN_SRV_IN)) {
+           log_trace("Service in %03x %02x\n", bus_in, byte);
+           bus_out = byte | odd_parity[byte];
+           byte++;
+           tags |= (CHAN_SRV_OUT);
+        }
+        if ((tags & (CHAN_OPR_IN)) == 0) {
+           log_trace("Oper in drop\n");
+           break;
+        }
+    }
 }
 
 /* Try to send Set file mask to controller */
-CTEST2(disk_test, setmask) {
+CTEST2_SKIP(disk_test, setmask) {
     uint16_t    tags;
     uint16_t    bus_out;
     uint16_t    bus_in;
@@ -242,7 +449,7 @@ CTEST2(disk_test, setmask) {
 
     ((struct _2841_context *)(data->dev->dev))->WX = 0;
     tags = CHAN_OPR_OUT;
-    for (i = 0; i < 500; i++) {
+    for (i = 0; i < 1000; i++) {
         step_2841((struct _2841_context *)data->dev->dev);
 //         wx = ((struct _2841_context *)(data->dev->dev))->WX;
  //        if (i > 40 && sel == 0 && (wx == 0x599 || wx == 0x5c2))
@@ -275,14 +482,19 @@ CTEST2(disk_test, setmask) {
         }
         if ((tags & (CHAN_STA_IN)) != 0) {
            log_trace("Status in\n");
-           ASSERT_EQUAL_X(0x100, bus_in);   /* Device end and channel end */
+//           ASSERT_EQUAL_X(0x100, bus_in);   /* Device end and channel end */
            bus_out = 0x100;
            tags |= CHAN_SRV_OUT;
         }
         if ((tags & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
            log_trace("Status in drop\n");
            bus_out = 0x100;
-           tags &= ~(CHAN_SRV_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT);
+           tags &= ~(CHAN_SRV_OUT|CHAN_HLD_OUT);
+        }
+        if ((tags & (CHAN_SRV_IN)) != 0) {
+           log_trace("Service in\n");
+           bus_out = 0x1c0;
+           tags |= (CHAN_SRV_OUT);
         }
     }
 }

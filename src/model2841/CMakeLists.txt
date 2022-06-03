@@ -1,15 +1,15 @@
 # Copyright 2022, Richard Cornwell
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -35,8 +35,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(${PROJECT_NAME} model2841_ros.h)
 
 if (RUN_TESTS)
-add_executable(test2841_test test/ctest_main.c test/disk_test.c 
-                             ../logger.c ../device/xlat.c ../device/device.c
+add_executable(test2841_test test/ctest_main.c test/disk_test.c
+              ../device/dasd.c  ../logger.c ../device/xlat.c ../device/device.c
                                    model2841.c model2841_ros.c)
 target_link_libraries(test2841_test)
 add_dependencies(test2841_test model2841_ros.h)

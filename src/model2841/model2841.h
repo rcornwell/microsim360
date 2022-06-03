@@ -51,24 +51,27 @@ extern struct ROS_2841 {
 #ifndef CROS2841
 #include <stdint.h>
 #include "device.h"
+#include "dasd.h"
 
 struct _2841_context {
     int         addr;               /* Device address */
     int         chan;               /* Channel address */
-    int                    selected;     /* Device currently selected */
-    int                    opr_in;       /* Raise operation in */
-    int                    sense;        /* Current sense value */
-    int                    cmd;          /* Current command */
-    int                    status;       /* Current bus status */
-    int                    data;         /* Current byte to send/recieve */
-    int                    data_rdy;     /* Data is valid */
-    int                    data_end;     /* Data transfer over */
-    int                    addressed;    /* Last address out matched */
-    int                    tr_1;         /* Transfer 1 latch */
-    int                    tr_2;         /* Transfer 2 latch */
-    int                    srv_in;       /* Service in */
-    int                    steering;     /* Steering latch */
-    int                    tags;         /* Last bus output tags */
+    int         selected;           /* Device currently selected */
+    int         opr_in;             /* Raise operation in */
+    int         sense;              /* Current sense value */
+    int         cmd;                /* Current command */
+    int         status;             /* Current bus status */
+    int         data;               /* Current byte to send/recieve */
+    int         data_rdy;           /* Data is valid */
+    int         data_end;           /* Data transfer over */
+    int         addressed;          /* Last address out matched */
+    int         tr_1;               /* Transfer 1 latch */
+    int         tr_2;               /* Transfer 2 latch */
+    int         srv_in;             /* Service in */
+    int         srv_req;            /* Service request latch */
+    int         svc_req;            /* Service received */
+    int         steering;           /* Steering latch */
+    int         tags;               /* Last bus output tags */
 
     uint8_t     Abus;               /* Holds the input to the A side of ALU. */
     uint8_t     Bbus;               /* Holds the input to the B side of ALU. */
@@ -86,17 +89,17 @@ struct _2841_context {
    Bit 1            Index pulse.
    Bit 4            Read operation, turned on when data sent to DR.
  */
-uint8_t     OP_REG;             /* Operation code register */
-uint8_t     DW_REG;             /* Data write register */
-uint8_t     UR_REG;             /* Unit address register */
-uint8_t     BX_REG;             /* Code check burst register */
-uint8_t     BY_REG;             /* Code check burst register */
-uint8_t     DH_REG;             /* Data length High register */
-uint8_t     DL_REG;             /* Data length High register */
-uint8_t     FR_REG;             /* Flag register */
-uint8_t     GL_REG;             /* Gap length */
-uint8_t     KL_REG;             /* Key length register */
-uint8_t     ER_REG;
+uint8_t         OP_REG;             /* Operation code register */
+uint8_t         DW_REG;             /* Data write register */
+uint8_t         UR_REG;             /* Unit address register */
+uint8_t         BX_REG;             /* Code check burst register */
+uint8_t         BY_REG;             /* Code check burst register */
+uint8_t         DH_REG;             /* Data length High register */
+uint8_t         DL_REG;             /* Data length High register */
+uint8_t         FR_REG;             /* Flag register */
+uint8_t         GL_REG;             /* Gap length */
+uint8_t         KL_REG;             /* Key length register */
+uint8_t         ER_REG;
 /* ER Register.
    Bit 0            Set if error during/writing - op in resets.
    Bit 1            Follows Address out.
@@ -106,9 +109,9 @@ uint8_t     ER_REG;
    Bit 7            Set on Halt I/O.
 */
 
-uint8_t     GP_REG;             /* General purpose register */
+uint8_t         GP_REG;             /* General purpose register */
 
-uint8_t     IG_REG;             /* Channel control regiser */
+uint8_t         IG_REG;             /* Channel control regiser */
 /* IG register.
    Bit 0            Write latch
    Bit 1            Operational in
@@ -119,11 +122,13 @@ uint8_t     IG_REG;             /* Channel control regiser */
    Bit 6            Present Dev end.
    Bit 7            Address In.
   */
-uint16_t    bus_out;
-uint16_t    WX;                 /* ROAR address register. */
+uint16_t        bus_out;
+uint16_t        WX;                 /* ROAR address register. */
 
-uint8_t     FT;                 /* File tag register */
-uint8_t     FC;                 /* File control register */
+uint8_t         FT;                 /* File tag register */
+uint8_t         FC;                 /* File control register */
+int        unit_num;                /* Selected unit number */
+struct _dasd_t  *disk[8];           /* Disk drives */
 
 };
 
