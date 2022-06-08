@@ -46,10 +46,12 @@ struct _test_context {
     int                    data;         /* Current byte to send/recieve */
     int                    data_rdy;     /* Data is valid */
     int                    data_end;     /* Data transfer over */
+    int                    dly;          /* Delay */
     uint8_t                buffer[256];  /* Data buffer. */
     int                    max_data;     /* Max counter. */
     int                    data_cnt;     /* Data counter */
     int                    burst;        /* Transfer in burst mode */
+    int                    sms;          /* Return SMS status */
 };
 
 void test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);

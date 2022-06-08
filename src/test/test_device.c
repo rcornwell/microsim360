@@ -61,7 +61,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
     struct _test_context *ctx = (struct _test_context *)unit->dev;
     static   uint16_t last_tags = 0;
 
-    if (last_tags != *tags) {
+    if (last_tags != *tags || ctx->selected) {
         print_tags("Test", ctx->state, *tags, bus_out);
         last_tags = *tags;
     }
@@ -109,6 +109,14 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                  break;
             }
 
+            /* When address out drops put our address on bus in */
+            if (*tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN|CHAN_ADR_OUT)) {
+                 *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN|CHAN_OPR_IN);  /* Clear select in */
+                 log_device("Halt device\n");
+                 ctx->state = STATE_IDLE;
+                 break;
+            }
+
             /* Wait for Command out to raise */
             /* Can now drop address in */
             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
@@ -148,10 +156,15 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                         }
                         break;
                  case 4:  /* Sense */
-                        ctx->data = ctx->sense;
-                        ctx->data_rdy = 1;
-                        ctx->data_end = 1;
-                        log_device("test Sense %02x\n", ctx->sense);
+                        if (ctx->cmd == 0xc) { /* Read backward */
+                            ctx->sense = 0;
+                            ctx->data_cnt = 0;
+                        } else {
+                            ctx->data = ctx->sense;
+                            ctx->data_rdy = 1;
+                            ctx->data_end = 1;
+                            log_device("test Sense %02x\n", ctx->sense);
+                        }
                         break;
                  default:
                         ctx->cmd = 0;
@@ -182,7 +195,8 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              /* When we get acknowlegment, go wait for it to go away */
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_SUP_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
+                 *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
                  *tags &= ~CHAN_STA_IN;
                  ctx->state = STATE_INIT_STAT;
                  log_device("test init stat\n");
@@ -196,6 +210,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
 
              /* Wait for Service out to drop */
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
                  /* If no command, or check status, go back to idle */
                  if (ctx->cmd == 0 || (ctx->status & (SNS_UNITCHK|SNS_UNITEXP)) != 0) {
@@ -203,6 +218,15 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                      ctx->state = STATE_IDLE;
                      ctx->selected = 0;
                      log_device("test error state done\n");
+                     break;
+                 }
+
+                 /* If initial status has Channel end, go wait for device to finish */
+                 if ((ctx->status & SNS_DEVEND) != 0) {
+                     *tags &= ~(CHAN_OPR_IN|CHAN_SEL_OUT);
+                     ctx->selected = 0;
+                     ctx->state = STATE_IDLE;
+                     log_device("test device end\n");
                      break;
                  }
 
@@ -215,12 +239,10 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                      break;
                  }
 
-                 /* If select out has dropped, drop operator in if no data to send */
-                 if ((*tags & CHAN_SEL_OUT) == 0 && ctx->data_rdy == 0 && ctx->burst == 0) {
-                     *tags &= ~(CHAN_OPR_IN);           /* Clear select out and in */
+                 if (ctx->burst == 0 && ctx->cmd != 0x4) {
+                     *tags &= ~(CHAN_OPR_IN);  /* Clear select out and in */
                      ctx->selected = 0;
                  }
-
                  /* Wait for device to have some data to transmit */
                  ctx->state = STATE_OPR;
 
@@ -237,41 +259,6 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              if (ctx->selected)
                  *tags &= ~CHAN_SEL_OUT;
 
-             
-             /* If data ready, try and get/send it */
-             if (ctx->data_rdy) {
-                 ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
-                 break;
-             }
-
-             /* If data end, tell CPU */
-             if (ctx->data_end) {
-                 if (ctx->cmd == 0x4) {
-                    ctx->status |= SNS_CHNEND|SNS_DEVEND;
-                 }
-                 if ((ctx->status & SNS_CHNEND) != 0) {
-                    ctx->state = STATE_DATA_END;
-                 }
-                 if ((ctx->status & SNS_DEVEND) != 0) {
-                    ctx->state = STATE_END;
-                 }
-                 break;
-             }
-
-             if (ctx->cmd == 2) {
-log_trace("Test send data %d\n", ctx->max_data);
-                 ctx->data = ctx->buffer[ctx->data_cnt];
-                 if (ctx->data_cnt >= ctx->max_data) {
-                     ctx->data_end = 1;
-                     ctx->data_rdy = 0;
-                     ctx->status |= SNS_CHNEND|SNS_DEVEND;
-                 } else {
-                     ctx->data_rdy = 1;
-                     ctx->data_cnt++;
-                 }
-                 break;
-             }
-
              /* If we get select out with address out, reselection */
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
                 (bus_out & 0xff) == ctx->addr) {
@@ -286,8 +273,7 @@ log_trace("Test send data %d\n", ctx->max_data);
 
              /* On Select channel, Select Out will not drop */
              /* Catch halt I/O */
-             if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_ADR_OUT|CHAN_OPR_IN) &&
-                  (bus_out & 0xff) == ctx->addr)  {
+             if (ctx->selected && (*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN))) {
                   /* Halt I/O */
                   /* Device selected */
                   *tags &= ~(CHAN_OPR_IN);             /* Clear select out and in */
@@ -299,13 +285,11 @@ log_trace("Test send data %d\n", ctx->max_data);
              }
 
              /* Return status while waiting for Address out to drop */
-             if (ctx->selected &&
-                   *tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN) &&
-                   (bus_out & 0xff) == ctx->addr) {
+             if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN)) {
                 /* Device selected */
-                *tags &= ~(CHAN_SEL_OUT);              /* Clear select out and in */
                 *tags |= CHAN_STA_IN;                  /* Indicate busy status */
-                *bus_in = SNS_CHNEND|SNS_DEVEND|0x100;
+                *bus_in = SNS_BSY;
+                log_device("test busy reply\n");
                 break;
              }
 
@@ -318,6 +302,63 @@ log_trace("Test send data %d\n", ctx->max_data);
                   break;
              }
 
+
+             /* If data ready, try and get/send it */
+             if (ctx->data_rdy) {
+                 if (ctx->burst == 0 && ctx->selected && ctx->data_end == 0) {
+                     *tags &= ~(CHAN_OPR_IN);           /* If not burst mode, drop operin */
+                     ctx->selected = 0;
+                 }
+
+                 /* Delay operations so the slow Model 30 can pass tests */
+                 if (ctx->dly > 0) {
+                    ctx->dly--;
+                    break;
+                 }
+                 ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
+                 ctx->dly = 100;
+                 break;
+             }
+
+             /* If data end, tell CPU */
+             if (ctx->data_end) {
+                 if (ctx->cmd == 0x2 || ctx->cmd == 0x4 || ctx->cmd == 0x1 || ctx->cmd == 0xc) {
+                     ctx->status |= SNS_CHNEND|SNS_DEVEND;
+                 }
+                 if ((ctx->status & SNS_CHNEND) != 0) {
+                    ctx->state = STATE_DATA_END;
+                 }
+                 if ((ctx->status & SNS_DEVEND) != 0) {
+                    ctx->state = STATE_END;
+                 }
+                 break;
+             }
+
+             if (ctx->cmd == 2 || ctx->cmd == 0xc) {
+log_trace("Test send data %d\n", ctx->max_data);
+                 ctx->data = ctx->buffer[ctx->data_cnt];
+                 ctx->data_cnt++;
+                 if (ctx->data_cnt > ctx->max_data) {
+                     ctx->data_end = 1;
+                 } else {
+                     ctx->data_rdy = 1;
+                 }
+                 break;
+             }
+
+             if (ctx->cmd == 1) {
+log_trace("Test read data %d\n", ctx->max_data);
+                 ctx->buffer[ctx->data_cnt] = ctx->data;
+                 ctx->data_cnt++;
+                 if (ctx->data_cnt >= ctx->max_data) {
+                     ctx->data_end = 1;
+                 } else {
+                     ctx->data_rdy = 1;
+                 }
+                 break;
+             }
+
+#if 0
              /* If select out dropped, and no data, drop oper in */
              if (ctx->selected && (*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                                    *tags == (CHAN_OPR_OUT|CHAN_OPR_IN))) {
@@ -325,6 +366,8 @@ log_trace("Test send data %d\n", ctx->max_data);
                 ctx->selected = 0;
                 break;
              }
+#endif
+
 
              break;
 
@@ -389,11 +432,6 @@ log_trace("Test send data %d\n", ctx->max_data);
                        ctx->data_end = 1;
                    } else {
                        ctx->data = bus_out; /* Grab data */
-                       ctx->buffer[ctx->data_cnt] = (bus_out & 0xff);
-                       if (ctx->data_cnt > ctx->max_data)
-                           ctx->data_end = 1;
-                       else
-                           ctx->data_cnt++;
                    }
                    ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
                    break;
@@ -503,6 +541,12 @@ log_trace("Test send data %d\n", ctx->max_data);
                   break;
              }
 
+             /* If SMS flag is set, return SMS status */
+             if (ctx->sms) {
+                 ctx->status |= SNS_SMS;
+                 ctx->sms = 0;
+             }
+
              /* Wait for Service out to drop */
              if (ctx->selected && (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                           *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
@@ -561,6 +605,10 @@ log_trace("Test send data %d\n", ctx->max_data);
                  ctx->state = STATE_STACK_SEL;
                  ctx->selected = 1;
                  log_device("test stack selected\n");
+             }
+             /* If suppress out drops, request that we deliver status */
+             if (*tags == (CHAN_OPR_OUT) && (ctx->status & SNS_DEVEND) != 0) {
+                 ctx->state = STATE_REQ;
              }
              break;
 

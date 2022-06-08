@@ -3090,7 +3090,7 @@
       set_mem_key(0x5600, 4);
       set_mem(0x400, 0x50102008); /* st 1,0(2) */
       test_inst(0x0);
-      set_key(0);
+      set_key(2);
       ASSERT_EQUAL_X(0, get_mem(0x5678)); /* Make sure memory not changed */
       ASSERT_TRUE(trap_flag);
   }
@@ -3106,7 +3106,7 @@
       set_mem_key(0x5600, 4);
       set_mem(0x400, 0x50102008); /* st 1,0(2) */
       test_inst(0x0);
-      set_key(0);
+      set_key(4);
       ASSERT_EQUAL_X(0x11223344, get_mem(0x5678)); /* Make sure updated */
   }
 
@@ -3121,7 +3121,7 @@
       set_mem_key(0x5600, 4);
       set_mem(0x400, 0x58102008); /* l 1,0(2) */
       test_inst(0x0);
-      set_key(0);
+      set_key(2);
       ASSERT_EQUAL_X(0x12345678, get_reg(1)); /* Read should work */
       ASSERT_FALSE(trap_flag);
   }
@@ -3140,6 +3140,21 @@
       set_key(0);
       ASSERT_EQUAL_X(0x12345678, get_reg(1));
       ASSERT_FALSE(trap_flag);
+  }
+
+  /* Protection check. CPU zero, memory not zero */
+  CTEST(instruct, prot_check5) {
+      init_cpu();
+      set_amwp(1);                 /* unpriv */
+      set_key(4);
+      set_reg( 1, 0x11223344);
+      set_reg( 2, 0x00005670);
+      set_mem( 0x5678, 0x0);
+      set_mem_key(0x5600, 4);
+      set_mem(0x400, 0x50102008); /* st 1,0(2) */
+      test_inst(0x0);
+      set_key(0);
+      ASSERT_EQUAL_X(0x11223344, get_mem(0x5678)); /* Make sure updated */
   }
 
   /* Test and set */
@@ -3583,6 +3598,106 @@ struct _dec_case {
       ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
   }
 
+  /* Load complement LCDR - LCDR 2,4 */
+  FTEST(instruct, lcdr) {
+      init_cpu();
+      set_mem(0x400, 0x23240000); /* LCDR 2,4 */
+      /* Test positive number */
+      set_fpreg_s(4, 0x12345678);
+      set_fpreg_s(5, 0xaabbccdd);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x92345678, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(3));
+      ASSERT_EQUAL(CC1, CC_REG);
+      /* Test negative number */
+      set_fpreg_s(4, 0x92345678);
+      set_fpreg_s(5, 0xaabbccdd);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x12345678, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(3));
+      ASSERT_EQUAL(CC2, CC_REG);
+      /* Test zero */
+      set_fpreg_s(4, 0x00000000);
+      set_fpreg_s(5, 0x00000000);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x80000000, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(3));
+      ASSERT_EQUAL(CC0, CC_REG);
+      /* Test overflow */
+      set_fpreg_s(4, 0x80000000);
+      set_fpreg_s(5, 0x00000000);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(3));
+      ASSERT_EQUAL(CC0, CC_REG);
+  }
+
+  /* Load Positive LPDR - LPDR 3,4 */
+  FTEST(instruct, lpdr) {
+      init_cpu();
+      set_mem(0x400, 0x20240000);  /* LPDR 2,4 */
+      set_fpreg_s(4, 0xffffffff);
+      set_fpreg_s(5, 0xffffffff);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x7fffffff, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0xffffffff, get_fpreg_s(3));
+      ASSERT_EQUAL(CC2, CC_REG);
+      /* Test positive */
+      set_fpreg_s(4, 0x12345678);
+      set_fpreg_s(5, 0x00000000);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x12345678, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(3));
+      ASSERT_EQUAL(CC2, CC_REG);
+      /* Test zero */
+      set_fpreg_s(4, 0x00000000);
+      set_fpreg_s(5, 0x00000000);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(3));
+      ASSERT_EQUAL(CC0, CC_REG);
+      /* Test overflow */
+      set_fpreg_s(4, 0x80000000);
+      set_fpreg_s(5, 0x00000000);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(3));
+      ASSERT_EQUAL(CC0, CC_REG);
+  }
+
+  /* Load negative LNDR - LNDR 3,4 */
+  FTEST(instruct, lndr) {
+      init_cpu();
+      set_mem(0x400, 0x21240000);  /* LNDR 2,4 */
+      set_fpreg_s(4, 0xffffffff);
+      set_fpreg_s(5, 0xffffffff);
+      test_inst(0);
+      ASSERT_EQUAL_X(0xffffffff, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0xffffffff, get_fpreg_s(3));
+      ASSERT_EQUAL(CC1, CC_REG);
+      /* Test positive */
+      set_fpreg_s(4, 0x12345678);
+      set_fpreg_s(5, 0x00000000);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x92345678, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(3));
+      ASSERT_EQUAL(CC1, CC_REG);
+      /* Test zero */
+      set_fpreg_s(4, 0x00000000);
+      set_fpreg_s(5, 0x00000000);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x80000000, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(3));
+      ASSERT_EQUAL(CC0, CC_REG);
+      /* Test overflow */
+      set_fpreg_s(4, 0x80000000);
+      set_fpreg_s(5, 0x00000000);
+      test_inst(0);
+      ASSERT_EQUAL_X(0x80000000, get_fpreg_s(2));
+      ASSERT_EQUAL_X(0x00000000, get_fpreg_s(3));
+      ASSERT_EQUAL(CC0, CC_REG);
+  }
+
   /* Test compare double */
   FTEST(instruct, cd) {
       init_cpu();
@@ -3621,6 +3736,31 @@ struct _dec_case {
       test_inst(0x0);
       ASSERT_EQUAL(CC0, CC_REG);   /* Equal */
   }
+
+  /* Half instruct rand */
+  FTEST(instruct, hd_rand) {
+      int i;
+      double f1;
+      double result;
+      double desired;
+      double ratio;
+      int did = 0;
+
+      srand(5);
+      for (i = 0; i < testcycles; i++) {
+          f1 = randfloat(200);
+          if (floatToFpreg(2, f1) != 0)
+              continue;
+          desired = f1/2.0;
+          set_mem(0x400, 0x24020000);  /* HDR 0,2 */
+          test_inst(0x0);
+          result = cnvt_64_float(0);
+          ratio = fabs((result - desired) / desired);
+          ASSERT_TRUE(ratio < .000001);
+          did++;
+      }
+  }
+
   /* Add double */
   FTEST(instruct, ad) {
       /* Princ Ops 153 */
@@ -3867,6 +4007,30 @@ struct _dec_case {
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345678, get_fpreg_s(0));
       ASSERT_EQUAL(CC2, CC_REG);
+  }
+
+  /* Half instruct rand */
+  FTEST(instruct, he_rand) {
+      int i;
+      double f1;
+      double result;
+      double desired;
+      double ratio;
+      int did = 0;
+
+      srand(5);
+      for (i = 0; i < testcycles; i++) {
+          f1 = randfloat(200);
+          if (floatToFpreg(2, f1) != 0)
+              continue;
+          desired = f1/2.0;
+          set_mem(0x400, 0x34020000);  /* HER 0,2 */
+          test_inst(0x0);
+          result = cnvt_32_float(0);
+          ratio = fabs((result - desired) / desired);
+          ASSERT_TRUE(ratio < .000001);
+          did++;
+      }
   }
 
   /* Add floating point */
