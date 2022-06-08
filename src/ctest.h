@@ -91,18 +91,19 @@ struct ctest {
 #define CTEST_IMPL_TEARDOWN_TPNAME(sname, tname) CTEST_IMPL_NAME(sname##_##tname##_teardown_ptr)
 
 #define CTEST_IMPL_MAGIC (0xdeadbeef)
-#ifdef __APPLE__
+#if defined(_MSC_VER)
+#pragma data_seg(push)
+#pragma data_seg(".ctest$u")
+#pragma data_set(pop)
+#define CTEST_IMPL_SECTION __declspec(allocate(".ctest$u")) __declspec(align(1))
+#elif defined(__APPLE__)
 #define CTEST_IMPL_SECTION __attribute__ ((used, section ("__DATA, .ctest"), aligned(1)))
-#else
-#ifdef _WIN32
-#define CTEST_IMPL_SECTION
 #else
 #define CTEST_IMPL_SECTION __attribute__ ((used, section (".ctest"), aligned(1)))
 #endif
-#endif
 
 #define CTEST_IMPL_STRUCT(sname, tname, tskip, tdata, tsetup, tteardown) \
-    static struct ctest CTEST_IMPL_TNAME(sname, tname) CTEST_IMPL_SECTION = { \
+    static struct ctest CTEST_IMPL_SECTION CTEST_IMPL_TNAME(sname, tname) CTEST_IMPL_SECTION = { \
         #sname, \
         #tname, \
         { (ctest_nullary_run_func) CTEST_IMPL_FNAME(sname, tname) }, \
@@ -238,48 +239,22 @@ void assert_dbl_far(double exp, double real, double tol, const char* caller, int
 
 #ifdef CTEST_MAIN
 
-#include "config.h"
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#ifdef HAVE_UNISTD_H
+#ifndef _WIN32
+#include <sys/time.h>
 #include <unistd.h>
+#define CTEST_IMPL_ISATTY isatty
 #else
-#ifdef _WIN32
-#define STDOUT_FILENO  _fileno(stdout)
-#endif
+#include <io.h>
+#include <windows.h>
+#define CTEST_IMPL_ISATTY _isatty
 #endif
 #include <stdint.h>
 #include <stdlib.h>
 #include <wchar.h>
-
-#ifndef _WIN32
-#include <sys/time.h>
-#else
-#include <windows.h>
-
-int gettimeofday(struct timeval * tp, struct timezone * tzp)
-{
-    /* Note: some broken versions only have 8 trailing zero's, the correct epoch has 9
-     * trailing zero's. This magic number is the number of 100 nanosecond intervals since
-     * January 1, 1601 (UTC) until 00:00:00 January 1, 1970  */
-    static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
-
-    SYSTEMTIME  system_time;
-    FILETIME    file_time;
-    uint64_t    time;
-
-    GetSystemTime( &system_time );
-    SystemTimeToFileTime( &system_time, &file_time );
-    time =  ((uint64_t)file_time.dwLowDateTime )      ;
-    time += ((uint64_t)file_time.dwHighDateTime) << 32;
-
-    tp->tv_sec  = (long) ((time - EPOCH) / 10000000L);
-    tp->tv_usec = (long) (system_time.wMilliseconds * 1000);
-    return 0;
-}
-#endif
 
 static size_t ctest_errorsize;
 static char* ctest_errormsg;
@@ -514,11 +489,22 @@ static int suite_filter(struct ctest* t) {
 }
 
 static uint64_t getCurrentTime(void) {
+    uint64_t now64;
+#ifndef _WIN32
     struct timeval now;
     gettimeofday(&now, NULL);
-    uint64_t now64 = (uint64_t) now.tv_sec;
+    now64 = (uint64_t) now.tv_sec;
     now64 *= 1000000;
     now64 += ((uint64_t) now.tv_usec);
+#else
+    LARGE_INTEGER frequency;
+    LARGE_INTEGER counter;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    now64 = counter.QuadPart;
+    now64 *= 1000000;
+    now64 /= frequency.QuadPart;
+#endif
     return now64;
 }
 
@@ -541,8 +527,11 @@ static void sighandler(int signum)
 
     /* "Unregister" the signal handler and send the signal back to the process
      * so it can terminate as expected */
-    signal(signum, SIG_DFL);
+#ifdef _MSC_VER
+    raise(signum);
+#else
     kill(getpid(), signum);
+#endif
 }
 #endif
 
@@ -572,7 +561,7 @@ int ctest_main(int argc, const char *argv[])
 #ifdef CTEST_NO_COLORS
     color_output = 0;
 #else
-    color_output = isatty(1);
+    color_output = CTEST_IMPL_ISATTY(1);
 #endif
     uint64_t t1 = getCurrentTime();
 
