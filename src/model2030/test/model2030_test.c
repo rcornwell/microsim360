@@ -32,7 +32,6 @@
 #include "ctest.h"
 #include "xlat.h"
 #include "logger.h"
-#include "model2030.h"
 #include "model_test.h"
 
 
@@ -51,15 +50,15 @@ void model1050_func(uint16_t *tags_out, uint16_t tags_in, uint16_t *t_request) {
 void
 set_ilc(int num)
 {
-    cpu_2030.LS[0x8C] = (1 << num);
-    cpu_2030.LS[0x8c] |= odd_parity[cpu_2030.LS[0x8c]];
+    cpu_2030.LS[0x78C] = (1 << num);
+    cpu_2030.LS[0x78c] |= odd_parity[cpu_2030.LS[0x78c]];
 }
 
 /* get ILC code */
 int
 get_ilc()
 {
-    return (cpu_2030.LS[0x8C]);
+    return (cpu_2030.LS[0x78C]);
 }
 
 /* Set AMWP */
@@ -67,25 +66,25 @@ void
 set_amwp(int num)
 {
     cpu_2030.ASCII = (num & 0x8) != 0;
-    cpu_2030.LS[0xb9] &= 0xf0;
-    cpu_2030.LS[0xb9] |= num;
-    cpu_2030.LS[0xb9] |= odd_parity[cpu_2030.LS[0xb9]];
+    cpu_2030.LS[0x7b9] &= 0xf0;
+    cpu_2030.LS[0x7b9] |= num;
+    cpu_2030.LS[0x7b9] |= odd_parity[cpu_2030.LS[0x7b9]];
 }
 
 /* Get AMWP */
 int
 get_amwp()
 {
-    return cpu_2030.LS[0xb9] & 0x0f;
+    return cpu_2030.LS[0x7b9] & 0x0f;
 }
 
 /* Set key */
 void
 set_key(int num)
 {
-    cpu_2030.LS[0xb9] &= 0x0f;
-    cpu_2030.LS[0xb9] |= (num << 4);
-    cpu_2030.LS[0xb9] |= odd_parity[cpu_2030.LS[0xb9]];
+    cpu_2030.LS[0x7b9] &= 0x0f;
+    cpu_2030.LS[0x7b9] |= (num << 4);
+    cpu_2030.LS[0x7b9] |= odd_parity[cpu_2030.LS[0x7b9]];
     cpu_2030.Q_REG &= 0x0f;
     cpu_2030.Q_REG |= (num << 4);
 }
@@ -100,9 +99,9 @@ get_key()
 void
 set_cc(int cc)
 {
-    cpu_2030.LS[0xbb] &= 0x0f;
-    cpu_2030.LS[0xbb] |= cc;
-    cpu_2030.LS[0xbb] |= odd_parity[cpu_2030.LS[0xbb]];
+    cpu_2030.LS[0x7bb] &= 0x0f;
+    cpu_2030.LS[0x7bb] |= cc;
+    cpu_2030.LS[0x7bb] |= odd_parity[cpu_2030.LS[0x7bb]];
 }
 
 /* Read register */
@@ -111,10 +110,10 @@ get_reg(int num)
 {
     uint32_t    v;
     int         r = num << 4;
-    v  = (cpu_2030.LS[r + 0] & 0xff) << 24;
-    v |= (cpu_2030.LS[r + 1] & 0xff) << 16;
-    v |= (cpu_2030.LS[r + 2] & 0xff) << 8;
-    v |= (cpu_2030.LS[r + 3] & 0xff) << 0;
+    v  = (cpu_2030.LS[r + 0 + 0x700] & 0xff) << 24;
+    v |= (cpu_2030.LS[r + 1 + 0x700] & 0xff) << 16;
+    v |= (cpu_2030.LS[r + 2 + 0x700] & 0xff) << 8;
+    v |= (cpu_2030.LS[r + 3 + 0x700] & 0xff) << 0;
     return v;
 }
 
@@ -124,12 +123,12 @@ set_reg(int num, uint32_t data)
 {
     int    r = num << 4;
     int    i;
-    cpu_2030.LS[r + 0] = (data >> 24) & 0xff;
-    cpu_2030.LS[r + 1] = (data >> 16) & 0xff;
-    cpu_2030.LS[r + 2] = (data >> 8) & 0xff;
-    cpu_2030.LS[r + 3] = (data >> 0) & 0xff;
+    cpu_2030.LS[r + 0 + 0x700] = (data >> 24) & 0xff;
+    cpu_2030.LS[r + 1 + 0x700] = (data >> 16) & 0xff;
+    cpu_2030.LS[r + 2 + 0x700] = (data >> 8) & 0xff;
+    cpu_2030.LS[r + 3 + 0x700] = (data >> 0) & 0xff;
     for (i = 0; i < 4; i++) {
-        cpu_2030.LS[r + i] |= odd_parity[cpu_2030.LS[r + i]];
+        cpu_2030.LS[r + i + 0x700] |= odd_parity[cpu_2030.LS[r + i + 0x700]];
     }
 }
 
@@ -196,10 +195,10 @@ get_fpreg_s(int num)
     int         r = num << 4;
     if (num & 1)
        r += 4;
-    v  = (uint32_t)(cpu_2030.LS[r + 8] & 0xff) << 24;
-    v |= (uint32_t)(cpu_2030.LS[r + 9] & 0xff) << 16;
-    v |= (uint32_t)(cpu_2030.LS[r + 10] & 0xff) << 8;
-    v |= (uint32_t)(cpu_2030.LS[r + 11] & 0xff) << 0;
+    v  = (uint32_t)(cpu_2030.LS[r + 8 + 0x700] & 0xff) << 24;
+    v |= (uint32_t)(cpu_2030.LS[r + 9 + 0x700] & 0xff) << 16;
+    v |= (uint32_t)(cpu_2030.LS[r + 10 + 0x700] & 0xff) << 8;
+    v |= (uint32_t)(cpu_2030.LS[r + 11 + 0x700] & 0xff) << 0;
     return v;
 }
 
@@ -211,13 +210,13 @@ set_fpreg_s(int num, uint32_t data)
     int    i;
     if (num & 1)
        r += 4;
-    cpu_2030.LS[r + 8] = (data >> 24) & 0xff;
-    cpu_2030.LS[r + 9] = (data >> 16) & 0xff;
-    cpu_2030.LS[r + 10] = (data >> 8) & 0xff;
-    cpu_2030.LS[r + 11] = (data >> 0) & 0xff;
+    cpu_2030.LS[r + 8 + 0x700] = (data >> 24) & 0xff;
+    cpu_2030.LS[r + 9 + 0x700] = (data >> 16) & 0xff;
+    cpu_2030.LS[r + 10 + 0x700] = (data >> 8) & 0xff;
+    cpu_2030.LS[r + 11 + 0x700] = (data >> 0) & 0xff;
     r = num << 4;
     for (i = 8; i < 16; i++) {
-        cpu_2030.LS[r + i] = (cpu_2030.LS[r + i] & 0xff) |odd_parity[cpu_2030.LS[r + i] & 0xff];
+        cpu_2030.LS[r + i] = (cpu_2030.LS[r + i + 0x700] & 0xff) |odd_parity[cpu_2030.LS[r + i + 0x700] & 0xff];
     }
 }
 
@@ -230,7 +229,7 @@ get_fpreg_d(int num)
     int         s = 56;
     int         r = num << 4;
     for (i = 8; i < 16; i++, s -= 8) {
-       v |= (uint64_t)(cpu_2030.LS[r + i] & 0xff) << s;
+       v |= (uint64_t)(cpu_2030.LS[r + i + 0x700] & 0xff) << s;
     }
     return v;
 }
@@ -243,8 +242,8 @@ set_fpreg_d(int num, uint64_t data)
     int    i;
     int         s = 56;
     for (i = 8; i < 16; i++, s -= 8) {
-        cpu_2030.LS[r + i] = (data >> s) & 0xff;
-        cpu_2030.LS[r + i] |= odd_parity[cpu_2030.LS[r + i] & 0xff];
+        cpu_2030.LS[r + i + 0x700] = (data >> s) & 0xff;
+        cpu_2030.LS[r + i + 0x700] |= odd_parity[cpu_2030.LS[r + i + 0x700] & 0xff];
     }
 }
 
@@ -286,10 +285,10 @@ int trap_flag;
 void
 test_inst(int mask)
 {
-    cpu_2030.LS[0xAA] = 0x100;
-    cpu_2030.LS[0xA9] = 0x04;
-    cpu_2030.LS[0xBB] = mask | (cpu_2030.LS[0xBB] & 0xf0);
-    cpu_2030.LS[0xBB] |= odd_parity[cpu_2030.LS[0xBB]];
+    cpu_2030.LS[0x7AA] = 0x100;
+    cpu_2030.LS[0x7A9] = 0x04;
+    cpu_2030.LS[0x7BB] = mask | (cpu_2030.LS[0x7BB] & 0xf0);
+    cpu_2030.LS[0x7BB] |= odd_parity[cpu_2030.LS[0x7BB]];
     trap_flag = 0;
     cpu_2030.WX = 0x102;
     START = 1;
@@ -317,9 +316,9 @@ test_inst(int mask)
 void
 test_inst2()
 {
-    cpu_2030.LS[0xAA] = 0x100;
-    cpu_2030.LS[0xA9] = 0x04;
-    cpu_2030.LS[0xBB] = 0;
+    cpu_2030.LS[0x7AA] = 0x100;
+    cpu_2030.LS[0x7A9] = 0x04;
+    cpu_2030.LS[0x7BB] = 0x100;
     set_cc(CC3);
     cpu_2030.WX = 0x102;
     START = 1;
@@ -412,44 +411,40 @@ double cnvt_64_float(int num)
     return d;
 }
 
-/* Run one instructions */
+/* Run instructions until execute of 0 opcode */
 void
 test_io_inst(int mask)
 {
-    cpu_2030.LS[0xAA] = 0x100;
-    cpu_2030.LS[0xA9] = 0x04;
-    cpu_2030.LS[0xBB] = mask | (cpu_2030.LS[0xBB] & 0xf0);
-    cpu_2030.LS[0xBB] |= odd_parity[cpu_2030.LS[0xBB]];
+    int    stop_flag = 0;
+    cpu_2030.LS[0x7AA] = 0x100;
+    cpu_2030.LS[0x7A9] = 0x04;
+    cpu_2030.LS[0x7BB] = mask | (cpu_2030.LS[0x7BB] & 0xf0);
+    cpu_2030.LS[0x7BB] |= odd_parity[cpu_2030.LS[0x7BB]];
     trap_flag = 0;
     cpu_2030.WX = 0x102;
     START = 1;
     cpu_2030.I_REG = 0x4;
     cpu_2030.J_REG = 0x100;
+    log_trace("Do io\n");
     do {
         cycle_2030();
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
         log_trace("WX = [%03X]\n", cpu_2030.WX);
-    } while (cpu_2030.WX != 0x100);
+        if (cpu_2030.WX == 0x2E0 && cpu_2030.R_REG == 0x100)
+            stop_flag = 1;
+    } while (stop_flag == 0);
     log_trace("first\n");
-    do {
-        cycle_2030();
-        step_count++;
-        if (cpu_2030.WX == 0x147)
-           trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
-    } while (cpu_2030.WX != 0x100);
-    log_trace("second\n");
 }
 
 /* Execute two instructions */
 void
 test_io_inst2()
 {
-    cpu_2030.LS[0xAA] = 0x100;
-    cpu_2030.LS[0xA9] = 0x04;
-    cpu_2030.LS[0xBB] = 0;
+    cpu_2030.LS[0x7AA] = 0x100;
+    cpu_2030.LS[0x7A9] = 0x04;
+    cpu_2030.LS[0x7BB] = 0x100;
     set_cc(CC3);
     cpu_2030.WX = 0x102;
     START = 1;

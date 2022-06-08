@@ -23,13 +23,15 @@
  *
  */
 
-#define CC_REG (cpu_2030.LS[0xBB] & 0xf0)
+#include "model2030.h"
+
+#define CC_REG (cpu_2030.LS[0x7BB] & 0xf0)
 #define CC0    0x80
 #define CC1    0x40
 #define CC2    0x20
 #define CC3    0x10
 
-#define PM     (cpu_2030.LS[0xBB] & 0x0f)
+#define PM     (cpu_2030.LS[0x7BB] & 0x0f)
 
 #define IAR   (((cpu_2030.I_REG & 0xff) << 8) | (cpu_2030.J_REG & 0xff))
 

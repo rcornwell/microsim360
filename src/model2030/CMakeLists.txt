@@ -36,9 +36,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(${PROJECT_NAME} model2030_ros.h)
 
 if (RUN_TESTS)
-add_executable(inst2030_test test/ctest_main.c test/model2030_test.c test/io_test.c
+add_executable(inst2030_test test/ctest_main.c test/model2030_test.c
            ../logger.c ../device/disassem.c ../device/xlat.c ../device/device.c
-           ../test/test_device.c ${model2030_src})
+           ../test/io_test.c ../test/test_device.c ${model2030_src})
 if (UNIX)
 target_link_libraries(inst2030_test m)
 endif()
@@ -49,6 +49,7 @@ add_custom_command(TARGET inst2030_test
             VERBATIM)
 target_include_directories(inst2030_test PRIVATE
                                 ${CMAKE_CURRENT_SOURCE_DIR}
+                                ${CMAKE_CURRENT_SOURCE_DIR}/test
                                 ${CMAKE_CURRENT_BINARY_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/..
                                 ${CMAKE_CURRENT_BINARY_DIR}/..
