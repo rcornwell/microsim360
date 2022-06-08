@@ -23,6 +23,7 @@
  *
  */
 
+#include "model2050.h"
 #define CC_REG cpu_2050.CC
 #define CC0    0x0
 #define CC1    0x1

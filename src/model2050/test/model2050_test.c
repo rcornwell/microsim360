@@ -31,7 +31,6 @@
 #include "ctest.h"
 #include "xlat.h"
 #include "logger.h"
-#include "model2050.h"
 #include "model_test.h"
 
 #define FTEST(a, b)   CTEST(a, b)
@@ -301,27 +300,25 @@ void
 test_io_inst(int mask)
 {
     int      max = 0;
+    int      stop_flag = 0;
     cpu_2050.IA_REG = 0x400;
     cpu_2050.PMASK = (mask & 0xf);
     trap_flag = 0;
     cpu_2050.ROAR = 0x190;
     cpu_2050.REFETCH = 1;
     cpu_2050.mem_state = 0;
-        log_trace("Start inst\n");
+    log_trace("Test IO\n");
     do {
         cycle_2050();
         step_count++;
         max++;
-        if ((cpu_2050.ROAR & 0xffc) == 0x148)
-           break;
-        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
-           break;
+        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0)) {
+           stop_flag = 1;
+        }
         if (cpu_2050.ROAR == 0x10e)
            trap_flag = 1;
         log_trace("ROAR = [%03X]\n", cpu_2050.ROAR);
-    } while (max < 2000);
-    if (max > 1000)
-        log_trace("overrun\n");
+    } while (stop_flag == 0);
 
 }
 
@@ -348,11 +345,11 @@ test_io_inst2()
                break;
            }
         }
-        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
-           break;
+//        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
+ //          break;
         if (cpu_2050.ROAR == 0x10e)
            trap_flag = 1;
-    } while (max < 4000);
+    } while (max < 8000);
     log_trace("Max = %d\n", max);
 }
 

@@ -222,6 +222,8 @@ uint16_t    BUS_OUT;            /* MPX bus out */
 uint16_t    MPX_TAGS;           /* MPX tags */
 uint16_t    MPX_TI;             /* MPX tags in */
 uint8_t     IBFULL;             /* IB full */
+uint8_t     MPX_PCI;            /* MPX PCI request */
+uint8_t     MPX_LST;            /* Last word for MPX */
 uint32_t    B_REG[4];           /* Select channel B regiser */
 uint32_t    C_REG[4];           /* Select channel C regiser */
 uint32_t    IOSTAT;             /* I/O Status register */
