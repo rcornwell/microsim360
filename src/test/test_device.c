@@ -210,6 +210,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
 
              /* Wait for Service out to drop */
              if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN) ||
                  *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) {
                  /* If no command, or check status, go back to idle */
@@ -239,7 +240,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                      break;
                  }
 
-                 if (ctx->burst == 0 && ctx->cmd != 0x4) {
+                 if (ctx->burst == 0 && ctx->cmd != 0x4 && (*tags & CHAN_HLD_OUT) == 0) {
                      *tags &= ~(CHAN_OPR_IN);  /* Clear select out and in */
                      ctx->selected = 0;
                  }
@@ -278,7 +279,9 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                   /* Device selected */
                   *tags &= ~(CHAN_OPR_IN);             /* Clear select out and in */
                   ctx->state = STATE_END;              /* Return busy status */
+                  ctx->status = (SNS_DEVEND|SNS_CHNEND);
                   ctx->data_end = 1;
+                  ctx->cmd_done = 1;
                   ctx->selected = 0;
                   log_device("test Halt i/o\n");
                   break;
@@ -305,7 +308,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
 
              /* If data ready, try and get/send it */
              if (ctx->data_rdy) {
-                 if (ctx->burst == 0 && ctx->selected && ctx->data_end == 0) {
+                 if (ctx->burst == 0 && ctx->selected && ctx->data_end == 0 && (*tags & (CHAN_HLD_OUT)) == 0) {
                      *tags &= ~(CHAN_OPR_IN);           /* If not burst mode, drop operin */
                      ctx->selected = 0;
                  }
@@ -380,6 +383,21 @@ log_trace("Test read data %d\n", ctx->max_data);
                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
                  *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
                  log_device("test Reselect\n");
+                 break;
+             }
+
+            /* Channel asking for us */
+            if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_REQ_IN)) &&
+                 ctx->cmd_done && (bus_out & 0xff) == ctx->addr) {
+                 /* Device selected */
+                 if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
+                     ctx->sense |= SENSE_BUSCHK;
+                 *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);      /* Clear select out and in */
+                 *tags |= CHAN_OPR_IN;
+                 ctx->state = STATE_STACK_SEL;
+                 ctx->selected = 1;
+                 log_device("test request selected\n");
                  break;
              }
 
