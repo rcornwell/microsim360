@@ -256,15 +256,16 @@ static char  dis_buffer[1024];
 void
 cycle_2030()
 {
-   uint16_t   nextWX = cpu_2030.WX;
+   uint16_t          nextWX = cpu_2030.WX;
    struct ROS_2030  *sal;
-   int         dec;
-   int         carry_in;
-   uint16_t   abus_f;
-   uint16_t   bbus_f;
+   int               dec;
+   int               carry_in;
+   uint16_t          abus_f;
+   uint16_t          bbus_f;
    static uint16_t   carries;
-   int         i;
-   struct _device *dev;
+   int               i;
+   struct _device   *dev;
+   uint16_t          h_backup;
 
    sal = &ros_2030[nextWX];
    cpu_2030.ros_row1 = sal->row1;
@@ -466,7 +467,7 @@ cycle_2030()
                        if (0 == 0)
                            cpu_2030.Abus |= BIT5;
                        /* Chain Request */
-                       if ((cpu_2030.GF[0] & BIT3) != 0)
+                       if (sel_chain_req[0] != 0)
                            cpu_2030.Abus |= BIT7;
                        cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                        allow_a_reg_chk = 1;
@@ -524,7 +525,7 @@ cycle_2030()
                        if (0 == 0)
                            cpu_2030.Abus |= BIT5;
                        /* Chain Request */
-                       if ((cpu_2030.GF[1] & BIT3) != 0)
+                       if (sel_chain_req[1] != 0)
                            cpu_2030.Abus |= BIT7;
                        cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                        allow_a_reg_chk = 1;
@@ -578,7 +579,7 @@ cycle_2030()
                        store = MAIN;
                    }
                    if (E_SW == 0x21) {
-                       cpu_2030.R_REG = cpu_2030.LS[((cpu_2030.M_REG << 8) & 0xf00) |
+                       cpu_2030.R_REG = cpu_2030.LS[((cpu_2030.M_REG << 5) & 0x700) |
                                         (cpu_2030.N_REG & 0xff)] ^ 0x100;
                        store = LOCAL;
                    }
@@ -642,7 +643,7 @@ cycle_2030()
                        store = MAIN;
                    }
                    if (E_SW == 0x21) {
-                       cpu_2030.LS[((cpu_2030.M_REG << 8) & 0xf00) | (cpu_2030.N_REG & 0xff)] = cpu_2030.R_REG ^ 0x100;
+                       cpu_2030.LS[((cpu_2030.M_REG << 5) & 0x700) | (cpu_2030.N_REG & 0xff)] = cpu_2030.R_REG ^ 0x100;
                        store = LOCAL;
                    }
                    cpu_2030.Abus = cpu_2030.R_REG;
@@ -760,7 +761,6 @@ cycle_2030()
     }
     any_priority_pulse = (priority_bus != 0);
 
-
     /* Check if we should run a select memory cycle or not */
     if (sel_share_req != 0 && allow_write == 0 && read_call == 0) {
        if (sel_share_req & 1)
@@ -769,8 +769,10 @@ cycle_2030()
           i = 1;
        /* Read memory from previous request */
        if (sel_read_cycle[i]) {
+           /* Copy GUV to MN */
            cpu_2030.M_REG = cpu_2030.GU[i];
            cpu_2030.N_REG = cpu_2030.GV[i];
+           /* Count -1 to GZY */
            cpu_2030.GHZ = (cpu_2030.GD[i] - 1) & 0xff;
            cpu_2030.GHY = (cpu_2030.GC[i] & 0xff);
            if (cpu_2030.GHZ == 0xff)
@@ -782,34 +784,38 @@ cycle_2030()
            cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
            /* Check if in range of memory */
            if (((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0)
-               cpu_2030.GE[i] |= BIT2;;
+               cpu_2030.GE[i] |= BIT2;
 
            /* Check validity of M and N registers */
-//           if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 ||
- //                ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
-  //             //printf("Set MN bus\n");
-   //        }
+           if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 ||
+                 ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
+                 cpu_2030.MC_REG |= MNREG;
+           }
 
+           /* Copy GUV to GCD, and New Count in GZY to GUV */
            cpu_2030.GC[i] = cpu_2030.GU[i];
            cpu_2030.GD[i] = cpu_2030.GV[i];
            cpu_2030.GV[i] = cpu_2030.GHZ| odd_parity[cpu_2030.GHZ];
            cpu_2030.GU[i] = cpu_2030.GHY| odd_parity[cpu_2030.GHY];
            /* If output and GR empty */
-           if ((cpu_2030.GG[i] & 1) == 1 && sel_gr_full[i] == 0) {
+           if (sel_cnt_rdy_zero[i] == 0 && (cpu_2030.GG[i] & 1) == 1 && sel_gr_full[i] == 0) {
                cpu_2030.GR[i] = cpu_2030.M[cpu_2030.MN_REG];
                sel_gr_full[i] = 1;
            }
+           /* Update Q with selector memory protection */
            cpu_2030.Q_REG &= 0xf0;
            cpu_2030.Q_REG |= cpu_2030.MP[(0xE0) | (cpu_2030.M_REG >> 3)] & 0xf;
            sel_write_cycle[i] = 1;
            sel_read_cycle[i] = 0;
        } else if (sel_write_cycle[i]) {
+           /* If moving backwards, address - 1 */
            if (cpu_2030.GG[cpu_2030.ch_sel] == 0x10c) {
                cpu_2030.GHZ = (cpu_2030.GD[i] - 1) & 0xff;
                cpu_2030.GHY = (cpu_2030.GC[i] & 0xff);
                if (cpu_2030.GHZ == 0xff)
                    cpu_2030.GHY--;
            } else {
+               /* Else address +1 */
                cpu_2030.GHZ = (cpu_2030.GD[i] + 1) & 0xff;
                cpu_2030.GHY = (cpu_2030.GC[i] & 0xff);
                if (cpu_2030.GHZ == 0x00)
@@ -817,14 +823,13 @@ cycle_2030()
                if (cpu_2030.GHY & 0x100)
                    cpu_2030.GE[i] |= BIT2;
            }
+           /* Count back to GCD and new address to GUV */
            cpu_2030.GC[i] = cpu_2030.GU[i];
            cpu_2030.GD[i] = cpu_2030.GV[i];
            cpu_2030.GV[i] = cpu_2030.GHZ| odd_parity[cpu_2030.GHZ];
            cpu_2030.GU[i] = cpu_2030.GHY| odd_parity[cpu_2030.GHY];
            sel_write_cycle[i] = 0;
-           /* If count 0 update other register */
-           if (sel_cnt_rdy_not_zero[i] == 0)
-               sel_cnt_rdy_zero[i] = 1;
+
            /* Check if input */
            if (sel_gr_full[i] != 0 && ((cpu_2030.GG[i] & 3) == 2 || (cpu_2030.GG[i] & 5) == 4)) {
                if ((cpu_2030.Q_REG & 0xf0) != 0 &&
@@ -833,14 +838,18 @@ cycle_2030()
                    cpu_2030.GR[i] = cpu_2030.M[cpu_2030.MN_REG];
                }
                /* Check skip flag */
-               if ((cpu_2030.GF[i] & BIT4) == 0)
+               if ((cpu_2030.GF[i] & BIT3) == 0)
                    cpu_2030.M[cpu_2030.MN_REG] = cpu_2030.GR[i];
                sel_gr_full[i] = 0;
                /* If Service In and count left Acknowledge */
                if (((cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) &&
-                    sel_cnt_rdy_not_zero[i])
+                    sel_cnt_rdy_zero[i] == 0)
                    cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
            }
+
+           /* If count 0 update other register */
+           if (sel_cnt_rdy_not_zero[i] == 0 && sel_gr_full[i] == 0)
+               sel_cnt_rdy_zero[i] = 1;
 
            /* Check validity of GR register */
            if (((odd_parity[cpu_2030.GR[i]& 0xff] ^ cpu_2030.GR[i]) & 0x100) != 0) {
@@ -851,6 +860,7 @@ cycle_2030()
        }
 
     } else {
+        h_backup = cpu_2030.H_REG;
         /* If we have interrupt, transfer to it */
         if (any_priority_pulse) {
            priority_lch = 1;
@@ -901,19 +911,18 @@ cycle_2030()
              }
              print_inst(mem);
              log_itrace_c(" IC=%02x%02x CC=%02x MSK=%02x AMWP=%x MC=%02x", cpu_2030.I_REG & 0xff,
-                      cpu_2030.J_REG & 0xff, cpu_2030.LS[0xBB], cpu_2030.MASK,
-                      cpu_2030.LS[0xb9] & 0x0f, cpu_2030.MC_REG);
+                      cpu_2030.J_REG & 0xff, cpu_2030.LS[0x7BB], cpu_2030.MASK,
+                      cpu_2030.LS[0x7b9] & 0x0f, cpu_2030.MC_REG);
              log_itrace("\n");
 
              log_itrace_s(" ");
              for (i = 0; i < 16; i++) {
                  log_itrace_c(" GR%02d = %02x%02x%02x%02x", i,
-                      cpu_2030.LS[(i << 4) + 0] & 0xff,
-                      cpu_2030.LS[(i << 4) + 1] & 0xff,
-                      cpu_2030.LS[(i << 4) + 2] & 0xff,
-                      cpu_2030.LS[(i << 4) + 3] & 0xff);
+                      cpu_2030.LS[(i << 4) + 0 + 0x700] & 0xff,
+                      cpu_2030.LS[(i << 4) + 1 + 0x700] & 0xff,
+                      cpu_2030.LS[(i << 4) + 2 + 0x700] & 0xff,
+                      cpu_2030.LS[(i << 4) + 3 + 0x700] & 0xff);
                  if ((i & 0x3) == 0x3) {
-//                      log_itrace("\n");
                       log_itrace_s(" ");
                  }
              }
@@ -1064,13 +1073,20 @@ cycle_2030()
                if (store == MAIN && mem_prot == 0) {
                    cpu_2030.Q_REG &= 0xf0;
                    cpu_2030.Q_REG |= cpu_2030.MP[cpu_2030.SA_REG] & 0xf;
-                   if (sal->CM == 2 && !inh_stg_prot) {
+                   if (!inh_stg_prot) {
                        if ((cpu_2030.H_REG & BIT5) == 0 && (cpu_2030.Q_REG & 0xf0) != 0 &&
                                  (((cpu_2030.Q_REG >> 4) ^ cpu_2030.Q_REG) & 0xf) != 0) {
                            protect_loc_cpu_or_mpx = 1;
-                           stg_prot_req = 1;
+                           if (sal->CM == 2)
+                              stg_prot_req = 1;
+                           log_mem("Protect check\n");
                        }
                    }
+               }
+               if (store == MPX) {
+                   cpu_2030.Q_REG &= 0xf0;
+                   cpu_2030.Q_REG |= cpu_2030.MP[cpu_2030.SA_REG] & 0xf;
+                   log_mem("Mpx read %02x %x\n", cpu_2030.SA_REG, cpu_2030.Q_REG & 0xf);
                }
                if (sal->CM != 2 && mem_prot == 0) {
                    switch (store) {
@@ -1079,10 +1095,12 @@ cycle_2030()
                             cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.M[cpu_2030.MN_REG];
                         } else {
                             cpu_2030.R_REG = cpu_2030.M[cpu_2030.MN_REG];
-                            log_mem("Read main %04x %03x\n", cpu_2030.MN_REG, cpu_2030.R_REG);
+                            log_mem("Read main %04x %03x %x %d\n", cpu_2030.MN_REG, cpu_2030.R_REG,
+                                   cpu_2030.Q_REG & 0xf, inh_stg_prot);
                         }
                         cpu_2030.M[cpu_2030.MN_REG] = 0x00;
                         break;
+                   case MPX:
                    case LOCAL:
                         if (sal->CU == 1)
                             cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.LS[cpu_2030.MN_REG];
@@ -1090,14 +1108,6 @@ cycle_2030()
                             cpu_2030.R_REG = cpu_2030.LS[cpu_2030.MN_REG];
                         }
                         cpu_2030.LS[cpu_2030.MN_REG] = 0x00;
-                        break;
-                   case MPX:
-                        if (sal->CU == 1)
-                            cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.LS[cpu_2030.MN_REG + 256];
-                        else {
-                            cpu_2030.R_REG = cpu_2030.LS[cpu_2030.MN_REG + 256];
-                        }
-                        cpu_2030.LS[cpu_2030.MN_REG + 256] = 0x00;
                         break;
                    }
                }
@@ -1125,17 +1135,16 @@ cycle_2030()
                            }
                            cpu_2030.MP[cpu_2030.SA_REG] = cpu_2030.Q_REG & 0x0f;
                            break;
+                      case MPX:
+                           log_mem("Write mpx %04x %03x %02x %x\n", cpu_2030.MN_REG, cpu_2030.R_REG,
+                                    cpu_2030.SA_REG, cpu_2030.Q_REG & 0xf);
+                           cpu_2030.MP[cpu_2030.SA_REG] = cpu_2030.Q_REG & 0xf;
+                           /* Fall through */
                       case LOCAL:
                            if (sal->CU == 1)
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.GR[cpu_2030.ch_sel];
                            else
                                cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.R_REG;
-                           break;
-                      case MPX:
-                           if (sal->CU == 1)
-                               cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff) + 256] = cpu_2030.GR[cpu_2030.ch_sel];
-                           else
-                               cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff) + 256] = cpu_2030.R_REG;
                            break;
                       }
                       allow_write = 0;
@@ -1186,7 +1195,6 @@ cycle_2030()
                    /* Check if in range of memory */
                    if (((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0) {
                         mem_wrap_req = 1;
-                        //printf("Set Memory wrap\n");
                    }
                    if (i_wrap_cpu && sal->CM == 3 && (cpu_2030.H_REG & BIT6) == 0)
                         mem_wrap_req = 1;
@@ -1197,17 +1205,19 @@ cycle_2030()
                    break;
                case 1:
                    store = LOCAL;
-                   cpu_2030.M_REG = 0x100;
+                   cpu_2030.M_REG = BIT0|BIT1|BIT2;
+                   cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
                    break;
                case 2:
                    store = MPX;
                    cpu_2030.M_REG = cpu_2030.XX_REG;
                    cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
-                   cpu_2030.SA_REG = (cpu_2030.XX_REG << 5) | (cpu_2030.N_REG & 0x1f);
+                   cpu_2030.SA_REG = (cpu_2030.XX_REG & 0xE0) | ((cpu_2030.N_REG >> 3) & 0x1f);
                    break;
                case 3:
                    if ((cpu_2030.G_REG & (BIT0|BIT1)) == 0) {
-                       cpu_2030.M_REG = 0x100;
+                       cpu_2030.M_REG = BIT0|BIT1|BIT2;
+                       cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
                        store = LOCAL;
                    }
                }
@@ -1217,8 +1227,9 @@ cycle_2030()
                if (store == MAIN) {
                    cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
                    cpu_2030.SA_REG = (0xE0) | ((cpu_2030.M_REG >> 3) & 0x1F);
-               } else
-                   cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xf0) << 4) | (cpu_2030.N_REG & 0xff);
+               } else {
+                   cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xE0) << 3) | (cpu_2030.N_REG & 0xff);
+               }
                /* Check validity of M and N registers */
                if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 ||
                      ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
@@ -1393,9 +1404,9 @@ cycle_2030()
                           nextWX &= 0xffd;  /* Clear X6 if set */
                        break;
            case 0x1A: /* Select interrupt SEL1 -> 0,x SEL2 -> x,0, timer -> 0,0 */
-                       if ((cpu_2030.MASK & BIT1) && sel_intrp_lch[0])
+                       if ((cpu_2030.MASK & BIT1) && (sel_intrp_lch[0] || (cpu_2030.GF[0] & BIT4) != 0))
                           nextWX &= 0xffe;
-                       else if ((cpu_2030.MASK & BIT2) && sel_intrp_lch[1])
+                       else if ((cpu_2030.MASK & BIT2) && (sel_intrp_lch[0] || (cpu_2030.GF[1] & BIT4) != 0))
                           nextWX &= 0xffd;
                        else if (((cpu_2030.MASK & BIT7) && cpu_2030.F_REG != 0) || timer_update)
                           nextWX &= 0xffc;
@@ -1596,7 +1607,6 @@ cycle_2030()
            case 0x17:    /* TI */
                   model1050_in(&cpu_2030.TI);
                   cpu_2030.Abus = cpu_2030.TI;
-                  //printf("Read TI %02x\n", cpu_2030.TI);
                   allow_a_reg_chk = 1;
                   break;
            case 0x18:
@@ -1612,7 +1622,6 @@ cycle_2030()
                   cpu_2030.Abus = cpu_2030.GR[cpu_2030.ch_sel];
                   if (((odd_parity[cpu_2030.GR[cpu_2030.ch_sel]& 0xff] ^ cpu_2030.GR[cpu_2030.ch_sel]) & 0x100) != 0) {
                       cpu_2030.GE[cpu_2030.ch_sel] |= BIT5;
-                      //printf("Set GR to A bus\n");
                   }
                   break;
            case 0x1D:    /* GS */
@@ -1625,8 +1634,14 @@ cycle_2030()
                   if (sel_chain_det[cpu_2030.ch_sel])
                       cpu_2030.Abus |= BIT1;
                   /* Interrupt condition */
-                  if ((cpu_2030.SEL_TAGS[cpu_2030.ch_sel] & CHAN_ADR_OUT) != 0)
-                      cpu_2030.Abus |= BIT3;
+                  if ((cpu_2030.SEL_TI[cpu_2030.ch_sel] & CHAN_STA_IN) != 0) {
+                      if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT0) == 0 || (cpu_2030.GF[cpu_2030.ch_sel] & BIT1) != 0) {
+                           if (sel_poll_ctrl[cpu_2030.ch_sel] == 0 || (cpu_2030.GI[cpu_2030.ch_sel] & BIT4) != 0)
+                              cpu_2030.Abus |= BIT3;
+                           if ((cpu_2030.GI[cpu_2030.ch_sel] & (BIT0|BIT2|BIT3|BIT6|BIT7)) != 0)
+                              cpu_2030.Abus |= BIT3;
+                      }
+                  }
                   /* CD */
                   if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT0) != 0)
                       cpu_2030.Abus |= BIT4;
@@ -1634,7 +1649,7 @@ cycle_2030()
                   if (cpu_2030.ch_sel == 0)
                       cpu_2030.Abus |= BIT5;
                   /* Chain Request */
-                  if ((cpu_2030.GF[cpu_2030.ch_sel] & (BIT0|BIT1)) != 0)
+                  if (sel_chain_req[cpu_2030.ch_sel] != 0)
                       cpu_2030.Abus |= BIT7;
                   cpu_2030.Abus |= odd_parity[cpu_2030.Abus];
                   allow_a_reg_chk = 1;
@@ -1675,7 +1690,11 @@ cycle_2030()
                   case 1: cpu_2030.Abus = cpu_2030.GD[cpu_2030.ch_sel]; break;
                   case 2: cpu_2030.Abus = cpu_2030.GC[cpu_2030.ch_sel]; break;
                   case 3: cpu_2030.Abus = cpu_2030.GK[cpu_2030.ch_sel]; break;
-                  case 4: cpu_2030.Abus = cpu_2030.GE[cpu_2030.ch_sel]; allow_a_reg_chk = 0; break;
+                  case 4: cpu_2030.Abus = cpu_2030.GE[cpu_2030.ch_sel]; 
+                          if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT4) != 0)
+                              cpu_2030.Abus |= BIT0;
+                          allow_a_reg_chk = 0;
+                          break;
                   case 8: cpu_2030.Abus = cpu_2030.GO[cpu_2030.ch_sel]; break;
                   case 6:
                           cpu_2030.Abus = 0;
@@ -1754,7 +1773,6 @@ cycle_2030()
                    abus_f = cpu_2030.Abus & 0xff;
                    break;
            case 4:
-                   //printf("stop\n");
                    if (PROC_SW != 0)
                        cf_stop = 1;
                    abus_f = 0;
@@ -1872,8 +1890,10 @@ cycle_2030()
                    break;
            case 7:
                    /* If protection violation, don't let R get changed */
-                   if (sal->CM == 2 && ((allow_write && protect_loc_cpu_or_mpx) || mem_prot))
+                   if ((allow_write && protect_loc_cpu_or_mpx) || mem_prot) {
+                       stg_prot_req = 1;
                        break;
+                   }
                    cpu_2030.R_REG = cpu_2030.Alu_out;
                    if (((odd_parity[cpu_2030.R_REG & 0xff] ^ cpu_2030.R_REG) & 0x100) != 0) {
                         cpu_2030.MC_REG |= BIT6;
@@ -2015,7 +2035,6 @@ cycle_2030()
                    if ((sal->CK & BIT6) != 0 && (sal->CK & BIT7) != 0)  {
                           /* Set interrupt mask */
                           cpu_2030.MASK = (BIT0|BIT1|BIT2|BIT7) & cpu_2030.R_REG;
-log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
                    }
                    /* 1001 Set or reset based on S<0,1,2>
                          S<0> set XX high latch on.
@@ -2053,11 +2072,11 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
                    if ((cpu_2030.MPX_TAGS & (CHAN_SEL_OUT|CHAN_ADR_OUT)) == (CHAN_SEL_OUT|CHAN_ADR_OUT) &&
                        (cpu_2030.MPX_TI & (CHAN_STA_IN)) != 0) {
                        mpx_start_sel = 0;
-                       cpu_2030.MPX_TAGS &= ~CHAN_SEL_OUT;
+                       cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                    }
                    break;
            case 0x0F:
-
+                   /* K->FA controls to MPX channel */
                    /* 10000 PI Sets command-start latch on */
                    /* 01000 PO set bus out register from R. */
                    /* 00100 PO set address-out line on. */
@@ -2078,6 +2097,9 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
                         }
                    } else {
                         cpu_2030.MPX_TAGS &= ~(CHAN_ADR_OUT);
+                        if ((sal->CK & BIT4) == 0) {
+                            cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
+                        }
                    }
                    if (sal->CK & BIT6) {
                         cpu_2030.MPX_TAGS |= CHAN_CMD_OUT;
@@ -2089,6 +2111,7 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
            case 0x16:
                    cpu_2030.GC[cpu_2030.ch_sel] = cpu_2030.GU[cpu_2030.ch_sel];
                    cpu_2030.GD[cpu_2030.ch_sel] = cpu_2030.GV[cpu_2030.ch_sel];
+                   sel_chain_req[cpu_2030.ch_sel] = 0;
                    break;
            case 0x17:
                    /* Selector R to selector protection */
@@ -2099,6 +2122,7 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
                    /* Don't reset PCI if set */
                    cpu_2030.GF[cpu_2030.ch_sel] = cpu_2030.GR[cpu_2030.ch_sel] |
                           (cpu_2030.GF[cpu_2030.ch_sel] & BIT4);
+                   sel_cnt_rdy_zero[cpu_2030.ch_sel] = 0;
                    break;
            case 0x19:
                    /* Selector R to selector command */
@@ -2148,10 +2172,6 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
            case 0x1d:
                    /* Selector bus in to GR */
                    cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.GI[cpu_2030.ch_sel];
-//                   if (sel_poll_ctrl[cpu_2030.ch_sel] == 0 &&
- //                      (cpu_2030.SEL_TI[cpu_2030.ch_sel] & CHAN_STA_IN) != 0) {
-  //                     cpu_2030.SEL_TAGS[cpu_2030.ch_sel] |= CHAN_SRV_OUT;
-   //                }
                    break;
            case 0x1e:
                    /* K > GB */
@@ -2178,6 +2198,7 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
                             sel_status_stop_cond[cpu_2030.ch_sel] = 0;
                             sel_chain_det[cpu_2030.ch_sel] = 0;
                             sel_chain_req[cpu_2030.ch_sel] = 0;
+                            sel_poll_ctrl[cpu_2030.ch_sel] = 0;
                             sel_ros_req &= ~(1 << cpu_2030.ch_sel);
                             break;
                    /* Channel reset/poll reset */
@@ -2192,8 +2213,11 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
                             sel_chain_det[cpu_2030.ch_sel] = 0;
                             sel_chan_busy[cpu_2030.ch_sel] = 0;
                             sel_intrp_lch[cpu_2030.ch_sel] = 0;
+                            sel_halt_io[cpu_2030.ch_sel] = 0;
                             sel_gr_full[cpu_2030.ch_sel] = 0;
                             sel_status_stop_cond[cpu_2030.ch_sel] = 0;
+                            cpu_2030.GE[cpu_2030.ch_sel] = 0;
+                            cpu_2030.GF[cpu_2030.ch_sel] = 0;
                             cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~CHAN_SUP_OUT;
                             break;
                    /* Set Suppress out */
@@ -2214,7 +2238,9 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
                    case 0xd: sel_chan_busy[cpu_2030.ch_sel] = 1;
                              log_selchn("Set channel busy\n"); break;
                    /* Set Halt IO */
-                   case 0xe: sel_halt_io[cpu_2030.ch_sel] = 1; break;
+                   case 0xe: sel_halt_io[cpu_2030.ch_sel] = 1;
+                             sel_chain_req[cpu_2030.ch_sel] = 0;
+                             break;
                    /* Set Interface check */
                    case 0xf: cpu_2030.GE[cpu_2030.ch_sel] |= BIT6; break;
                    default:
@@ -2321,14 +2347,26 @@ log_itrace("Set MASK=%02x\n", cpu_2030.MASK);
 
           if ((cpu_2030.WX != 0xAE)) {
 
-           log_reg("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x %02x %s %02x -> %02x %d\n",
-                   cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG, cpu_2030.Q_REG, cpu_2030.R_REG,
-                   cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG, cpu_2030.FT, cpu_2030.MASK, abus_f, cc_name[sal->CC], bbus_f, cpu_2030.Alu_out, cpu_2030.ASCII);
+           log_reg("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x XX=%x %02x %s %02x -> %02x %d\n",
+                   cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG,
+                   cpu_2030.Q_REG, cpu_2030.R_REG, cpu_2030.S_REG, cpu_2030.T_REG, cpu_2030.MC_REG,
+                   cpu_2030.FT, cpu_2030.MASK, cpu_2030.XX_REG, abus_f, cc_name[sal->CC], bbus_f,
+                   cpu_2030.Alu_out, cpu_2030.ASCII);
            log_reg("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d\n",
                    cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG,
-                   cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX, cpu_2030.STAT_REG,
-                   cpu_2030.O_REG, carries, priority_lch, allow_write, read_call, second_err_stop);
-
+                   cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX,
+                   cpu_2030.STAT_REG, cpu_2030.O_REG, carries, priority_lch, allow_write, read_call,
+                   second_err_stop);
+           log_selchn("GE[0]=%02x GF[0]=%02x GG[0]=%02x GI[0]=%02x GK[0]=%02x GR[0]=%02x GO[0]=%02x GCD=%02x%02x GUV=%02x%02x\n",
+                   cpu_2030.GE[0] & 0xff, cpu_2030.GF[0] & 0xff, cpu_2030.GG[0] & 0xff,
+                   cpu_2030.GI[0] & 0xff, cpu_2030.GK[0] & 0xff, cpu_2030.GR[0] & 0xff,
+                   cpu_2030.GO[0] & 0xff, cpu_2030.GC[0] & 0xff, cpu_2030.GD[0] & 0xff,
+                   cpu_2030.GU[0] & 0xff, cpu_2030.GV[0] & 0xff);
+           log_selchn("GE[1]=%02x GF[1]=%02x GG[1]=%02x GI[1]=%02x GK[1]=%02x GR[1]=%02x GO[1]=%02x GCD=%02x%02x GUV=%02x%02x\n",
+                   cpu_2030.GE[1] & 0xff, cpu_2030.GF[1] & 0xff, cpu_2030.GG[1] & 0xff,
+                   cpu_2030.GI[1] & 0xff, cpu_2030.GK[1] & 0xff, cpu_2030.GR[1] & 0xff,
+                   cpu_2030.GO[1] & 0xff, cpu_2030.GC[1] & 0xff, cpu_2030.GD[1] & 0xff,
+                   cpu_2030.GU[1] & 0xff, cpu_2030.GV[1] & 0xff);
           }
         }
 
@@ -2361,18 +2399,22 @@ chan_scan:
               (cpu_2030.MPX_TI & (CHAN_REQ_IN|CHAN_OPR_IN|CHAN_OPR_OUT)) == (CHAN_REQ_IN|CHAN_OPR_OUT)) {
             mpx_start_sel = 1;
         }
+
         /* Pending select? */
         if (cpu_2030.MPX_TI == (CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN))
             cpu_2030.FT |= BIT3;
+
         /* Copy Select signals */
         cpu_2030.FT &= ~(BIT5|BIT6);
         if ((cpu_2030.MPX_TI & CHAN_SEL_IN) != 0)
             cpu_2030.FT |= BIT5;
         if ((cpu_2030.MPX_TAGS & CHAN_SEL_OUT) != 0)
             cpu_2030.FT |= BIT6;
+
         /* Update Service output line */
         if ((cpu_2030.MPX_TI & (CHAN_SRV_OUT|CHAN_STA_IN|CHAN_SRV_IN)) == CHAN_SRV_OUT)
             cpu_2030.MPX_TAGS &= ~CHAN_SRV_OUT;
+
         /* Update Command output line */
         if ((cpu_2030.MPX_TI & CHAN_CMD_OUT) != 0 && (cpu_2030.MPX_TI & (CHAN_ADR_IN)) == 0)
             cpu_2030.MPX_TAGS &= ~CHAN_CMD_OUT;
@@ -2380,10 +2422,12 @@ chan_scan:
             mpx_start_sel = 0;
             cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
         }
+
         /* Drop address out when we get operation in */
         if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_OPR_IN)) == (CHAN_ADR_OUT|CHAN_OPR_IN)) {
             cpu_2030.MPX_TAGS &= ~CHAN_ADR_OUT;
         }
+
         /* If device responded drop select out */
         if ((cpu_2030.MPX_TAGS & CHAN_SEL_OUT) != 0 &&
                (cpu_2030.MPX_TI & (CHAN_OPR_IN|CHAN_ADR_IN)) == (CHAN_OPR_IN|CHAN_ADR_IN)) {
@@ -2420,10 +2464,8 @@ chan_scan:
                  if (cpu_2030.O_REG & BIT5)  /* Request in */
                     cpu_2030.SEL_TI[i] |= CHAN_REQ_IN;
              }
-             log_selchn("Select %d tags: b=%d p=%d i=%d GF=%02x GG=%02x GR=%02x GCD=%02x %02x GV=%02x %02x\n  ",
-                    i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], cpu_2030.GF[i],
-                   cpu_2030.GG[i], cpu_2030.GR[i], cpu_2030.GC[i], cpu_2030.GD[i], cpu_2030.GU[i],
-                     cpu_2030.GV[i]);
+             log_selchn("Select %d tags: b=%d p=%d i=%d %x\n",
+                    i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], sel_ros_req);
 
              /* If device has acknoweleged address out, drop it */
              if (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN) ||
@@ -2432,17 +2474,12 @@ chan_scan:
                  log_selchn("Ack Addr Out\n");
              }
 
-             if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_OUT)) {
-                if ((sel_share_req & (1 << i)) == 0) {
-                    cpu_2030.SEL_TAGS[i] &= ~(CHAN_SRV_OUT);
-                    /* If output try and refill GR with next location, or clear flag */
-                    if ((cpu_2030.GG[i] & 1) != 0 && sel_gr_full[i] == 0) {
-                        if (sel_cnt_rdy_not_zero[i] && !sel_halt_io[i]) {
-                            log_selchn("Fill channel %d\n", i);
-                            sel_share_req |= 1 << i;
-                            sel_read_cycle[i] = 1;
-                        }
-                     }
+             /* If output try and refill GR with next location, or clear flag */
+             if ((cpu_2030.GG[i] & 1) != 0 && sel_gr_full[i] == 0) {
+                 if (sel_cnt_rdy_not_zero[i] && !sel_halt_io[i]) {
+                     log_selchn("Fill channel %d\n", i);
+                     sel_share_req |= 1 << i;
+                     sel_read_cycle[i] = 1;
                  }
              }
 
@@ -2457,64 +2494,84 @@ chan_scan:
                      sel_read_cycle[i] = 1;
                      sel_gr_full[i] = 1;
                  }
-                    /* Check for stop condition */
-                    if (sel_cnt_rdy_not_zero[i] == 0 &&
-                        (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
-                        log_selchn("Read end\n");
-                        cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
-                    }
+
+                 if (sel_cnt_rdy_zero[i] != 0 && sel_gr_full[i] == 0 &&
+                     (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
+                     log_selchn("Read end\n");
+                     if ((cpu_2030.GF[i] & BIT2) == 0)
+                         cpu_2030.GE[i] |= BIT1;
+                     cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
+                 }
+
              }
 
              /* Output and device requesting service */
              if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_IN) &&
                 (cpu_2030.GG[i] & 1) != 0) {
-                 if (sel_gr_full[i] != 0 && sel_cnt_rdy_not_zero[i] && !sel_halt_io[i]) {
-                    cpu_2030.GO[i] = cpu_2030.GR[i];
-                    log_selchn("Send data %02x\n", cpu_2030.GO[i]);
+                 /* Check for stop condition */
+                 if (sel_cnt_rdy_not_zero[i] == 0 && sel_gr_full[i] == 0 &&
+                     (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
+                     cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
+                     if ((cpu_2030.GF[i] & BIT2) == 0) {  /* Set length error */
+                          cpu_2030.GE[i] |= BIT1;
+                     }
+                     log_selchn("Send end\n");
                  }
-                    /* Check for stop condition */
-                    if (sel_cnt_rdy_not_zero[i] == 0 &&
-                        (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
-                        cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
-                        log_selchn("Send end\n");
-                    }
+
+                 if (sel_gr_full[i] != 0 && !sel_halt_io[i]) {
+                    cpu_2030.GO[i] = cpu_2030.GR[i];
+                    sel_gr_full[i] = 0;
+                    cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
+                    if (sel_cnt_rdy_not_zero[i] == 0)
+                        sel_cnt_rdy_zero[i] = 1;
+                    log_selchn("Send data %02x %d\n", cpu_2030.GO[i], sel_cnt_rdy_zero[i]);
+                    /* If count 0 update other register */
+
+                 }
              }
 
              /* If we have acknowledgement of command out */
-             if ((cpu_2030.SEL_TI[i] & (CHAN_ADR_IN|CHAN_STA_IN|CHAN_SRV_IN)) == 0)
+             if ((cpu_2030.SEL_TI[i] & (CHAN_ADR_IN|CHAN_STA_IN|CHAN_SRV_IN)) == 0) {
                  cpu_2030.SEL_TAGS[i] &= ~(CHAN_CMD_OUT|CHAN_SRV_OUT);
+                 log_selchn("Drop service out\n");
+             }
 
              /* Check if ack output request */
-             if ((cpu_2030.GG[i] & 1) != 0 && sel_cnt_rdy_not_zero[i] && sel_status_stop_cond[i] == 0 &&
-                   (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) {
-                       log_selchn("Acknowlege Service in\n");
-                       cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
+             if ((cpu_2030.GG[i] & 1) != 0 && /*sel_cnt_rdy_not_zero[i] &&*/ sel_status_stop_cond[i] == 0 &&
+                   sel_gr_full[i] != 0 && (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) {
+                 log_selchn("Acknowlege Service in\n");
+                 /* Check for stop condition */
+                 cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
              }
 
              /* Set chain flag, trigger channel ROS request */
              if (sel_gr_full[i] == 0 && sel_cnt_rdy_zero[i] && (cpu_2030.GF[i] & BIT0) != 0) {
                  sel_chain_req[i] = 1;
                  sel_ros_req |= 1 << i;
+                 log_selchn("Trigger ROS\n");
              }
 
              /* Set command chain flag */
              if (((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) &&
-                   sel_poll_ctrl[i] && (cpu_2030.GF[i] & (BIT0|BIT1)) == (BIT1)) {
+                   sel_poll_ctrl[i] && (cpu_2030.GF[i] & (BIT1)) == (BIT1)) {
                  /* Check if length incomplete */
                  if (sel_cnt_rdy_not_zero[i] && (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == CHAN_SRV_OUT &&
                       sel_gr_full[i] == 0 && (cpu_2030.GF[i] & BIT2) == 0) {
-                      cpu_2030.GF[i] |= BIT1;
+                      cpu_2030.GE[i] |= BIT1;
                  }
+
                  /* If there are errors, set interrupt */
                  if ((cpu_2030.GI[i] & 0xf3) != 0) {
                      sel_ros_req |= 1 << i;
                  }
+
                  /* On device end, trigger channel ROS request */
                  if ((cpu_2030.GI[i] & SNS_DEVEND) != 0) {
                      sel_chain_req[i] = 1;
                      sel_ros_req |= 1 << i;
-                     cpu_2030.SEL_TAGS[i] |= CHAN_SUP_OUT;
+                     cpu_2030.SEL_TAGS[i] |= CHAN_SUP_OUT;  /* Set suppress out to indicate command chaining */
                  }
+
                  /* If end of channel, suppress status until device end */
                  if ((cpu_2030.GI[i] & 0xff) == (SNS_CHNEND)) {
                      cpu_2030.SEL_TAGS[i] |= CHAN_SUP_OUT|CHAN_SRV_OUT;
@@ -2525,26 +2582,16 @@ chan_scan:
                  /* Check if length incomplete */
                  if (sel_cnt_rdy_not_zero[i] && (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == CHAN_SRV_OUT &&
                       sel_gr_full[i] == 0 && (cpu_2030.GF[i] & BIT2) == 0) {
-                      cpu_2030.GF[i] |= BIT1;
+                      cpu_2030.GE[i] |= BIT1;
                  }
-#if 0
-                 /* If there are errors, set interrupt */
-                 if ((cpu_2030.GI[i] & 0xf3) != 0) {
-                     sel_intrp_lch[i] = 1;
-                 }
-#endif
+
                  /* On device end, trigger channel ROS request */
-                 if (sel_intrp_lch[i] == 0 && (cpu_2030.GI[i] & SNS_DEVEND) != 0) {
+                 if (sel_intrp_lch[i] == 0 && sel_poll_ctrl[i] == 0 && (cpu_2030.GI[i] & SNS_DEVEND) != 0) {
                      sel_ros_req |= 1 << i;
                  }
-#if 0
-                 /* If end of channel, suppress status until device end */
-                 if ((cpu_2030.GI[i] & 0xff) == (SNS_CHNEND)) {
-                     cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
-                 }
-#endif
-                 //log_selchn("Sel No CC %d %03x pol=%d cnt=%d busy=%d R=%d\n", i, cpu_2030.GI[i],
-                  //     sel_poll_ctrl[i], sel_cnt_rdy_not_zero[i], sel_chan_busy[i], sel_ros_req);
+
+                 log_selchn("Sel No CC %d %03x pol=%d cnt=%d busy=%d R=%d\n", i, cpu_2030.GI[i],
+                       sel_poll_ctrl[i], sel_cnt_rdy_not_zero[i], sel_chan_busy[i], sel_ros_req);
              }
 
              /* Set command chain flag */
@@ -2555,40 +2602,43 @@ chan_scan:
              }
 
              /* If channel not busy watch for Request In */
-             if (sel_poll_ctrl[i] == 0) {
+             if (sel_poll_ctrl[i] == 0 && sel_chan_busy[i] == 0) {
                 if (sel_intrp_lch[i] == 0 && cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_REQ_IN)) {
                     cpu_2030.SEL_TAGS[i] |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
                     log_selchn("Select request\n");
                 }
-                if (sel_intrp_lch[i] == 0 &&
+                if (sel_intrp_lch[i] == 0 && 
                      cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                     sel_ros_req |= 1 << i;
                     log_selchn("Select addressed\n");
                 }
-                /* Wait for device to return status in */
-//                if (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
- //                  cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
-
-   //                log_selchn("Select interrupt\n");
-    //            }
              }
 
-             if (sel_chan_busy[i]  && sel_poll_ctrl[i] == 1 && (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_REQ_IN))) {
-                  cpu_2030.SEL_TAGS[i] |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
+             /* Set poll control if halt I/O and not chaining requests */
+             if (sel_halt_io[i] && sel_chain_req[i] == 0 && sel_intrp_lch[i] == 0) {
+                 sel_poll_ctrl[cpu_2030.ch_sel] = 1;
              }
 
+             /* When we loss operator IN, the device has disconnected, signal clear address out */
+             if (sel_halt_io[i] && (cpu_2030.SEL_TI[i] & (CHAN_ADR_OUT|CHAN_OPR_IN)) == CHAN_ADR_OUT) {
+                 cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~(CHAN_ADR_OUT);
+             }
+
+             /* If we are connected to device and get status in. Generate an interrupt */
              if (sel_poll_ctrl[i] == 0 &&
                 (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                    cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_STA_IN))) {
-                   if ((cpu_2030.GF[i] & (BIT1)) != (0)) {
+                   if ((cpu_2030.GF[i] & (BIT1)) != (0)) {  /* Command chaining */
                         sel_chain_req[i] = 1;
                    }
                    sel_ros_req |= 1 << i;
                    log_selchn("Status interrupt\n");
              }
+
+             /* If error on status in, set stop flag */
              if (sel_chan_busy[i] && sel_poll_ctrl[i] == 0 && (
                  ((cpu_2030.GE[i] & (BIT1||BIT2|BIT3|BIT5|BIT6)) != 0) ||
-                 ((cpu_2030.GE[i] & BIT4) == 0 && sel_cnt_rdy_not_zero[i] == 0) ||
+                 ((cpu_2030.GE[i] & BIT4) == 0 && sel_cnt_rdy_not_zero[i] == 0 && (cpu_2030.GF[i] & BIT0) == 0) ||
                  ((cpu_2030.GE[i] & BIT4) != 0 && CHK_SW == 0))) {
                  sel_status_stop_cond[i] = 1;
                  log_selchn("set stop %d %d %02x %d\n", i, sel_poll_ctrl[i], cpu_2030.GF[i], sel_ros_req);
@@ -2631,6 +2681,18 @@ chan_scan:
                cpu_2030.STAT_REG |= BIT0;
         }
 
+        /* Handle special case of CU when CM specifies read or write */
+        if (sal->CM < 3 && sal->CU == 3) {
+            if (h_backup & BIT5) {
+                sel_ros_req &= ~(1 << cpu_2030.ch_sel);
+                cpu_2030.ch_sel = cpu_2030.ch_sav;
+                cpu_2030.WX = cpu_2030.GWX;
+                log_selchn("SEL IRQ2 %d %d\n", sel_ros_req, h_backup & BIT5);
+            } else {
+                cpu_2030.WX = cpu_2030.FWX;
+                log_selchn("SEL IRQ %d %d\n", sel_ros_req, h_backup & BIT5);
+            }
+        }
         /* Update the priority latch */
         if (allow_write == 0 || gate_sw_to_wx) {
             priority_stack_reg = 0;
@@ -2659,16 +2721,7 @@ chan_scan:
                 priority_stack_reg |= BIT7;
             }
         }
-           /* Handle special case of CU when CM specifies read or write */
-           if (sal->CM < 3 && sal->CU == 3) {
-               if (cpu_2030.H_REG & BIT5) {
-                   sel_ros_req &= ~(1 << cpu_2030.ch_sel);
-                   cpu_2030.ch_sel = cpu_2030.ch_sav;
-                   cpu_2030.WX = cpu_2030.GWX;
-               } else {
-                   cpu_2030.WX = cpu_2030.FWX;
-               }
-           }
+
     }
     /* Restore Operational out */
     cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;

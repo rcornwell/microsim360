@@ -234,12 +234,13 @@ int          ch_sav;             /* Save channel pointer for ROS request */
 uint16_t     GE[2];              /* Selector channel errors. */
 /* GE Register.
  *
- *  Bit 0 - Incorrect length.
- *  Bit 1 - Prog Check
- *  Bit 2 - Prot Check
- *  Bit 3 - Chnl Data Check
- *  Bit 4 - Chnl Ctrl Check
- *  Bit 5 - Intrf Ctrl Check
+ *  Bit 0 - PCI
+ *  Bit 1 - Incorrect length.
+ *  Bit 2 - Prog Check
+ *  Bit 3 - Prot Check
+ *  Bit 4 - Chnl Data Check
+ *  Bit 5 - Chnl Ctrl Check
+ *  Bit 6 - Intrf Ctrl Check
  */
 uint16_t     GF[2];              /* Selector channel flags. */
 /* GF Register.
