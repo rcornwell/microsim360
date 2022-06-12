@@ -2296,7 +2296,7 @@ log_trace("t=%08x %08x\n", l_update, carries);
                      send last 3 word if 15-31 >8 and <13.
                        Last word test. */
 log_trace("Test last word\n");
-                  if (cpu_2050.CH == 0) {
+                  if (cpu_2050.CH == 0xc) {
                       if ((cpu_2050.aob_latch & 0xffff) == 0x0001) {
 log_trace("Set last word\n");
                           cpu_2050.MPX_LST = 1;
@@ -2848,7 +2848,7 @@ log_trace("clear last word\n");
                    00010000   Foul on SIO
                    00100000 Timeout.
                 */
-                cpu_2050.CH = (cpu_2050.L_REG >> 6) & 0xc;
+                cpu_2050.CH = ((cpu_2050.L_REG >> 6) - 4) & 0xc;
                 cpu_2050.CHCTL = cpu_2050.w_bus;
                 if (((cpu_2050.L_REG >> 8) & 0xf) > 3) {   /* Invalid channel */
                     cpu_2050.CC = 3;
@@ -2856,7 +2856,8 @@ log_trace("clear last word\n");
                     break;
                 }
                 if (cpu_2050.CHCTL == 0x08) { /* TCH */
-                    if (cpu_2050.CH == 0) {
+log_trace("TCH %d\n", cpu_2050.CH);
+                    if (cpu_2050.CH == 0xc) {
                         cpu_2050.CC = cpu_2050.IBFULL;
                         if (cpu_2050.ROUTINE == 0x8c) { /* Burst mode */
                            cpu_2050.CC = 2;
@@ -2865,7 +2866,7 @@ log_trace("clear last word\n");
                     }
                     break;
                 }
-                if (cpu_2050.CH != 0)
+                if (cpu_2050.CH != 0xc)
                     cpu_2050.ROUTINE = 0x10;
                 else
                     cpu_2050.ROUTINE = 0xa0;
@@ -2998,20 +2999,24 @@ log_trace("clear last word\n");
                          }
                      }
                      break;
-#if 0
+            case 0x10:   /*  STIO  Start I/O  */
+                     cpu_2050.ROUTINE = 0x30;
+                     cpu_2050.break_in = 1;
+                     break;
+            case 0x30:   /*  CCW2  Load CCW2 */
+                             cpu_2050.ROUTINE = 0x80;  /* RTA0 */
+                     break;
             case 0x04:   /*  IRPT  Interrupt routine */
             case 0x08:   /*  UAFT  Unit Address Fetch routine */
             case 0x0c:   /*  ENDU  End Update routine */
-            case 0x10:   /*  STIO  Start I/O  */
             case 0x14:   /*  COMP  Compare routine. */
             case 0x20:   /*  WFCH  Write Fetch routine. */
             case 0x24:   /*  RST0  Read Store routine */
             case 0x28:   /*  CCW1  Load CCW1 */
             case 0x2c:   /*  TICH  Transfer in channel */
-            case 0x30:   /*  CCW2  Load CCW2 */
             case 0x40:   /*  LSRD  Local Store read routine */
             case 0x44:   /*  LSWR  Local Store write routine */
-#endif
+                     break;
             case 0x80:  /*  RTA0  Routine A0 */
                      if (cpu_2050.break_in == 0 && cpu_2050.BRC == 0) {
                          cpu_2050.ROUTINE = 0x84;   /* RTA1 */
@@ -3711,6 +3716,63 @@ F = 1000  Test Chan
  B -> 0A0 + n<<2
  C -> 082 + n<<2
  D -> 0A2 + n<<2
+
+Selector:
+
+    GP      12   Byte cnt
+            34   End reg
+            567  OP/LW reg
+            890  flags
+
+    12 = bits 30/31 AOB
+    34 = bits 30/31 AOB
+    567  bit  4-7   AOB
+    8910 bits 0-3   AOB
+    CD
+    CC
+    SLI
+    SKIP
+    PCI
+
+         4567
+    xxxx xx01  Write  output                  0110
+    xxxx xx10  Read   input forward           0000
+    xxxx xx11  Control output                 0110
+    xxxx 0100  Sense  input forward           0000
+    xxxx 1100  Read   input backard           0001
+    xxxx 1000  TIC
+
+         bit 4&!bit7 -> bit 7 
+         bit 7       -> bit 5,6
+         0           -> bit 4
+    
+     0 input fwd
+     1 input back
+     3 skip
+     4 end stat and not WLR
+     5 end stat and WLR
+     6 output
+     7 stop
+         
+
+    SIO  qv100-j1    L=UA,00,CH,UA R=CAW, M=op,Addr CHPOSTEST
+               g2    L= ""         R= "", M=""      DTC2       aob = L
+               j3    L= CA+8       R= CA, M=""      CHPOSTEST
+               g4    L=05,DA       R=CA   M=op,Addr DTC2       aob = op,da
+     IOS2 IOS1
+       0  0   For input
+       0  1   Back input
+       1  x   Tic
+    CCW2 qv103 j1      ""          R=CA+8   ""      CHPOSTEST
+               g2    L=05,DA       R=05,DA M=op,addr 
+               c3    L=UA,00,CH,UA R=05,5FE, M=op,addr  DTC2
+               e4    L=UA,0001     R=05,5FE, M=op,addr  DTC2 CCW2TEST
+               a5    L=UA,02,0001  R=000002    M=op,addr   CHPOSTEST
+               e6    L=05,DA       R=dev,02,0003 M=op,adr  DTC2 LSWDTEST
+
+    ENDU qv106   IOS4,1   00=Normal 10=Error, 11/01 = WR Chain  IOS3 CA False
+
+    ITRP qv107   IOS0,IOS3 00 Normal, 10 Status only, 11 Poll Proceed
 
 Multiplex
 080  RTA0  Routine A0 - adr in, poll control
