@@ -26,14 +26,23 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 #include "logger.h"
 #include "device.h"
+
+
+/* Define header to look for */
+static struct _control DEV_LIST_SECTION model_list DEV_LIST_SECTION  = {
+        "list", 0, 0, NULL, NULL, DEV_LIST_MAGIC
+    };
 
 
 char *bus_tags[] = {
     "SLO", "ADO", "CMD", "SRO", "SUP", "HLD", "OPO", NULL,
     "OPI", "ADI", "STI", "SVI", "RQI", NULL, NULL, NULL };
 
+struct _disk *disk;              /* Disk controllers */
+struct _device *chan[6];         /* Channels */
 
 void
 print_tags(char *name, int state, uint16_t tags, uint16_t bus_out)
@@ -102,4 +111,51 @@ del_chan(struct _device *dev, uint16_t addr)
            }
       }
 }
-     
+
+/*
+ * Add a disk to list of drives to run every cycle.
+ */
+void
+add_disk(void (*fnc)(void *data), void *drive)
+{
+    struct _disk   *d;
+
+    if ((d = (struct _disk *)calloc(1, sizeof(struct _disk))) == NULL) {
+        log_warn("Unable to create disk structure\n");
+        return;
+    }
+    d->step = fnc;
+    d->disk = drive;
+    d->next = disk;
+    disk = d;
+}
+
+/*
+ * Step over disk controllers and run there step routine.
+ */
+void
+step_disk()
+{
+    struct _disk  *d;
+
+    for (d = disk; d != NULL; d = d->next)
+        (d->step)(d->disk);
+}
+
+/*
+ * Find first device list entry.
+ */
+struct _control *
+dev_list()
+{
+    struct _control *list_begin = &model_list;
+    while (1) {
+        struct _control *t = list_begin;
+        if (t->magic != DEV_LIST_MAGIC)
+            break;
+        list_begin--;
+    }
+    return list_begin;
+}
+
+

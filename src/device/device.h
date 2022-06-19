@@ -96,18 +96,59 @@ struct _device {
     struct _device *next;          /* Next device in chain */
 };
 
+/* Disk controller microcode steps */
+struct _disk {
+    void      (*step)(void *data);   /* Pointer to microstep routine */
+    void             *disk;          /* Pointer to per disk data */
+    struct _disk     *next;          /* Next disk in list */
+};
+
 struct _unit {
     char *name;
 };
 
 struct _control {
     char *name;
+    int   type;
+    int   opts;
     int  (*create)(char *line);
     struct _device *(*init)(void *render, uint16_t addr);
-    struct _unit *units;
+    unsigned int    magic;
 };
 
+
+#define HEAD_TYPE    0
+#define CPU_TYPE     1
+#define DEVICE_TYPE  2
+#define CTRL_TYPE    3
+#define UNIT_TYPE    4
+
+#define CHAR_OPT     1
+#define NUM_MOD      2
+#define NUM_OPT      4
+
+#define DEV_LIST_MAGIC   0xdeadbeef
+
+#if defined(_MSC_VER)
+#pragma data_seg(push)
+#pragma data_seg(".ctest$u")
+#pragma data_set(pop)
+#define DEV_LIST_SECTION __declspec(allocate(".devlist$u")) __declspec(align(1))
+#elif defined(__APPLE__)
+#define DEV_LIST_SECTION __attribute__ ((used, section ("__DATA, .devlist"), aligned(1)))
+#else
+#define DEV_LIST_SECTION __attribute__ ((used, section (".devlist"), aligned(1)))
+#endif
+
+
+#define DEV_LIST_STRUCT(mod, type, opts) \
+    static struct _control DEV_LIST_SECTION model_##mod## DEV_LIST_SECTION  = { \
+        #mod, type, opts, model##mod##_create, model##mod##_init, DEV_LIST_MAGIC, \
+    }
+
+
 extern struct _device *chan[6];         /* Channels */
+extern struct _disk   *disk;            /* Disk controller that need to be run */
 
 void print_tags(char *name, int state, uint16_t tags, uint16_t bus_out);
 
@@ -116,6 +157,13 @@ void print_inst(uint8_t *val);
 void add_chan(struct _device *dev, uint16_t addr);
 
 void del_chan(struct _device *dev, uint16_t addr);
+
+void add_disk(void (*fnc)(void *), void *drive);
+
+void step_disk();
+
+/* Return pointer to list of devices */
+struct _control *dev_list();
 
 
 /******************************************************************
