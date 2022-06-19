@@ -44,6 +44,17 @@ extern int INTR;
 extern int LOAD;
 extern int timer_event;
 
+extern uint32_t ADR_CMP;
+extern uint32_t INST_REP;
+extern uint32_t ROS_CMP;
+extern uint32_t ROS_REP;
+extern uint32_t SAR_CMP;
+extern uint32_t FORC_IND;
+extern uint32_t FLT_MODE;
+extern uint32_t CHN_MODE;
+extern uint8_t  SEL_SW;
+extern int      SEL_ENTER;
+
 extern uint8_t  A_SW;
 extern uint8_t  B_SW;
 extern uint8_t  C_SW;
@@ -58,6 +69,7 @@ extern uint8_t  PROC_SW;
 extern uint8_t  RATE_SW;
 extern uint8_t  CHK_SW;
 extern uint8_t  MATCH_SW;
+extern uint8_t  STORE_SW;
 
 extern uint16_t const odd_parity[256];
 extern uint8_t     load_mode;
@@ -103,8 +115,8 @@ extern struct ROS_2050 {
 
 #define R1  1                    /* Start of read cycle */
 #define R2  2                    /* Data ready during this cycle */
-#define R3  3                    /* Data can be modified in SDR */
-#define W1  4                    /* Store SDR in memory */
+#define R3  4                    /* Data can be modified in SDR */
+#define W1  8                    /* Store SDR in memory */
 
 /* To initiate Store read, state must be W2.
    Set address into SAR change state to R1. */
@@ -137,7 +149,7 @@ uint8_t     mem_state;           /* Storage cycle state */
 
 
 int         mem_max;             /* Maximum memory address - 1 */
-int         io_mode;             /* CPU or I/O mode of operation */
+uint8_t     io_mode;             /* CPU or I/O mode of operation */
 uint32_t    ros_row1;            /* Current ROS data */
 uint32_t    ros_row2;
 uint32_t    ros_row3;
@@ -152,8 +164,8 @@ uint8_t     u_bus;               /* Mover u input */
 uint8_t     v_bus;               /* Mover v input */
 uint8_t     w_bus;               /* Mover w output */
 
-int         mvfnc;               /* Mover function register */
-int         io_mvfnc;            /* Mover I/O function register */
+uint8_t     mvfnc;               /* Mover function register */
+uint8_t     io_mvfnc;            /* Mover I/O function register */
 
 uint32_t    R_REG;               /* Right register */
 uint32_t    L_REG;               /* Left register */
@@ -193,11 +205,10 @@ uint8_t     IVA;                 /* Invalid address flag */
 uint32_t    DKEYS;               /* Front panel data keys */
 uint32_t    AKEYS;               /* Front panel address keys */
 
-int         CSTAT_REG;           /* Carry status register */
 int         AUX_REG;             /* Auxliary register */
-int         CAR;                 /* Output carry status */
-int         G1NEG;               /* G1 negative */
-int         G2NEG;               /* G2 negative */
+uint8_t     CAR;                 /* Output carry status */
+uint8_t     G1NEG;               /* G1 negative */
+uint8_t     G2NEG;               /* G2 negative */
 
 uint8_t     init_mem;           /* Initial memory cycle */
 uint8_t     init_bump_mem;      /* Initial bump memory cycle */
@@ -206,6 +217,8 @@ uint8_t     update_d;           /* Update to D register */
 
 uint16_t    ROAR;               /* ROAR address register. */
 uint16_t    BROAR;              /* Backup ROAR address. */
+uint16_t    PROAR;              /* Previous ROAR address. */
+uint16_t    NROAR;              /* Next ROAR address. */
 uint8_t     break_in;           /* Break in cycle requested */
 uint8_t     break_out;          /* In break out cycle */
 uint16_t    ROUTINE;            /* Current breaking routine */
@@ -229,6 +242,8 @@ uint32_t    C_REG[4];           /* Select channel C regiser */
 uint32_t    IOSTAT;             /* I/O Status register */
 uint16_t    GR_REG[4];          /* Selector General register */
 uint16_t    TAGS[4];            /* channel tags. */
+uint16_t    CHPOS[4];           /* Channel position register */
+uint16_t    CHCLK[4];           /* Channel position register */
 
 } cpu_2050;
 
@@ -241,5 +256,6 @@ extern uint8_t     test_mode;
 extern uint8_t     clock_start_lch;
 
 void  cycle_2050();
+void  step_2050();
 
 #endif

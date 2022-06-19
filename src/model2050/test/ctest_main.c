@@ -35,7 +35,11 @@
 #include "ctest.h"
 
 struct _device *chan[6];         /* Channels */
-uint8_t load_mode;
+uint8_t            allow_man_operation;  /* Manual mode */
+uint8_t            wait;                 /* Wait state */
+uint8_t            test_mode;            /* testing mode */
+uint8_t            load_mode;            /* Load button pressed */
+
 
 int SYS_RST;
 int ROAR_RST;
@@ -51,7 +55,16 @@ int POWER;
 int INTR;
 int LOAD;
 int timer_event;
-
+uint32_t ADR_CMP;
+uint32_t INST_REP;
+uint32_t ROS_CMP;
+uint32_t ROS_REP;
+uint32_t SAR_CMP;
+uint32_t FORC_IND;
+uint32_t FLT_MODE;
+uint32_t CHN_MODE;
+uint8_t  SEL_SW;
+int      SEL_ENTER;
 uint8_t  A_SW;
 uint8_t  B_SW;
 uint8_t  C_SW;
@@ -71,6 +84,7 @@ int main(int argc, const char *argv[])
 {
     log_level = 0xfff;
     log_init("debug.log");
+    RATE_SW = 1;
     int result = ctest_main(argc, argv);
     return result;
 }
