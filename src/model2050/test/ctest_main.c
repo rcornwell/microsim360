@@ -23,18 +23,15 @@
  *
  */
 
+#define CTEST_MAIN
+#define CTEST_NO_COLORS
+
 #include <stdio.h>
 #include "device.h"
 #include "logger.h"
-
-#define CTEST_MAIN
-
-//#define CTEST_SEGFAULT
-#define CTEST_NO_COLORS
-
 #include "ctest.h"
 
-struct _device *chan[6];         /* Channels */
+struct _device    *chan[6];              /* Channels */
 uint8_t            allow_man_operation;  /* Manual mode */
 uint8_t            wait;                 /* Wait state */
 uint8_t            test_mode;            /* testing mode */

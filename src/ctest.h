@@ -92,9 +92,7 @@ struct ctest {
 
 #define CTEST_IMPL_MAGIC (0xdeadbeef)
 #if defined(_MSC_VER)
-#pragma data_seg(push)
-#pragma data_seg(".ctest$u")
-#pragma data_set(pop)
+#pragma section(".ctest$u", read)
 #define CTEST_IMPL_SECTION __declspec(allocate(".ctest$u")) __declspec(align(1))
 #elif defined(__APPLE__)
 #define CTEST_IMPL_SECTION __attribute__ ((used, section ("__DATA, .ctest"), aligned(1)))
@@ -103,7 +101,7 @@ struct ctest {
 #endif
 
 #define CTEST_IMPL_STRUCT(sname, tname, tskip, tdata, tsetup, tteardown) \
-    static struct ctest CTEST_IMPL_SECTION CTEST_IMPL_TNAME(sname, tname) CTEST_IMPL_SECTION = { \
+    static struct ctest CTEST_IMPL_SECTION CTEST_IMPL_TNAME(sname, tname) = { \
         #sname, \
         #tname, \
         { (ctest_nullary_run_func) CTEST_IMPL_FNAME(sname, tname) }, \

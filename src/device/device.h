@@ -130,9 +130,7 @@ struct _control {
 #define DEV_LIST_MAGIC   0xdeadbeef
 
 #if defined(_MSC_VER)
-#pragma data_seg(push)
-#pragma data_seg(".ctest$u")
-#pragma data_set(pop)
+#pragma segment(".devlist$u")
 #define DEV_LIST_SECTION __declspec(allocate(".devlist$u")) __declspec(align(1))
 #elif defined(__APPLE__)
 #define DEV_LIST_SECTION __attribute__ ((used, section ("__DATA, .devlist"), aligned(1)))
@@ -142,7 +140,7 @@ struct _control {
 
 
 #define DEV_LIST_STRUCT(mod, type, opts) \
-    static struct _control DEV_LIST_SECTION model_##mod## DEV_LIST_SECTION  = { \
+    static struct _control DEV_LIST_SECTION model_##mod## DEV_LIST_SECTION = { \
         #mod, type, opts, model##mod##_create, model##mod##_init, DEV_LIST_MAGIC, \
     }
 

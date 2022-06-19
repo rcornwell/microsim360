@@ -23,14 +23,11 @@
  *
  */
 
-#include <stdio.h>
-#include "logger.h"
-
 #define CTEST_MAIN
-
-#define CTEST_SEGFAULT
 #define CTEST_NO_COLORS
 
+#include <stdio.h>
+#include "logger.h"
 #include "ctest.h"
 
 int SYS_RST;
