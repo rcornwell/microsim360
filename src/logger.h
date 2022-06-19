@@ -108,4 +108,12 @@ void log_print(int level, char *filename, int line, const char *fmt, ...);
 
 #define log_card_s(...) if ((log_level & LOG_CARD) != 0) \
                               log_print_s( LOG_CARD, __FILE__, __LINE__, __VA_ARGS__)
+#define log_disk(...) if ((log_level & LOG_DISK) != 0) \
+                              log_print( LOG_DISK, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_disk_c(...) if ((log_level & LOG_DISK) != 0) \
+                              log_print_c( LOG_DISK, __VA_ARGS__)
+
+#define log_disk_s(...) if ((log_level & LOG_DISK) != 0) \
+                              log_print_s( LOG_DISK, __FILE__, __LINE__, __VA_ARGS__)
 #endif
