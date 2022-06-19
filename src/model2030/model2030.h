@@ -84,7 +84,7 @@ extern struct ROS_2030 {
 
 extern struct CPU_2030 {
 int         count;
-uint16_t    M[64 * 1024];       /* Main memory */
+uint32_t    M[64 * 1024];       /* Main memory */
 uint16_t    LS[4096];           /* Local storage and BUMP storage */
 uint8_t     MP[256];            /* Protection storage. 4 bits */
 

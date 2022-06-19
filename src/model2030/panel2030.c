@@ -234,7 +234,7 @@ setup_fp2030(SDL_Renderer *render)
     text = TTF_RenderText_Shaded(font1, "OFF", c1, c);
     off = SDL_CreateTextureFromSurface( render, text);
     SDL_FreeSurface(text);
-    wb = (strlen(row1) + 1) * (3 * f1_wd);
+    wb = (strlen(row1) + 2) * (3 * f1_wd);
 
     /* Draw top of display */
     ADD_AREA(0, 0, 975, 1100, &cc);
@@ -1481,36 +1481,31 @@ next_row1:
     lamp[0].rect.h = 15;
     lamp[0].rect.w = 15;
     lamp[0].col = 0;
-    lamp[0].value = &clock_start_lch;
-    lamp[0].shift = 0;
+    SET_INDICATOR8(&lamp[0].ind, &clock_start_lch, 0, 0);
     lamp[1].rect.x = 790 + (f1_wd * 15);
     lamp[1].rect.y = h2 * 79 + (h2/2);
     lamp[1].rect.h = 15;
     lamp[1].rect.w = 15;
     lamp[1].col = 0;
-    lamp[1].value = &allow_man_operation;
-    lamp[1].shift = 0;
+    SET_INDICATOR8(&lamp[1].ind, &allow_man_operation, 0, 0);
     lamp[2].rect.x = 790 + (f1_wd * 20);
     lamp[2].rect.y = h2 * 79 + (h2/2);
     lamp[2].rect.h = 15;
     lamp[2].rect.w = 15;
     lamp[2].col = 0;
-    lamp[2].value = &wait;
-    lamp[2].shift = 0;
+    SET_INDICATOR8(&lamp[2].ind, &wait, 0, 0);
     lamp[3].rect.x = 790 + (f1_wd * 25);
     lamp[3].rect.y = h2 * 79 + (h2/2);
     lamp[3].rect.h = 15;
     lamp[3].rect.w = 15;
     lamp[3].col = 1;
-    lamp[3].value = &test_mode;
-    lamp[3].shift = 0;
+    SET_INDICATOR8(&lamp[3].ind, &test_mode, 0, 0);
     lamp[4].rect.x = 790 + (f1_wd * 30);
     lamp[4].rect.y = h2 * 79 + (h2/2);
     lamp[4].rect.h = 15;
     lamp[4].rect.w = 15;
     lamp[4].col = 0;
-    lamp[4].value = &load_mode;
-    lamp[4].shift = 0;
+    SET_INDICATOR8(&lamp[4].ind, &load_mode, 0, 0);
     lamp_ptr = 5;
 }
 

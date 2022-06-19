@@ -29,6 +29,26 @@
 #include <SDL_ttf.h>
 #include <stdint.h>
 
+typedef struct _indicator {
+    uint32_t     mask;
+    uint16_t     shift;
+    int16_t      type;
+    union {
+       uint32_t  *v32;
+       uint16_t  *v16;
+       uint8_t   *v8;
+    } value;
+} indicator;
+
+#define      U32     0
+#define      U16     -1
+#define      U8      1
+
+#define SET_INDICATOR32(ind, data, sh, msk) (ind)->type=U32; (ind)->mask=msk; (ind)->shift=sh; (ind)->value.v32=data;
+#define SET_INDICATOR16(ind, data, sh, msk) (ind)->type=U16; (ind)->mask=msk; (ind)->shift=sh; (ind)->value.v16=data;
+#define SET_INDICATOR8(ind, data, sh, msk) (ind)->type=U8; (ind)->mask=msk; (ind)->shift=sh; (ind)->value.v8=data;
+#define SET_INDICATORNON(ind) (ind)->type=U32; (ind)->mask=0; (ind)->shift=0; (ind)->value.v32=NULL;
+
 /* Declare an error to be of a give color */
 extern struct _area {
     SDL_Rect     rect;            /* Area to color */
@@ -57,8 +77,7 @@ extern struct _ros_bits {
 extern struct _lamp {
     SDL_Rect      rect;           /* Area to show rectangle */
     int           col;            /* Color */
-    int           shift;          /* Amount to shift to bit */
-    uint8_t      *value;          /* Pointer to value */
+    indicator     ind;
 } lamp[1000];
 
 /* Two level indicators */
@@ -138,7 +157,7 @@ extern struct _dial {
     int          max;            /* Maximum value of switch */
     int          wrap;           /* Does switch have stop */
     uint8_t     *value;          /* Value to modify */
-} dial[4];
+} dial[5];
 
 /* Hex digit dial */
 extern struct _hex {
@@ -199,10 +218,7 @@ extern struct _roller {
     int           ystart;             /* Starting row */
     int           sel;                /* Current roller selection */
     struct _disp {
-        uint32_t    *value[36];       /* Pointer to value */
-        uint8_t     *value8[36];      /* Pointer to uint8 value */
-        int         shift[36];        /* Shift amount */
-        int         mask[36];         /* Mask */
+        indicator   ind[37];
     } disp[8];
 } roller[6];
 
@@ -273,6 +289,16 @@ struct _labels {
       char       *lower;
 };
 
+#define ADD_LABEL0(x1, y1, ww, t, cf, cb) ctl_label[ctl_ptr].rect.y = (y1); \
+                              text = TTF_RenderText_Shaded(font0, t, cf, cb); \
+                              ctl_label[ctl_ptr].text = \
+                                       SDL_CreateTextureFromSurface(render, text) ; \
+                              SDL_QueryTexture(ctl_label[ctl_ptr].text, &f, &k, &wx, &hx); \
+                              ctl_label[ctl_ptr].rect.x = (x1) + (ww / 2) - (wx/2); \
+                              ctl_label[ctl_ptr].rect.h = hx; \
+                              ctl_label[ctl_ptr].rect.w = wx; \
+                              SDL_FreeSurface(text); ctl_ptr++;
+
 #define ADD_LABEL(x1, y1, ww, t, cf, cb) ctl_label[ctl_ptr].rect.y = (y1); \
                               text = TTF_RenderText_Shaded(font1, t, cf, cb); \
                               ctl_label[ctl_ptr].text = \
@@ -332,6 +358,7 @@ extern int store_ptr;
 extern int roller_ptr;
 extern int toggle_ptr;
 
+extern TTF_Font   *font0;
 extern TTF_Font   *font1;
 extern TTF_Font   *font12;
 extern TTF_Font   *font14;

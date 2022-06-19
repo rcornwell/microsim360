@@ -81,8 +81,8 @@ struct _toggle toggles[1000];
 /* Indicator button */
 struct _ind ind[100];
 
-/* Rotory dail */
-struct _dial dial[4];
+/* Rotory dial */
+struct _dial dial[5];
 
 /* Hex digit dial */
 struct _hex hex_dial[10];
@@ -99,6 +99,7 @@ uint32_t timer_callback(uint32_t interval, void *param);
 
 #define inrect(px, py, r) ((px > r.x) && (px < (r.x + r.w)) && (py > r.y) && (py < (r.y + r.h)))
 
+TTF_Font *font0;                     /* Small font */
 TTF_Font *font1;
 TTF_Font *font12;
 TTF_Font *font14;
@@ -304,6 +305,39 @@ static int roller_light_offset[36] = {
      23, 23, 23, 23, 23, 23
 };
 
+/*
+ * Get the value of an indicator.
+ * If Mask is none zero compute parity instead of bit.
+ */
+uint32_t
+get_indicator(indicator *ind)
+{
+    uint32_t   v = 0;
+
+    if (ind->type == 0 && ind->value.v32 != NULL)
+       v = *ind->value.v32;
+    else if (ind->type < 0 && ind->value.v16 != NULL)
+       v = (uint32_t)(*ind->value.v16);
+    else if (ind->type > 0 && ind->value.v8 != NULL)
+       v = (uint32_t)(*ind->value.v8);
+    v >>= ind->shift;
+    if (ind->mask != 0) {
+        int        k, p = 1;
+        uint32_t   mask = ind->mask;
+        for (k = 0; k < 32 && mask != 0; k++) {
+            uint32_t  m = 1<<k;
+            if (m & mask) {
+                p ^= ((v & m) != 0);
+                mask ^= m;
+            }
+        }
+        v = p;
+     } else {
+        v &= 1;
+     }
+     return v;
+}
+
 void
 draw_screen()
 {
@@ -450,7 +484,9 @@ draw_screen()
      }
 
      /* Draw rotary dial switches */
-     for (i = 0; i < 4; i++ ) {
+     for (i = 0; i < 5; i++ ) {
+          if (dial[i].center_x == 0)
+              continue;
           SDL_SetRenderDrawColor( render, c1.r, c1.g, c1.b, 0xff);
           for (j = 0; j <= dial[i].max; j++) {
               SDL_RenderDrawLine( render, dial[i].pos_x[j], dial[i].pos_y[j],
@@ -524,33 +560,11 @@ draw_screen()
         rect2.y = 0;
         rect2.w = 15;
         rect2.h = 15;
-        for (j = 0; j < 36; j++) {
-             uint32_t      v = LAMP_TEST;
-
-             rect2.y = 0;
-             if (roller[i].disp[roller[i].sel].value[j] != 0) {
-                 v = *roller[i].disp[roller[i].sel].value[j];
-             }
-             /* Handle uint8_t types as well */
-             else if (roller[i].disp[roller[i].sel].value8[j] != 0) {
-                 v = (uint32_t)(*roller[i].disp[roller[i].sel].value8[j]);
-             }
-             v >>= roller[i].disp[roller[i].sel].shift[j];
-             /* If there is a mask, compute parity */
-             if (roller[i].disp[roller[i].sel].mask[j] != 0) {
-                 int k, p = 1;
-                 uint32_t   mask = roller[i].disp[roller[i].sel].mask[j];
-                 for (k = 0; k < 32 && mask != 0; k++) {
-                     uint32_t  m = 1<<k;
-                     if (m & mask) {
-                         p ^= ((v & m) != 0);
-                         mask ^= m;
-                     }
-                 }
-                 v = p;
-             }
-             if (LAMP_TEST || v)
-                rect2.y = 15;
+        for (j = 0; j <= 36; j++) {
+             if (LAMP_TEST || get_indicator(&roller[i].disp[roller[i].sel].ind[j]))
+                 rect2.y = 15;
+             else
+                 rect2.y = 0;
              SDL_RenderCopy(render, lamps, &rect2, &rect);
              rect.x += roller_light_offset[j];
         }
@@ -585,7 +599,7 @@ draw_screen()
         rect.y = 0;
         rect.w = 15;
         rect.h = 15;
-        if (LAMP_TEST || (lamp[i].value != 0 && *lamp[i].value & (1 << lamp[i].shift)))
+        if (LAMP_TEST || get_indicator(&lamp[i].ind))
             rect.y = 15;
         SDL_RenderCopy(render, lamps, &rect, & lamp[i].rect);
     }
@@ -835,7 +849,7 @@ draw_popup(struct _popup *popup, int hd, int wd)
         rect.y = 0;
         rect.w = 15;
         rect.h = 15;
-        if ((popup->lamp[i].value != 0 && *popup->lamp[i].value & (1 << popup->lamp[i].shift)))
+        if (get_indicator(&popup->lamp[i].ind))
             rect.y = 15;
         SDL_RenderCopy(popup->render, lamps, &rect, & popup->lamp[i].rect);
     }
@@ -1050,8 +1064,8 @@ int main(int argc, char *argv[]) {
     uint32_t ticks;
 
     step_count = 0;
-    log_init("debug.log");
-    log_level = LOG_ITRACE|LOG_DEVICE|LOG_TAPE;
+    log_init("debug50.log");
+    log_level = LOG_ITRACE|LOG_DEVICE|LOG_TAPE|LOG_MICRO|LOG_REG|LOG_TRACE;
     /* Start SDL */
     SDL_Init( SDL_INIT_EVERYTHING );
     TTF_Init();
@@ -1074,6 +1088,7 @@ int main(int argc, char *argv[]) {
 
 /*    rw_font = SDL_RWFromConstMem(base_font, sizeof(base_font)); */
     /* Create fonts */
+    font0 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 7);
     font1 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 9);
     font12 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 12);
     font14 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 14);
@@ -1099,7 +1114,7 @@ int main(int argc, char *argv[]) {
 
     cpu_2030.mem_max = 0x3fff;
     setup_fp2030(render);
-    //setup_fp2050(render);
+//    setup_fp2050(render);
 
     model1050_init();
     (void)model1443_init(render2, 0x00b);
@@ -1116,7 +1131,7 @@ int main(int argc, char *argv[]) {
                case SDL_MOUSEBUTTONDOWN:
                     for (i = 0; i < sws_ptr; i++) {
                         if (inrect(event.button.x, event.button.y, sws[i].rect)) {
-                             if (i == 8) {
+                             if (sws[i].type == ONOFF) {
                                  *sws[i].value = !*sws[i].value;
                              } else if (sws[i].value != 0) {
                                  *sws[i].value = 1;
@@ -1124,7 +1139,9 @@ int main(int argc, char *argv[]) {
                              sws[i].active = 1;
                         }
                     }
-                    for (i = 0; i < 4; i++) {
+                    for (i = 0; i < 5; i++) {
+                        if (dial[i].center_x == 0)
+                            continue;
                         if (inrect(event.button.x, event.button.y, dial[i].boxd)) {
                             if (*(dial[i].value) == 0 && dial[i].wrap) {
                                 *(dial[i].value) = dial[i].max;
@@ -1218,7 +1235,7 @@ int main(int argc, char *argv[]) {
                case SDL_MOUSEBUTTONUP:
                     for (i = 0; i < sws_ptr; i++) {
                         if (inrect(event.button.x, event.button.y, sws[i].rect)) {
-                             if (i != 8 && sws[i].value != 0) {
+                             if (sws[i].type != ONOFF && sws[i].value != 0) {
                                  *sws[i].value = 0;
                              }
                              sws[i].active = 0;
@@ -1569,6 +1586,7 @@ int process(void *data) {
           SDL_UnlockMutex(display_mutex);
        }
        cycle_2030();
+//       step_2050();
        advance();
     }
     return 0;

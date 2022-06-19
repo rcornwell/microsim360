@@ -47,8 +47,6 @@ uint8_t     test_mode;
 uint8_t     clock_start_lch;
 uint8_t     load_mode;
 
-struct _device *chan[6];         /* Channels */
-
 /* Machine check bits */
 #define AREG    0x80
 #define BREG    0x40
@@ -253,6 +251,7 @@ static int        cg_mask[4] = { 0x00, 0x0f, 0xf0, 0xff };
 */
 
 static char  dis_buffer[1024];
+
 void
 cycle_2030()
 {
