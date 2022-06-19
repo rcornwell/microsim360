@@ -109,11 +109,15 @@ struct _dasd_t
      int                head;        /* Current head */
      uint8_t            tags;        /* Current file tags */
      uint8_t            diff;        /* Difference register */
+     uint8_t            dir;         /* Direction */
+     uint8_t            attn;        /* Drive attention status */
      uint8_t            flags;       /* Flags */
+     uint8_t            am_search;   /* Searching for address mark */
      uint8_t           *cbuf;        /* Cylinder buffer */
      uint32_t           fpos;        /* Position of head of cylinder in file */
      uint32_t           tstart;      /* Location of start of track */
-     uint16_t           cyl;         /* Cylinder head at */
+     uint16_t           ncyl;        /* New Cylinder */
+     uint16_t           cyl;         /* Cylinder */
      uint16_t           tpos;        /* Virtual Track position */
      uint16_t           rpos;        /* Start of current record */
      uint16_t           cpos;        /* Current position around disk */
@@ -136,6 +140,8 @@ struct _dasd_t
 void dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc);
 
 uint8_t dasd_cur_cyl(struct _dasd_t *dasd);
+
+int dasd_check_attn(struct _dasd_t *dasd);
 
 void dasd_update(struct _dasd_t *dasd);
 
