@@ -57,6 +57,7 @@ struct _2841_context {
     int         addr;               /* Device address */
     int         chan;               /* Channel address */
     int         selected;           /* Device currently selected */
+    int         request;            /* Requesting CPU */
     int         opr_in;             /* Raise operation in */
     int         sense;              /* Current sense value */
     int         cmd;                /* Current command */
@@ -72,6 +73,7 @@ struct _2841_context {
     int         svc_req;            /* Service received */
     int         steering;           /* Steering latch */
     int         tags;               /* Last bus output tags */
+    int         index;              /* Index sensed */
 
     uint8_t     Abus;               /* Holds the input to the A side of ALU. */
     uint8_t     Bbus;               /* Holds the input to the B side of ALU. */
@@ -89,17 +91,17 @@ struct _2841_context {
    Bit 1            Index pulse.
    Bit 4            Read operation, turned on when data sent to DR.
  */
-uint8_t         OP_REG;             /* Operation code register */
-uint8_t         DW_REG;             /* Data write register */
-uint8_t         UR_REG;             /* Unit address register */
-uint8_t         BX_REG;             /* Code check burst register */
-uint8_t         BY_REG;             /* Code check burst register */
-uint8_t         DH_REG;             /* Data length High register */
-uint8_t         DL_REG;             /* Data length High register */
-uint8_t         FR_REG;             /* Flag register */
-uint8_t         GL_REG;             /* Gap length */
-uint8_t         KL_REG;             /* Key length register */
-uint8_t         ER_REG;
+    uint8_t     OP_REG;             /* Operation code register */
+    uint8_t     DW_REG;             /* Data write register */
+    uint8_t     UR_REG;             /* Unit address register */
+    uint8_t     BX_REG;             /* Code check burst register */
+    uint8_t     BY_REG;             /* Code check burst register */
+    uint8_t     DH_REG;             /* Data length High register */
+    uint8_t     DL_REG;             /* Data length High register */
+    uint8_t     FR_REG;             /* Flag register */
+    uint8_t     GL_REG;             /* Gap length */
+    uint8_t     KL_REG;             /* Key length register */
+    uint8_t     ER_REG;
 /* ER Register.
    Bit 0            Set if error during/writing - op in resets.
    Bit 1            Follows Address out.
@@ -109,9 +111,11 @@ uint8_t         ER_REG;
    Bit 7            Set on Halt I/O.
 */
 
-uint8_t         GP_REG;             /* General purpose register */
+   uint8_t      GP_REG;             /* General purpose register */
 
-uint8_t         IG_REG;             /* Channel control regiser */
+   uint8_t      SC_REG;             /* Drive attention flags */
+
+   uint8_t      IG_REG;             /* Channel control regiser */
 /* IG register.
    Bit 0            Write latch
    Bit 1            Operational in
@@ -122,17 +126,50 @@ uint8_t         IG_REG;             /* Channel control regiser */
    Bit 6            Present Dev end.
    Bit 7            Address In.
   */
-uint16_t        bus_out;
-uint16_t        WX;                 /* ROAR address register. */
+   uint16_t        bus_out;
+   uint16_t        WX;                 /* ROAR address register. */
 
-uint8_t         FT;                 /* File tag register */
-uint8_t         FC;                 /* File control register */
-int        unit_num;                /* Selected unit number */
-struct _dasd_t  *disk[8];           /* Disk drives */
+/* FT register.
+ * Bit 0            Control
+ * Bit 1            Set Cylinder
+ * Bit 2            Set Head and Sign
+ * Bit 3            Set difference
+ * Bit 4            Head advance.
+ * Bit 5            unused.
+ * Bit 6            unused.
+ * Bit 7            2311 select.
+ */
+   uint8_t         FT;                 /* File tag register */
+
+/* FC register.     Control         Set Cylinder    Set Head   Set Diff
+ * Bit 0            Write Gate      track 128       forward     diff 128
+ * Bit 1            Read Gate       track 64                    diff 64
+ * Bit 2            Seek start      track 32                    diff 32
+ * Bit 3            Head reset      track 16                    diff 16
+ * Bit 4            Erase Gate      track 8         head 8      diff 8
+ * Bit 5            Select head     track 4         head 4      diff 4
+ * Bit 6            Return 000      track 2         head 2      diff 2
+ * Bit 7            Head adance     track 1         head 1      diff 1
+ *                  FT0 & FT4
+ */
+   uint8_t         FC;                 /* File control register */
+
+/* FS Register.
+ * Bit 0            Selected ready
+ * Bit 1            Selected online
+ * Bit 2            Selected unsafe
+ * Bit 3            unused.
+ * Bit 4            unused.
+ * Bit 5            Selected end of cyl
+ * Bit 6            unused.
+ * Bit 7            Selected seek incomp
+ */
+    int              unit_num;          /* Selected unit number */
+    struct _dasd_t  *disk[8];           /* Disk drives */
 
 };
 
-void step_2841(struct _2841_context *ctx);
+void   step_2841(void *data);
 struct _device *model2841_init(void *render, uint16_t addr);
 #endif
 #endif

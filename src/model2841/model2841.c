@@ -86,8 +86,9 @@ static char *cs_name[16] =
                      "1->ST3", "0->ST4", "0->ST5", "1->ST5", "0->ST6", "1->ST6", "0->ST7", "1->ST7" };
 
 void
-step_2841(struct _2841_context *ctx)
+step_2841(void *data)
 {
+   struct _2841_context   *ctx = (struct _2841_context *)data;
    uint16_t   nextWX = ctx->WX;
    struct ROS_2841  *sal;
    int        carry_in;
@@ -216,28 +217,41 @@ step_2841(struct _2841_context *ctx)
    }
 
    /* Walk through all drives and update current position */
+   ctx->SC_REG = 0;
    for (i = 0; i < 8; i++) {
         uint8_t    ix;
         ix = 0;
         if (ctx->disk[i] == NULL)
             continue;
-        if ((ctx->UR_REG & (0x80 >> i)) != 0 && ctx->FT == 0x81) {
+        if ((ctx->UR_REG & (0x80 >> i)) != 0 && (ctx->FT & 0x81) == 0x81) {
             uint8_t   data, am;
-            if (ctx->FC == 0x40) {
+            if ((ctx->FC & 0x40) != 0) {
                 if (dasd_read_byte(ctx->disk[i], &data, &am, &ix)) {
+          log_disk("Disk read %d %02x\n", i, data);
                     ctx->ST_REG |= BIT4;
                     ctx->DR_REG = data;
                 }
-            } else if (ctx->FC == 0x80) {
+            } else if ((ctx->FC & 0x80) != 0) {
+          log_disk("Disk write %d\n", i);
                 data = ctx->DR_REG;
                 if (dasd_write_byte(ctx->disk[i], &data, &am, &ix)) {
                     ctx->ST_REG |= BIT4;
                 }
+            } else {
+                dasd_step(ctx->disk[i], &ix);
             }
         } else {
            /* If not selected, just keep in sync */
+          log_disk("Disk stepper %d\n", i);
             dasd_step(ctx->disk[i], &ix);
         }
+        /* Check if drive has attention signal */
+        if (dasd_check_attn(ctx->disk[i])) {
+            ctx->SC_REG |= 0x80 >> i;
+          log_disk("Disk attn %d\n", i);
+        }
+        if ((ctx->ST_REG & BIT1) != 0 && ix)
+            ctx->index = 1;
    }
 
    /* Base next address. */
@@ -361,7 +375,8 @@ step_2841(struct _2841_context *ctx)
            break;
    case 14: /* index */
            /* Check for index */
-/*              nextWX |= 0x1; */
+           if (ctx->index)
+              nextWX |= 0x1;
            break;
    case 15: /* OP7 */
            if ((ctx->OP_REG & BIT7) != 0)
@@ -467,7 +482,7 @@ step_2841(struct _2841_context *ctx)
           break;
    case 0x1C:    /* SC */
           /* Drive attention register */
-          ctx->Abus = 0;
+          ctx->Abus = ctx->SC_REG;
           break;
    case 0x1D:    /* FS */
           /* Drive status register */
@@ -483,7 +498,7 @@ step_2841(struct _2841_context *ctx)
           /* Drive interface register */
           ctx->Abus = 0;
           if (ctx->UR_REG == 0x80)
-              ctx->Abus = BIT3;
+              ctx->Abus = BIT2|BIT3;
           break;
    }
 
@@ -607,6 +622,7 @@ step_2841(struct _2841_context *ctx)
            ctx->FC &= ~ctx->Alu_out;
            if (sal->CN & 4)
                ctx->FC |= ctx->Alu_out;
+           dasd_settags(ctx->disk[ctx->unit_num], ctx->FT, ctx->FC);
            break;
    case 15:  /* IG */
            ctx->IG_REG = ctx->Alu_out;
@@ -643,6 +659,7 @@ step_2841(struct _2841_context *ctx)
            break;
    case 0x03:  /* 0 > ST1 */
            ctx->ST_REG &= ~BIT1;
+           ctx->index = 0;
            break;
    case 0x04:  /* 1 -> ST1 */
            ctx->ST_REG |= BIT1;
@@ -683,9 +700,9 @@ step_2841(struct _2841_context *ctx)
            break;
    }
 
-   log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x\n",
+   log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x %d\n",
            ctx->OP_REG, ctx->DW_REG, ctx->UR_REG, ctx->BX_REG, ctx->BY_REG,
-           ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG);
+           ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG, ctx->SC_REG, ctx->selected);
    log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x A=%02x B=%02x > %02x\n",
            ctx->KL_REG, ctx->ER_REG, ctx->GP_REG, ctx->IG_REG, ctx->DR_REG,
            ctx->ST_REG, ctx->FT, ctx->FC, ctx->Abus, ctx->Bbus, ctx->Alu_out);
@@ -745,6 +762,18 @@ log_trace("Drop selected\n");
 
     if (ctx->opr_in) {
         *tags |= CHAN_OPR_IN;
+    }
+
+    /* If request, enable request in */
+    if (ctx->selected == 0 && (ctx->IG_REG & BIT6) != 0) {
+       *tags |= CHAN_REQ_IN;
+       ctx->request = 1;
+    }
+
+    if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {
+       *tags &= ~(CHAN_REQ_IN);
+       ctx->request = 0;
+       ctx->selected = 1;
     }
 
     /* Present end status */
@@ -913,6 +942,7 @@ model2841_init(void *rend, uint16_t addr)
 {
  //    SDL_Surface *text;
  //    SDL_Renderer *render = (SDL_Renderer *)rend;
+     int     i;
      struct _device *dev2841;
      struct _2841_context *disk;
 
@@ -932,7 +962,10 @@ model2841_init(void *rend, uint16_t addr)
      dev2841->rect[0].h = 142;
      dev2841->n_units = 1;
      dev2841->addr = addr;
+     for (i = 0; i < 8; i++)
+         disk->disk[i] = NULL;
      add_chan(dev2841, addr);
+     add_disk(&step_2841, (void *)disk);
      return dev2841;
 }
 
