@@ -37,6 +37,7 @@
 #include <fcntl.h>
 
 #include "panel.h"
+#include "cpu.h"
 #include "model2050.h"
 #include "rollers.xpm"
 
@@ -162,7 +163,7 @@ static int roller_mask[36] = {
 };
 
 void
-setup_fp2050(SDL_Renderer *render)
+setup_fp2050(void *rend)
 {
     SDL_Rect rect, rect2;
     SDL_Surface *text;
@@ -176,6 +177,7 @@ setup_fp2050(SDL_Renderer *render)
     int      mark[40];
     char     buffer[10];
     Uint32   f;
+    SDL_Renderer *render = (SDL_Renderer *)rend;
 
     f1_hd = 0;
     f1_wd = 0;

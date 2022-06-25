@@ -21,6 +21,7 @@
 
 add_executable(cros2050 cros2050.c)
 target_include_directories(cros2050 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+                                ${CMAKE_CURRENT_SOURCE_DIR}/..
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 add_custom_target(model2050_ros.h
        COMMAND cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt model2050_ros.h

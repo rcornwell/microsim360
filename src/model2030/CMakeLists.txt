@@ -23,6 +23,8 @@
 set(CROS30 ${CMAKE_CURRENT_SOURCE_DIR}/ccros2030.txt)
 add_executable(cros2030 cros2030.c)
 target_include_directories(cros2030 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+                                ${CMAKE_CURRENT_SOURCE_DIR}/..
+                                ${CMAKE_CURRENT_SOURCE_DIR}/../model1052
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 add_custom_target(model2030_ros.h
        COMMAND cros2030 ${CROS30} model2030_ros.h
@@ -30,7 +32,7 @@ add_custom_target(model2030_ros.h
        DEPENDS cros2030 ${CROS30})
 
 set(model2030_src cpu2030.c model2030_ros.c)
-target_sources(${PROJECT_NAME} PUBLIC ${model2030_src} panel2030.c model1050.c)
+target_sources(${PROJECT_NAME} PUBLIC ${model2030_src} panel2030.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(${PROJECT_NAME} model2030_ros.h)

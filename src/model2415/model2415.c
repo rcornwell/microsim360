@@ -1705,8 +1705,8 @@ log_device("Tape selected\n");
     }
 }
 
-SDL_Texture *model2415_img;
-SDL_Texture *tape_images_img;
+SDL_Texture *model2415_img = NULL;
+SDL_Texture *tape_images_img = NULL;
 static int supply_color[8] = {1, 1, 1, 1, 1, 1, 1, 1};
 static int takeup_color[8] = {2, 2, 2, 2, 2, 2, 2, 2};
 static int supply_label[8] = {1, 1, 1, 1, 1, 1, 1, 1};
@@ -1728,6 +1728,19 @@ model2415_draw(struct _device *unit, void *rend)
     int          y;
     char         buf[100];
     float        p;
+
+    if (model2415_img == NULL) {
+        SDL_Surface *text;
+
+        text = IMG_ReadXPMFromArray(model2415_xpm);
+        model2415_img = SDL_CreateTextureFromSurface(render, text);
+        SDL_SetTextureBlendMode(model2415_img, SDL_BLENDMODE_BLEND);
+        SDL_FreeSurface(text);
+        text = IMG_ReadXPMFromArray(tape_images_xpm);
+        tape_images_img = SDL_CreateTextureFromSurface(render, text);
+        SDL_SetTextureBlendMode(tape_images_img, SDL_BLENDMODE_BLEND);
+        SDL_FreeSurface(text);
+    }
 
     for (i = 0; i < unit->n_units; i++) {
         x = unit->rect[i].x;
@@ -1927,7 +1940,7 @@ fprintf (stderr, "Tape key %d\n", index);
               if (ctx->rew_delay == 0)
                   ctx->rew_delay = REWIND_DELAY;
               ctx->rew_flags |= 1 << popup->unit_num;
-              add_event(unit, rewind_callback, REWIND_DELAY, 
+              add_event(unit, rewind_callback, REWIND_DELAY,
                         (void *)ctx->tape[popup->unit_num], popup->unit_num);
           }
           break;
@@ -1945,7 +1958,7 @@ fprintf (stderr, "Tape key %d\n", index);
                   ctx->rew_delay = REWIND_DELAY;
               ctx->rew_flags |= 1 << popup->unit_num;
               ctx->run_flags |= 1 << popup->unit_num;
-              add_event(unit, rewind_callback, REWIND_DELAY, 
+              add_event(unit, rewind_callback, REWIND_DELAY,
                         (void *)ctx->tape[popup->unit_num], popup->unit_num);
           }
           break;
@@ -2437,4 +2450,77 @@ model2415_init(void *rend, uint16_t addr) {
      add_chan(dev2415, addr);
      return dev2415;
 }
+
+int
+model2415_create(struct _option *opt)
+{
+     struct _device *dev2415;
+     struct _2415_context *tape;
+     int     i;
+
+     /* Check if dealing with unit */
+     if (opt->model == 'U') {
+         dev2415 = find_chan(opt->addr, 0xf8);
+         if (dev2415 == NULL) {
+             fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
+             return 0;
+         }
+         i = opt->addr & 0x7;
+         tape = (struct _2415_context *)dev2415->dev;
+         tape->tape[i] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
+         tape->tape[i]->format = TRACK9;
+         tape->tape[i]->format |= ONLINE;
+     } else {
+         if ((dev2415 = calloc(1, sizeof(struct _device))) == NULL)
+             return 0;
+         if ((tape = calloc(1, sizeof(struct _2415_context))) == NULL) {
+             free(dev2415);
+             return 0;
+         }
+
+         tape_init();
+
+         dev2415->bus_func = &model2415_dev;
+         dev2415->dev = (void *)tape;
+         dev2415->draw_model = (void *)&model2415_draw;
+         dev2415->create_ctrl = (void *)&model2415_control;
+         dev2415->n_units = 6;
+         if (opt->flags & 1) {
+             if (opt->dash_num >= 4)
+                 dev2415->n_units = (opt->dash_num - 3) * 2;
+             else
+                 dev2415->n_units = (opt->dash_num) * 2;
+         }
+         for (i = 0; i < dev2415->n_units; i++) {
+             dev2415->rect[i].x = 210 * i;
+             dev2415->rect[i].y = 200;
+             dev2415->rect[i].w = 210;
+             dev2415->rect[i].h = 220;
+             if (dev2415->rect[i].x > 800) {
+                dev2415->rect[i].y += dev2415->rect[i].h;
+                dev2415->rect[i].x = 210 * (i - 4);
+             }
+         }
+         tape->addr = (opt->addr & 0xf8);
+         tape->chan = (opt->addr >> 8) & 0xf;
+         tape->state = STATE_IDLE;
+         tape->selected = 0;
+         tape->nunits = dev2415->n_units;
+#if 0
+//         tape_attach(tape->tape[0], "../test_progs/bos.tap", TYPE_E11, 0, 1);
+         tape_attach(tape->tape[0], "../test_progs/sysres.tap", TYPE_E11, 0, 1);
+         tape_attach(tape->tape[1], "sys001.tap", TYPE_E11, 1, 1);
+         tape_attach(tape->tape[2], "sys002.tap", TYPE_E11, 1, 1);
+         tape_attach(tape->tape[3], "sys003.tap", TYPE_E11, 1, 1);
+         tape_attach(tape->tape[4], "sys004.tap", TYPE_E11, 1, 1);
+         tape_attach(tape->tape[5], "sys005.tap", TYPE_E11, 1, 1);
+#endif
+         for (i = 0; i < dev2415->n_units; i++)
+             tape->sense[i] = 0;
+         add_chan(dev2415, opt->addr);
+     }
+     return 1;
+}
+
+DEV_LIST_STRUCT(2415, CTRL_TYPE, CHAR_OPT|NUM_MOD);
 

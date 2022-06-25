@@ -30,13 +30,11 @@
 #include "device.h"
 #include "logger.h"
 #include "ctest.h"
+#include "cpu.h"
+#include "conf.h"
+#include "model2050.h"
 
 struct _device    *chan[6];              /* Channels */
-uint8_t            allow_man_operation;  /* Manual mode */
-uint8_t            wait;                 /* Wait state */
-uint8_t            test_mode;            /* testing mode */
-uint8_t            load_mode;            /* Load button pressed */
-
 
 int SYS_RST;
 int ROAR_RST;
@@ -76,9 +74,37 @@ uint8_t  PROC_SW;
 uint8_t  RATE_SW;
 uint8_t  CHK_SW;
 uint8_t  MATCH_SW;
+uint8_t  STORE_SW;
 
-int main(int argc, const char *argv[])
+uint16_t end_of_e_cycle;
+uint16_t store;
+uint16_t allow_write;
+uint16_t match;
+uint16_t t_request;
+uint8_t  allow_man_operation;
+uint8_t  wait;
+uint8_t  test_mode;
+uint8_t  clock_start_lch;
+uint8_t  load_mode;
+
+uint32_t *M;
+uint32_t mem_max;
+
+void
+setup_fp2050(void *rend)
 {
+}
+
+int
+main(int argc, const char *argv[])
+{
+    struct _option opt;
+
+    strcpy(opt.opt, "2050");
+    opt.model = 'F';
+    if (model2050_create(&opt) == 0)
+        return 1;
+
     log_level = 0xfff;
     log_init("debug.log");
     RATE_SW = 1;

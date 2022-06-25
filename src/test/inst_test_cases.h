@@ -4243,3 +4243,19 @@ struct _dec_case {
       test_inst(0x0);
       ASSERT_EQUAL_X(0x43080ecb, get_fpreg_s(6));
   }
+
+  /* Add packed with offset */
+  DTEST(instruct, ap_lr) {
+      init_cpu();
+      set_reg(1, 0x12345678);
+      set_mem(0x100, 0x0043212c); /* 2+ */
+      set_mem(0x200, 0x0023413c); /* 3+ */
+      set_mem(0x400, 0xfa220101); /* AP 101(3,0),201(3,0) */
+      set_mem(0x404, 0x02011831);
+      set_mem(0x408, 0x00000000);
+      test_io_inst(0);
+      ASSERT_EQUAL_X(0x0066625c, get_mem(0x100)); /* 5+ */
+//      ASSERT_EQUAL(CC2, CC_REG); /* Positive */
+      ASSERT_EQUAL_X(0x12345678, get_reg(3));
+ //     ASSERT_EQUAL(CC3, CC_REG);
+  }

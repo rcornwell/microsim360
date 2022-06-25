@@ -32,6 +32,7 @@
 #include "ctest.h"
 #include "xlat.h"
 #include "logger.h"
+#include "cpu.h"
 #include "model_test.h"
 
 
@@ -41,10 +42,6 @@ int              irq_mask = 0xe1;
 
 #define FTEST(a, b)   CTEST_SKIP(a, b)
 #define DTEST(a, b)   CTEST(a, b)
-
-void model1050_out(uint16_t out_char) {}
-void model1050_in(uint16_t *in_char) {}
-void model1050_func(uint16_t *tags_out, uint16_t tags_in, uint16_t *t_request) {}
 
 /* Set ILC code */
 void
@@ -137,10 +134,10 @@ uint32_t
 get_mem(int addr)
 {
     uint32_t data;
-    data  = (cpu_2030.M[addr + 0] & 0xff) << 24;
-    data |= (cpu_2030.M[addr + 1] & 0xff) << 16;
-    data |= (cpu_2030.M[addr + 2] & 0xff) << 8;
-    data |= (cpu_2030.M[addr + 3] & 0xff) << 0;
+    data  = (M[addr + 0] & 0xff) << 24;
+    data |= (M[addr + 1] & 0xff) << 16;
+    data |= (M[addr + 2] & 0xff) << 8;
+    data |= (M[addr + 3] & 0xff) << 0;
     return data;
 }
 
@@ -149,12 +146,12 @@ void
 set_mem(int addr, uint32_t data)
 {
     int  i;
-    cpu_2030.M[addr + 0] = (data >> 24) & 0xff;
-    cpu_2030.M[addr + 1] = (data >> 16) & 0xff;
-    cpu_2030.M[addr + 2] = (data >> 8) & 0xff;
-    cpu_2030.M[addr + 3] = (data >> 0) & 0xff;
+    M[addr + 0] = (data >> 24) & 0xff;
+    M[addr + 1] = (data >> 16) & 0xff;
+    M[addr + 2] = (data >> 8) & 0xff;
+    M[addr + 3] = (data >> 0) & 0xff;
     for (i = 0; i < 4; i++) {
-        cpu_2030.M[addr + i] |= odd_parity[cpu_2030.M[addr + i]];
+        M[addr + i] |= odd_parity[M[addr + i]];
     }
 }
 
@@ -176,15 +173,15 @@ set_mem_key(int addr, int key)
 uint8_t
 get_mem_b(int addr)
 {
-    return (cpu_2030.M[addr] & 0xff);
+    return (M[addr] & 0xff);
 }
 
 /* Set byte into main memory */
 void
 set_mem_b(int addr, uint8_t data)
 {
-    cpu_2030.M[addr] = data & 0xff;
-    cpu_2030.M[addr] |= odd_parity[data & 0xff];
+    M[addr] = data & 0xff;
+    M[addr] |= odd_parity[data & 0xff];
 }
 
 /* Get a floating point register */
@@ -272,7 +269,7 @@ init_cpu()
     CHK_SW = 2;
     RATE_SW = 1;
     PROC_SW = 1;
-    cpu_2030.mem_max = 0xffff;
+    mem_max = 0xffff;
     do {
         cycle_2030();
         step_count++;

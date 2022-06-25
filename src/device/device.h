@@ -27,6 +27,7 @@
 #define _DEVICE_H_
 
 #include <stdint.h>
+#include "conf.h"
 
 #define BIT0    0x80
 #define BIT1    0x40
@@ -76,6 +77,7 @@
 #define OUT_TAGS        0xfe00        /* Outbound tags */
 #define IN_TAGS         0x00ff        /* Inbound tags */
 
+
 /* Device structure. One per controller */
 struct _device {
     void      (*bus_func)(struct _device *dev,
@@ -84,7 +86,7 @@ struct _device {
                           uint16_t *bus_in);
     void      (*draw_model)(struct _device *unit, void *render);
     struct _popup *(*create_ctrl)(struct _device *unit, int hd, int wd, int u);
-    void       *dev;               /* Pointer to device function */
+    void       *dev;               /* Pointer to device context */
     int         n_units;           /* Number of units */
     uint16_t    addr;              /* Device address and channel */
     struct _rect {
@@ -111,7 +113,7 @@ struct _control {
     char *name;
     int   type;
     int   opts;
-    int  (*create)(char *line);
+    int  (*create)(struct _option *opt);
     struct _device *(*init)(void *render, uint16_t addr);
     unsigned int    magic;
 };
@@ -154,6 +156,8 @@ void print_inst(uint8_t *val);
 
 void add_chan(struct _device *dev, uint16_t addr);
 
+struct _device *find_chan(uint16_t addr, uint16_t mask);
+
 void del_chan(struct _device *dev, uint16_t addr);
 
 void add_disk(void (*fnc)(void *), void *drive);
@@ -162,6 +166,12 @@ void step_disk();
 
 /* Return pointer to list of devices */
 struct _control *dev_list();
+
+extern char *title;
+
+extern void (*setup_cpu)(void *rend);
+
+extern void (*step_cpu)();
 
 
 /******************************************************************

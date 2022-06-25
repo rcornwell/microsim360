@@ -25,55 +25,10 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "conf.h"
 
 #ifndef _MODEL50_H_
 #define _MODEL50_H_
-
-extern int SYS_RST;
-extern int ROAR_RST;
-extern int START;
-extern int SET_IC;
-extern int CHECK_RST;
-extern int STOP;
-extern int INT_TMR;
-extern int STORE;
-extern int DISPLAY;
-extern int LAMP_TEST;
-extern int POWER;
-extern int INTR;
-extern int LOAD;
-extern int timer_event;
-
-extern uint32_t ADR_CMP;
-extern uint32_t INST_REP;
-extern uint32_t ROS_CMP;
-extern uint32_t ROS_REP;
-extern uint32_t SAR_CMP;
-extern uint32_t FORC_IND;
-extern uint32_t FLT_MODE;
-extern uint32_t CHN_MODE;
-extern uint8_t  SEL_SW;
-extern int      SEL_ENTER;
-
-extern uint8_t  A_SW;
-extern uint8_t  B_SW;
-extern uint8_t  C_SW;
-extern uint8_t  D_SW;
-extern uint8_t  E_SW;
-extern uint8_t  F_SW;
-extern uint8_t  G_SW;
-extern uint8_t  H_SW;
-extern uint8_t  J_SW;
-
-extern uint8_t  PROC_SW;
-extern uint8_t  RATE_SW;
-extern uint8_t  CHK_SW;
-extern uint8_t  MATCH_SW;
-extern uint8_t  STORE_SW;
-
-extern uint16_t const odd_parity[256];
-extern uint8_t     load_mode;
-
 
 extern struct ROS_2050 {
     int      io;
@@ -141,7 +96,6 @@ extern struct ROS_2050 {
 
 extern struct CPU_2050 {
 int         count;
-uint32_t    M[64 * 1024];
 uint32_t    LS[64];
 uint32_t    BUMP[1024];          /* Bump storage */
 uint8_t     MP[256];
@@ -247,15 +201,9 @@ uint16_t    CHCLK[4];           /* Channel position register */
 
 } cpu_2050;
 
-extern uint16_t    store;
-extern uint16_t    allow_write;
-extern uint16_t    match;
-extern uint8_t     allow_man_operation;
-extern uint8_t     wait;
-extern uint8_t     test_mode;
-extern uint8_t     clock_start_lch;
-
 void  cycle_2050();
 void  step_2050();
+struct _device *model2050_init(void *render, uint16_t addr);
+int             model2050_create(struct _option *opt);
 
 #endif

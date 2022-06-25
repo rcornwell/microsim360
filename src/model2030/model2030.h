@@ -25,39 +25,13 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "device.h"
+#include "conf.h"
+#include "model1052.h"
 
 #ifndef _MODEL30_H_
 #define _MODEL30_H_
 
-extern int SYS_RST;
-extern int ROAR_RST;
-extern int START;
-extern int SET_IC;
-extern int CHECK_RST;
-extern int STOP;
-extern int INT_TMR;
-extern int STORE;
-extern int DISPLAY;
-extern int LAMP_TEST;
-extern int POWER;
-extern int INTR;
-extern int LOAD;
-extern int timer_event;
-
-extern uint8_t  A_SW;
-extern uint8_t  B_SW;
-extern uint8_t  C_SW;
-extern uint8_t  D_SW;
-extern uint8_t  E_SW;
-extern uint8_t  F_SW;
-extern uint8_t  G_SW;
-extern uint8_t  H_SW;
-extern uint8_t  J_SW;
-
-extern uint8_t  PROC_SW;
-extern uint8_t  RATE_SW;
-extern uint8_t  CHK_SW;
-extern uint8_t  MATCH_SW;
 
 extern struct ROS_2030 {
     uint8_t    CN;
@@ -84,12 +58,8 @@ extern struct ROS_2030 {
 
 extern struct CPU_2030 {
 int         count;
-uint32_t    M[64 * 1024];       /* Main memory */
 uint16_t    LS[4096];           /* Local storage and BUMP storage */
 uint8_t     MP[256];            /* Protection storage. 4 bits */
-
-int          mem_max;           /* Maximum memory address - 1 */
-                                /* 8K = 0x1FFF, 16K = 0x3FFF, 32K = 0x7FF, 64k = 0xFFFF */
 
 uint32_t    ros_row1;           /* Current ROS values */
 uint32_t    ros_row2;
@@ -344,26 +314,18 @@ uint16_t    GHZ;
 uint16_t    SEL_TAGS[2];          /* Select channel tags. */
 uint16_t    SEL_TI[2];            /* Input tags. */
 
-struct _device  *console;         /* Console device */
+struct _1052_context  *console;         /* Console device */
 
 } cpu_2030;
-
-extern uint16_t    end_of_e_cycle;
-extern uint16_t    store;
-extern uint16_t    allow_write;
-extern uint16_t    match;
-extern uint16_t    t_request;
-extern uint8_t     allow_man_operation;
-extern uint8_t     wait;
-extern uint8_t     test_mode;
-extern uint8_t     clock_start_lch;
-extern uint8_t     load_mode;
 
 #define MAIN   1
 #define LOCAL  2
 #define MPX    4
 
-void  cycle_2030();
+void            cycle_2030();
+
+struct _device *model2030_init(void *render, uint16_t addr);
+int             model2030_create(struct _option *opt);
 
 
 /* Select channel I/O sequence.

@@ -69,8 +69,8 @@ extern struct _ros_bits {
       SDL_Rect     rect;          /* Area where to show */
       SDL_Texture *digit_on;      /* Digit on and off */
       SDL_Texture *digit_off;
+      uint32_t    *value;
       int          shift;         /* Amount to shift to bit */
-      int          row;           /* ROS Row values is stored at */
 } ros_bits[1000];
 
 /* Generic lamps */
@@ -400,12 +400,20 @@ void add_toggle(uint32_t *value, int s, int x, int y, int t);
  */
 int add_led(struct _labels *lab, uint16_t *value, int shf, int x, int y, int idx);
 
-void setup_fp2030(SDL_Renderer *render);
-
-void setup_fp2050(SDL_Renderer *render);
-
 int textpos(struct _text *text, int pos);
 
+int layout_periph(int *scr_wid, int *scr_hi);
+
+void SDL_Setup(char *title, int scr_wid, int scr_hi);
+
+void run_sim();
+
 extern uint64_t    step_count;
+
+extern char *title;
+
+extern void (*setup_cpu)(void *rend);
+
+extern void (*step_cpu)();
 
 #endif

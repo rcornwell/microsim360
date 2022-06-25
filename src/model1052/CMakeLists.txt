@@ -1,4 +1,4 @@
-# Copyright 2021, Richard Cornwell
+# Copyright 2022, Richard Cornwell
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,24 +19,5 @@
 # SOFTWARE.
 
 
-target_sources(${PROJECT_NAME} PUBLIC card.c disassem.c device.c tape.c xlat.c dasd.c panel.c)
+target_sources(${PROJECT_NAME} PUBLIC model1052.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-
-if (RUN_TESTS)
-add_executable(device_test test/ctest_main.c
-                           test/card_test.c
-                           test/tape_test.c
-                           tape.c card.c xlat.c ../logger.c)
-add_custom_command(TARGET device_test
-            COMMAND device_test
-            COMMENT "Test device emulators"
-            VERBATIM)
-target_include_directories(device_test PRIVATE
-                                ${CMAKE_CURRENT_SOURCE_DIR}/..
-                                ${CMAKE_CURRENT_BINARY_DIR}/..
-                                ${CMAKE_CURRENT_SOURCE_DIR}
-                                ${CMAKE_CURRENT_BINARY_DIR})
-add_test(NAME device_test COMMAND device_test )
-endif()
-

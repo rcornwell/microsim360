@@ -25,17 +25,19 @@
 #       DEPENDS bin2c ${FONT_SOURCE_DIR}/SourceCodePro-Black.ttf)
 
 add_subdirectory(device)
-#add_subdirectory(model1050)
+add_subdirectory(model1052)
 add_subdirectory(model1442)
 add_subdirectory(model1443)
 add_subdirectory(model2030)
 add_subdirectory(model2050)
+#add_subdirectory(model2065)
 add_subdirectory(model2415)
 #add_subdirectory(model2841)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/image)
-target_sources(${PROJECT_NAME} PUBLIC fp30.c logger.c event.c)
+#add_subdirectory(model2844)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
+                                                  ${CMAKE_CURRENT_SOURCE_DIR}
+                                                  ${CMAKE_CURRENT_SOURCE_DIR}/image)
+target_sources(${PROJECT_NAME} PUBLIC main.c conf.c logger.c event.c layout.c)
 #add_dependencies(${PROJECT_NAME} font1.h)
 
 

@@ -38,9 +38,10 @@ struct _log_type {
      int           mask;
      char         *name;
 } log_type[] = {
-     { LOG_TRACE,  "TRACE" },
      { LOG_INFO,  "INFO" },
      { LOG_WARN,  "WARN" },
+     { LOG_ERROR, "ERROR" },
+     { LOG_TRACE,  "TRACE" },
      { LOG_ITRACE,  "ITRACE" },
      { LOG_MICRO,  "MICRO" },
      { LOG_REG,  "REG" },
@@ -129,8 +130,20 @@ log_print(int level, char *file, int line, const char *fmt, ...)
     va_list        ap;
     int            i;
 
-    if (log_file == NULL)
+    if (log_file == NULL) {
+        if ((log_level & (LOG_INFO|LOG_WARN|LOG_ERROR)) == 0) {
+            for (i = 0; log_type[i].mask != 0; i++) {
+                if (log_type[i].mask == level) {
+                    fprintf(stderr, "%s ", log_type[i].name);
+                    break;
+                }
+            }
+            va_start(ap, fmt);
+            vfprintf(stderr, fmt, ap);
+            va_end(ap);
+        }
         return;
+    }
     if (last_level != 0) {
        fprintf(log_file, "\n");
        last_level = 0;

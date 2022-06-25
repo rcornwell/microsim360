@@ -50,6 +50,17 @@ To Build on Windows:
 
 # Instruction
 
+Microsim360 now supports a configuration file. The -f option gives the name of the
+configuration file to read. The configuration file has the format:
+
+device number address options.  
+
+Each device processes it's own options. Standard options consist of a name optionally
+followed by a "=" followed by a name. If the name is started with a ", the value
+consists of the characters between the "'s. Otherwise options are terminated by a
+blank space. There can only be one CPU defined. This should be defined before any
+devices are defined.
+
 On startup there will be two windows open. One the front panel, the other devices.
 On the front panel there is a pair of numbers on the top, the first is the number of
 cycles run per 20ms chunck. This number should stay around 20000, if it is less you

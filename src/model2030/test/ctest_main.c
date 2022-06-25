@@ -26,24 +26,39 @@
 #define CTEST_MAIN
 #define CTEST_NO_COLORS
 
+#include <stdint.h>
 #include <stdio.h>
 #include "logger.h"
 #include "ctest.h"
+#include "cpu.h"
+#include "conf.h"
+#include "model2030.h"
+#include "model1052.h"
 
-int SYS_RST;
-int ROAR_RST;
-int START;
-int SET_IC;
-int CHECK_RST;
-int STOP;
-int INT_TMR;
-int STORE;
-int DISPLAY;
-int LAMP_TEST;
-int POWER;
-int INTR;
-int LOAD;
-int timer_event;
+int      SYS_RST;
+int      ROAR_RST;
+int      START;
+int      SET_IC;
+int      CHECK_RST;
+int      STOP;
+int      INT_TMR;
+int      STORE;
+int      DISPLAY;
+int      LAMP_TEST;
+int      POWER;
+int      INTR;
+int      LOAD;
+int      timer_event;
+uint32_t ADR_CMP;
+uint32_t INST_REP;
+uint32_t ROS_CMP;
+uint32_t ROS_REP;
+uint32_t SAR_CMP;
+uint32_t FORC_IND;
+uint32_t FLT_MODE;
+uint32_t CHN_MODE;
+uint8_t  SEL_SW;
+int      SEL_ENTER;
 
 uint8_t  A_SW;
 uint8_t  B_SW;
@@ -59,10 +74,72 @@ uint8_t  PROC_SW;
 uint8_t  RATE_SW;
 uint8_t  CHK_SW;
 uint8_t  MATCH_SW;
+uint8_t  STORE_SW;
 
+uint16_t end_of_e_cycle;
+uint16_t store;
+uint16_t allow_write;
+uint16_t match;
+uint16_t t_request;
+uint8_t  allow_man_operation;
+uint8_t  wait;
+uint8_t  test_mode;
+uint8_t  clock_start_lch;
+uint8_t  load_mode;
 
-int main(int argc, const char *argv[])
+uint32_t *M;
+uint32_t mem_max;
+
+/* The following functions are referenced by the 2030 simulator, 
+   but do not need to preform any function during unit test.
+*/
+void
+setup_fp2030(void *rend)
 {
+}
+
+void
+model1052_out(void *ctx, uint16_t out_char)
+{
+}
+
+void
+model1052_in(void *ctx, uint16_t *in_char)
+{
+}
+
+void
+model1052_func(void *ctx, uint16_t *tags_out, uint16_t tags_in, uint16_t *t_request)
+{
+}
+
+void *
+model1052_init_ctx(uint16_t port)
+{
+    return NULL;
+}
+
+int
+get_option(struct _option *opt)
+{
+    return 0;
+}
+
+int
+get_integer(struct _option *opt, int *value)
+{
+    return 0;
+}
+
+int
+main(int argc, const char *argv[])
+{
+    struct _option opt;
+
+    strcpy(opt.opt, "2030");
+    opt.model = 'F';
+    if (model2030_create(&opt) == 0)
+        return 1;
     log_level = 0x37f;
     log_init("debug.log");
     int result = ctest_main(argc, argv);

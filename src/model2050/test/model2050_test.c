@@ -31,6 +31,7 @@
 #include "ctest.h"
 #include "xlat.h"
 #include "logger.h"
+#include "cpu.h"
 #include "model_test.h"
 
 #define FTEST(a, b)   CTEST(a, b)
@@ -71,14 +72,14 @@ set_reg(int num, uint32_t data)
 uint32_t
 get_mem(int addr)
 {
-    return cpu_2050.M[addr >> 2];
+    return M[addr >> 2];
 }
 
 /* Set word into main memory */
 void
 set_mem(int addr, uint32_t data)
 {
-    cpu_2050.M[addr >> 2] = data;
+    M[addr >> 2] = data;
 }
 
 /* Get the memory protection key for a given address */
@@ -99,7 +100,7 @@ set_mem_key(int addr, int key)
 uint8_t
 get_mem_b(int addr)
 {
-    uint32_t   v = cpu_2050.M[addr >> 2];
+    uint32_t   v = M[addr >> 2];
     return (uint8_t)(v >> (8 * (3 - (addr & 3))) & 0xff);
 }
 
@@ -109,8 +110,8 @@ set_mem_b(int addr, uint8_t data)
 {
     int        offset = 8 * (3 - (addr & 3));
     uint32_t   mask = 0xff;
-    cpu_2050.M[addr>>2] &= ~(mask << offset);
-    cpu_2050.M[addr>>2] |= ((uint32_t)data << offset);
+    M[addr>>2] &= ~(mask << offset);
+    M[addr>>2] |= ((uint32_t)data << offset);
 }
 
 /* Get a floating point register */

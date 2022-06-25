@@ -43,6 +43,14 @@ char *bus_tags[] = {
 
 struct _disk *disk;              /* Disk controllers */
 struct _device *chan[6];         /* Channels */
+uint32_t      *M;
+uint32_t      mem_max;
+
+char *title = NULL;
+
+void (*setup_cpu)(void *rend) = NULL;
+
+void (*step_cpu)() = NULL;
 
 void
 print_tags(char *name, int state, uint16_t tags, uint16_t bus_out)
@@ -85,6 +93,19 @@ add_chan(struct _device *dev, uint16_t addr)
       if (d != NULL) {
           d->next = dev;
       }
+}
+
+struct _device *
+find_chan(uint16_t addr, uint16_t mask)
+{
+      uint16_t    ch = (addr >> 8) & 0x7;
+      struct      _device *d;
+
+      for (d = chan[ch]; d != NULL; d = d->next) {
+          if ((d->addr & mask) == (addr & mask))
+              return d;
+      }
+      return NULL;
 }
 
 void
@@ -151,10 +172,12 @@ dev_list()
     struct _control *list_begin = &model_list;
     while (1) {
         struct _control *t = list_begin;
+        t--;
         if (t->magic != DEV_LIST_MAGIC)
             break;
         list_begin--;
     }
+    list_begin++;
     return list_begin;
 }
 

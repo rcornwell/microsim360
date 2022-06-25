@@ -37,6 +37,8 @@
 #include <fcntl.h>
 
 #include "panel.h"
+#include "cpu.h"
+#include "logger.h"
 #include "model2030.h"
 
 #define DIG_LP   17
@@ -160,8 +162,9 @@ static int pos_data[32];
 static int pos_breg[32];
 
 void
-setup_fp2030(SDL_Renderer *render)
+setup_fp2030(void *rend)
 {
+    SDL_Renderer  *render = (SDL_Renderer *)rend;
     SDL_Rect rect, rect2;
     SDL_Surface *text;
     SDL_Texture *txt;
@@ -173,6 +176,7 @@ setup_fp2030(SDL_Renderer *render)
     int      h2, w2;
     Uint32   f;
 
+log_trace("Initialize panel\n");
     f1_hd = 0;
     f1_wd = 0;
     j = 0;
@@ -282,8 +286,8 @@ setup_fp2030(SDL_Renderer *render)
         ros_bits[ros_ptr].rect.w = f1_wd;
         ros_bits[ros_ptr].digit_on = digit_on[j];
         ros_bits[ros_ptr].digit_off = digit_off[j];
+        ros_bits[ros_ptr].value = &cpu_2030.ros_row1;
         ros_bits[ros_ptr].shift = shf;
-        ros_bits[ros_ptr].row = 0;
         if (j == DIG_LP) {
            ros_bits[ros_ptr].rect.x -= f1_wd/2;
            ros_bits[ros_ptr].rect.w = 2*f1_wd;
@@ -363,8 +367,8 @@ next_row1:
         ros_bits[ros_ptr].rect.w = f1_wd;
         ros_bits[ros_ptr].digit_on = digit_on[j];
         ros_bits[ros_ptr].digit_off = digit_off[j];
+        ros_bits[ros_ptr].value = &cpu_2030.ros_row2;
         ros_bits[ros_ptr].shift = shf;
-        ros_bits[ros_ptr].row = 1;
         ros_ptr++;
         rect.x = pos2[i] + 3*f1_wd;
         shf--;
@@ -432,8 +436,8 @@ next_row1:
         ros_bits[ros_ptr].rect.w = f1_wd;
         ros_bits[ros_ptr].digit_on = digit_on[j];
         ros_bits[ros_ptr].digit_off = digit_off[j];
+        ros_bits[ros_ptr].value = &cpu_2030.ros_row3;
         ros_bits[ros_ptr].shift = shf;
-        ros_bits[ros_ptr].row = 2;
         ros_ptr++;
         rect.x = pos3[i] + 3*f1_wd;
         shf--;

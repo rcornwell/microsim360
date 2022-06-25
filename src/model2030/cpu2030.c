@@ -25,27 +25,18 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "logger.h"
 #include "device.h"
 #include "xlat.h"
+#include "cpu.h"
 #include "model2030.h"
-#include "model1050.h"
+#include "model1052.h"
 
 
 struct CPU_2030 cpu_2030;
-
-uint16_t    end_of_e_cycle;
-uint16_t    store;
-uint16_t    allow_write;
-uint16_t    match;
-uint16_t    t_request;
-uint8_t     allow_man_operation;
-uint8_t     wait;
-uint8_t     test_mode;
-uint8_t     clock_start_lch;
-uint8_t     load_mode;
 
 /* Machine check bits */
 #define AREG    0x80
@@ -423,8 +414,8 @@ cycle_2030()
       cpu_2030.ASCII = 0;
       SYS_RST = 0;
       /* Set memory parity to valid */
-      for (i = 0; i < (64 * 1024); i++)
-          cpu_2030.M[i] = odd_parity[cpu_2030.M[i]&0xff] | (cpu_2030.M[i]&0xff);
+      for (i = 0; i < mem_max; i++)
+          M[i] = odd_parity[M[i]&0xff] | (M[i]&0xff);
       for (i = 0; i < 2048; i++)
           cpu_2030.LS[i] = odd_parity[cpu_2030.LS[i]&0xff] | (cpu_2030.LS[i]&0xff);
       /* Reset selector channels */
@@ -574,7 +565,7 @@ cycle_2030()
                    cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) |
                                                  (cpu_2030.N_REG & 0xff);
                    if (E_SW == 0x20) {
-                       cpu_2030.R_REG = cpu_2030.M[cpu_2030.MN_REG] ^ 0x100;
+                       cpu_2030.R_REG = M[cpu_2030.MN_REG] ^ 0x100;
                        store = MAIN;
                    }
                    if (E_SW == 0x21) {
@@ -638,7 +629,7 @@ cycle_2030()
                    cpu_2030.N_REG |= odd_parity[cpu_2030.N_REG];
                    cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
                    if (E_SW == 0x20) {
-                       cpu_2030.M[cpu_2030.MN_REG] = cpu_2030.R_REG ^ 0x100;
+                       M[cpu_2030.MN_REG] = cpu_2030.R_REG ^ 0x100;
                        store = MAIN;
                    }
                    if (E_SW == 0x21) {
@@ -782,7 +773,7 @@ cycle_2030()
            }
            cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
            /* Check if in range of memory */
-           if (((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0)
+           if (((0xFFFF ^ mem_max) & cpu_2030.MN_REG) != 0)
                cpu_2030.GE[i] |= BIT2;
 
            /* Check validity of M and N registers */
@@ -798,7 +789,7 @@ cycle_2030()
            cpu_2030.GU[i] = cpu_2030.GHY| odd_parity[cpu_2030.GHY];
            /* If output and GR empty */
            if (sel_cnt_rdy_zero[i] == 0 && (cpu_2030.GG[i] & 1) == 1 && sel_gr_full[i] == 0) {
-               cpu_2030.GR[i] = cpu_2030.M[cpu_2030.MN_REG];
+               cpu_2030.GR[i] = M[cpu_2030.MN_REG];
                sel_gr_full[i] = 1;
            }
            /* Update Q with selector memory protection */
@@ -834,11 +825,11 @@ cycle_2030()
                if ((cpu_2030.Q_REG & 0xf0) != 0 &&
                          ((cpu_2030.GK[i] ^ cpu_2030.Q_REG) & 0xf) != 0) {
                    cpu_2030.GE[i] |= BIT3;
-                   cpu_2030.GR[i] = cpu_2030.M[cpu_2030.MN_REG];
+                   cpu_2030.GR[i] = M[cpu_2030.MN_REG];
                }
                /* Check skip flag */
                if ((cpu_2030.GF[i] & BIT3) == 0)
-                   cpu_2030.M[cpu_2030.MN_REG] = cpu_2030.GR[i];
+                   M[cpu_2030.MN_REG] = cpu_2030.GR[i];
                sel_gr_full[i] = 0;
                /* If Service In and count left Acknowledge */
                if (((cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) &&
@@ -906,7 +897,7 @@ cycle_2030()
              uint8_t    mem[6];
 
              for (i = 0; i < 6; i++) {
-                 mem[i] = cpu_2030.M[cpu_2030.MN_REG + i] & 0xff;
+                 mem[i] = M[cpu_2030.MN_REG + i] & 0xff;
              }
              print_inst(mem);
              log_itrace_c(" IC=%02x%02x CC=%02x MSK=%02x AMWP=%x MC=%02x", cpu_2030.I_REG & 0xff,
@@ -1066,7 +1057,7 @@ cycle_2030()
                }
 
                /* Check if in range of memory */
-               if (store == MAIN && ((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0) {
+               if (store == MAIN && ((0xFFFF ^ mem_max) & cpu_2030.MN_REG) != 0) {
                    mem_prot = 1;
                }
                if (store == MAIN && mem_prot == 0) {
@@ -1091,13 +1082,13 @@ cycle_2030()
                    switch (store) {
                    case MAIN:
                         if (sal->CU == 1) {
-                            cpu_2030.GR[cpu_2030.ch_sel] = cpu_2030.M[cpu_2030.MN_REG];
+                            cpu_2030.GR[cpu_2030.ch_sel] = M[cpu_2030.MN_REG];
                         } else {
-                            cpu_2030.R_REG = cpu_2030.M[cpu_2030.MN_REG];
+                            cpu_2030.R_REG = M[cpu_2030.MN_REG];
                             log_mem("Read main %04x %03x %x %d\n", cpu_2030.MN_REG, cpu_2030.R_REG,
                                    cpu_2030.Q_REG & 0xf, inh_stg_prot);
                         }
-                        cpu_2030.M[cpu_2030.MN_REG] = 0x00;
+                        M[cpu_2030.MN_REG] = 0x00;
                         break;
                    case MPX:
                    case LOCAL:
@@ -1127,9 +1118,9 @@ cycle_2030()
                       switch (store) {
                       case MAIN:
                            if (sal->CU == 1) {
-                               cpu_2030.M[cpu_2030.MN_REG] = cpu_2030.GR[cpu_2030.ch_sel];
+                               M[cpu_2030.MN_REG] = cpu_2030.GR[cpu_2030.ch_sel];
                            } else {
-                               cpu_2030.M[cpu_2030.MN_REG] = cpu_2030.R_REG;
+                               M[cpu_2030.MN_REG] = cpu_2030.R_REG;
                                log_mem("Write main %04x %03x\n", cpu_2030.MN_REG, cpu_2030.R_REG);
                            }
                            cpu_2030.MP[cpu_2030.SA_REG] = cpu_2030.Q_REG & 0x0f;
@@ -1192,7 +1183,7 @@ cycle_2030()
                switch (sal->CU) {
                case 0:
                    /* Check if in range of memory */
-                   if (((0xFFFF ^ cpu_2030.mem_max) & cpu_2030.MN_REG) != 0) {
+                   if (((0xFFFF ^ mem_max) & cpu_2030.MN_REG) != 0) {
                         mem_wrap_req = 1;
                    }
                    if (i_wrap_cpu && sal->CM == 3 && (cpu_2030.H_REG & BIT6) == 0)
@@ -1604,7 +1595,7 @@ cycle_2030()
                   cpu_2030.Abus = cpu_2030.JI;
                   break;
            case 0x17:    /* TI */
-                  model1050_in(&cpu_2030.TI);
+                  model1052_in(cpu_2030.console, &cpu_2030.TI);
                   cpu_2030.Abus = cpu_2030.TI;
                   allow_a_reg_chk = 1;
                   break;
@@ -1869,7 +1860,7 @@ cycle_2030()
                    break;
            case 1:
                    cpu_2030.TE = cpu_2030.Alu_out;
-                   model1050_out(cpu_2030.TE);
+                   model1052_out(cpu_2030.console, cpu_2030.TE);
                    break;
            case 2:
                    cpu_2030.JE = cpu_2030.D_REG & 0xff;
@@ -2374,7 +2365,7 @@ chan_scan:
         /* Start with MPX channel */
         cpu_2030.FT &= ~BIT3;
         /* Call out to console first */
-        model1050_func(&cpu_2030.TT, cpu_2030.TA, &t_request);
+        model1052_func(cpu_2030.console, &cpu_2030.TT, cpu_2030.TA, &t_request);
         if (t_request)
             cpu_2030.FT |= BIT3;
         if (mpx_start_sel) {
@@ -2727,3 +2718,53 @@ chan_scan:
 
 }
 
+struct _device *
+model2030_init(void *render, uint16_t addr)
+{
+    return NULL;
+}
+
+/* Create a 2030 cpu system. */
+int
+model2030_create(struct _option *opt)
+{
+    extern  void setup_fp2030(void *rend);
+    int     msize;
+    uint16_t         port = 3270;
+    struct _option   opts;
+
+    if (title != NULL) {
+        fprintf(stderr, "CPU already defined, can't support more then one\n");
+        return 0;
+    }
+    title = "IBM360/30";
+    setup_cpu = &setup_fp2030;
+    step_cpu = &cycle_2030;
+
+    while (get_option(&opts)) {
+         int       v;
+
+         if (strcmp(opts.opt, "PORT") == 0 && get_integer(&opts, &v)) {
+             port = v;
+         } else {
+             fprintf(stderr, "Invalid option %s\n", opts.opt);
+             return 0;
+         }
+    }
+
+    if (opt->model != '\0') {
+        msize = 2048 << (opt->model - 'A');
+        if (msize > (64 * 1024)) {
+            return 0;
+        }
+    } else {
+        msize = 64 * 1024;
+    }
+    if ((M = (uint32_t *)calloc(msize, sizeof(uint32_t))) == NULL)
+        return 0;
+    mem_max = msize - 1;
+    cpu_2030.console = model1052_init_ctx(port);
+    return 1;
+}
+
+DEV_LIST_STRUCT(2030, CPU_TYPE, CHAR_OPT|NUM_MOD);

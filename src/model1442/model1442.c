@@ -848,8 +848,7 @@ model1442_feed(struct _1442_context *ctx)
     }
 }
 
-SDL_Texture *model1442_img;
-
+SDL_Texture *model1442_img = NULL;
 
 void
 model1442_draw(struct _device *unit, void *rend)
@@ -864,6 +863,15 @@ model1442_draw(struct _device *unit, void *rend)
     int           x = unit->rect[0].x;
     int           y = unit->rect[0].y;
     char          buf[100];
+
+    /* Create the image on first run of draw function */
+    if (model1442_img == NULL) {
+        SDL_Surface *text;
+        text = IMG_ReadXPMFromArray(model1442_xpm);
+        model1442_img = SDL_CreateTextureFromSurface(render, text);
+        SDL_SetTextureBlendMode(model1442_img, SDL_BLENDMODE_BLEND);
+        SDL_FreeSurface(text);
+    }
 
     /* Draw basic device */
     rect.x = x;
@@ -1052,8 +1060,6 @@ static struct _l {
 
 static char *type_label[] = { "AUTO", "ASCII", "EBCDIC", "BIN", "OCTAL", NULL};
 
-
-//static SDL_Renderer *render;
 struct _popup *
 model1442_control(struct _device *unit, int hd, int wd, int u)
 {
@@ -1303,7 +1309,7 @@ struct _device *
 model1442_init(void *rend, uint16_t addr)
 {
      SDL_Surface *text;
-     SDL_Renderer *render = (SDL_Renderer *)rend;
+//     SDL_Renderer *render = (SDL_Renderer *)rend;
      struct _device *dev1442;
      struct _1442_context *card;
 
@@ -1313,10 +1319,10 @@ model1442_init(void *rend, uint16_t addr)
          free(dev1442);
          return NULL;
      }
-     text = IMG_ReadXPMFromArray(model1442_xpm);
-     model1442_img = SDL_CreateTextureFromSurface(render, text);
-     SDL_SetTextureBlendMode(model1442_img, SDL_BLENDMODE_BLEND);
-     SDL_FreeSurface(text);
+  //   text = IMG_ReadXPMFromArray(model1442_xpm);
+ //    model1442_img = SDL_CreateTextureFromSurface(render, text);
+   //  SDL_SetTextureBlendMode(model1442_img, SDL_BLENDMODE_BLEND);
+    // SDL_FreeSurface(text);
 
      dev1442->bus_func = &model1442_dev;
      dev1442->dev = (void *)card;
@@ -1342,4 +1348,69 @@ model1442_init(void *rend, uint16_t addr)
      add_chan(dev1442, addr);
      return dev1442;
 }
+
+int
+model1442_create(struct _option *opt)
+{
+     struct _device       *dev1442;
+     struct _1442_context *card;
+     struct _option       opts;
+     int             i;
+
+     /* Check for valid address */
+     if (opt->addr == 0) {
+         fprintf(stderr, "Missing address on 1442 device\n");
+         return 0;
+     }
+
+     /* Allocate structures to hold device information */
+     if ((dev1442 = calloc(1, sizeof(struct _device))) == NULL)
+         return 0;
+     if ((card = calloc(1, sizeof(struct _1442_context))) == NULL) {
+         free(dev1442);
+         return 0;
+     }
+
+     /* Fill in structures */
+     dev1442->bus_func = &model1442_dev;
+     dev1442->dev = (void *)card;
+     dev1442->draw_model = (void *)&model1442_draw;
+     dev1442->create_ctrl = (void *)&model1442_control;
+     dev1442->rect[0].x = 0;
+     dev1442->rect[0].y = 0;
+     dev1442->rect[0].w = 305;
+     dev1442->rect[0].h = 142;
+     dev1442->n_units = 1;
+     dev1442->addr = opt->addr;
+     card->addr = opt->addr & 0xff;
+     card->chan = (opt->addr >> 8) & 0xf;
+     card->state = STATE_IDLE;
+     card->selected = 0;
+     card->sense = 0;
+     card->feed = init_card_context();
+     card->stack[0] = init_card_context();
+     card->stack[1] = init_card_context();
+     card->hop_cnt = hopper_size(card->feed);
+     card->stk_cnt[0] = stack_size(card->stack[0]);
+     card->stk_cnt[1] = stack_size(card->stack[1]);
+     add_chan(dev1442, opt->addr);
+
+     /* Parse options given on definition */
+     while (get_option(&opts)) {
+           if (strcmp(opts.opt, "FORMAT") == 0) {
+               i = get_index(&opts, type_label);
+               if (i >= 0)
+                   card->feed->mode = i;
+           } else {
+               fprintf(stderr, "Invalid option %s to 1442\n", opts.opt);
+               free(card);
+               free(dev1442);
+               return 0;
+           }
+     }
+
+     return 1;
+}
+
+DEV_LIST_STRUCT(1442, DEVICE_TYPE, 0);
 

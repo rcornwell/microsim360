@@ -988,7 +988,7 @@ print_line(struct _1443_context *ctx)
 }
 
 
-SDL_Texture *model1443_img;
+SDL_Texture *model1443_img = NULL;
 static SDL_Color     cx = {0x10, 0x83, 0xd9};
 
 
@@ -1005,6 +1005,16 @@ draw_model1443(struct _device *unit, void *rend)
     int           x = unit->rect[0].x;
     int           y = unit->rect[0].y;
     char          buf[100];
+
+    /* If image data not defined, load on first run */
+    if (model1443_img == NULL) {
+        SDL_Surface *text;
+
+        text = IMG_ReadXPMFromArray(model1443_xpm);
+        model1443_img = SDL_CreateTextureFromSurface(render, text);
+        SDL_SetTextureBlendMode(model1443_img, SDL_BLENDMODE_BLEND);
+        SDL_FreeSurface(text);
+    }
 
     /* Draw basic device */
     rect.x = x;
@@ -1385,3 +1395,38 @@ model1443_init(void *rend, uint16_t addr)
      return dev1443;
 }
 
+int
+model1443_create(struct _option *opt)
+{
+     struct _device       *dev1443;
+     struct _1443_context *lpr;
+
+     if ((dev1443 = calloc(1, sizeof(struct _device))) == NULL)
+         return 0;
+     if ((lpr = calloc(1, sizeof(struct _1443_context))) == NULL) {
+         free(dev1443);
+         return 0;
+     }
+
+     dev1443->bus_func = &model1443_dev;
+     dev1443->dev = (void *)lpr;
+     dev1443->draw_model = (void *)&draw_model1443;
+     dev1443->create_ctrl = (void *)&model1443_control;
+     dev1443->rect[0].x = 305;
+     dev1443->rect[0].y = 0;
+     dev1443->rect[0].w = 280;
+     dev1443->rect[0].h = 200;
+     dev1443->n_units = 1;
+     dev1443->addr = opt->addr;
+     lpr->addr = (opt->addr & 0xff);
+     lpr->chan = (opt->addr >> 8) & 0xf;
+     lpr->state = STATE_IDLE;
+     lpr->selected = 0;
+     lpr->sense = 0;
+     lpr->file_name = NULL;
+     lpr->form = 1;
+     add_chan(dev1443, opt->addr);
+     return 1;
+}
+
+DEV_LIST_STRUCT(1443, DEVICE_TYPE, 0);

@@ -23,10 +23,13 @@
  *
  */
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "logger.h"
 #include "device.h"
+#include "xlat.h"
+#include "cpu.h"
 #include "model2050.h"
 
 uint32_t    BS_MASK[16] = {
@@ -736,7 +739,7 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
                  if (cpu_2050.bump_mem)
                      cpu_2050.SDR_REG = cpu_2050.BUMP[SA >> 2];
                  else
-                     cpu_2050.SDR_REG = cpu_2050.M[SA >> 2];
+                     cpu_2050.SDR_REG = M[SA >> 2];
              }
              log_info("mem cycle read 2 %06X %08x i=%d ib=%d b=%d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, cpu_2050.init_mem, cpu_2050.init_bump_mem, cpu_2050.bump_mem);
              /* Check if this cycle will access the SDR register, wait */
@@ -758,11 +761,11 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
                  if (cpu_2050.bump_mem)
                      cpu_2050.BUMP[SA >> 2] = cpu_2050.SDR_REG;
                  else
-                     cpu_2050.M[SA >> 2] = cpu_2050.SDR_REG;
+                     M[SA >> 2] = cpu_2050.SDR_REG;
              }
              break;
     case 0:  /* Memory cycle at system reset */
-             cpu_2050.SDR_REG = cpu_2050.M[SA >> 2];
+             cpu_2050.SDR_REG = M[SA >> 2];
              cpu_2050.mem_state = W1;
     case W1:
              /* Fall through */
@@ -771,7 +774,7 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
                  if (cpu_2050.bump_mem) {
                      cpu_2050.BUMP[SA >> 2] = cpu_2050.SDR_REG;
                  } else {
-                    cpu_2050.M[SA >> 2] = cpu_2050.SDR_REG;
+                    M[SA >> 2] = cpu_2050.SDR_REG;
                  }
              }
              SA = cpu_2050.SAR_REG & 0x3ffff;
@@ -796,7 +799,7 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
         int       i;
         for (i = 0; i < 6; i++) {
             uint32_t pc = i + cpu_2050.IA_REG;
-            uint32_t mm = cpu_2050.M[pc >> 2];
+            uint32_t mm = M[pc >> 2];
             mem[i] = (mm >> (8 * (3 - (pc & 3)))) & 0xff;
         }
 
@@ -2423,6 +2426,7 @@ log_trace("t=%08x %08x\n", l_update, carries);
     case 26:  /* MHL */
             cpu_2050.M_REG = (cpu_2050.M_REG & 0xffff0000) | ((cpu_2050.aob_latch >> 16) & 0xffff);
             cpu_2050.MD_REG = (cpu_2050.aob_latch >> 28) & 0xF;  /* 0-3 */
+            l_update = cpu_2050.aob_latch;
             break;
     case 27:  /* MD */
             cpu_2050.MD_REG = (cpu_2050.aob_latch >> 20) & 0xF;  /* 8-11 */
@@ -4514,3 +4518,41 @@ step_2050()
     cycle_2050();
     cycle_2050();
 }
+
+struct _device *
+model2050_init(void *render, uint16_t addr)
+{
+    return NULL;
+}
+
+/* Create a 2050 cpu system. */
+int
+model2050_create(struct _option *opt)
+{
+    extern  void setup_fp2050(void *rend);
+    int     msize;
+
+    if (title != NULL) {
+        fprintf(stderr, "CPU already defined, can't support more then one\n");
+        return 0;
+    }
+    title = "IBM360/50";
+    setup_cpu = &setup_fp2050;
+    step_cpu = &step_2050;
+
+    if (opt->model != '\0') {
+        msize = 2048 << (opt->model - 'A');
+        if (msize < (64 * 1024) || msize > (512 * 1024)) {
+            return 0;
+        }
+    } else {
+        msize = 64 * 1024;
+    }
+    if ((M = (uint32_t *)calloc(msize/4, sizeof(uint32_t))) == NULL)
+        return 0;
+    mem_max = msize - 1;
+    return 1;
+}
+
+DEV_LIST_STRUCT(2050, CPU_TYPE, CHAR_OPT|NUM_MOD);
+

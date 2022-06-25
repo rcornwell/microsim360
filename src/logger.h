@@ -32,34 +32,38 @@
 extern int log_level;
 extern FILE *log_file;
 
-#define LOG_TRACE    0x0001              /* Generic trace messages */
-#define LOG_INFO     0x0002              /* Log informational messages */
-#define LOG_WARN     0x0004              /* Log warnings */
-#define LOG_ITRACE   0x0008              /* Log Instruction trace */
-#define LOG_MICRO    0x0010              /* Log micro instructions */
-#define LOG_REG      0x0020              /* Log Micro register state */
-#define LOG_MEM      0x0040              /* Log memory access */
-#define LOG_MPXCHN   0x0080              /* Log muliplex channel status */
-#define LOG_SELCHN   0x0100              /* Log selecter channel status */
-#define LOG_DEVICE   0x0200              /* Log device messages */
-#define LOG_CONSOLE  0x0400              /* Log console traffic */
-#define LOG_TAPE     0x0800              /* Log detailed tape information */
-#define LOG_DISK     0x1000              /* Log detailed disk information */
-#define LOG_CARD     0x2000              /* Log detailed card information */
+#define LOG_INFO     0x0001              /* Log informational messages */
+#define LOG_WARN     0x0002              /* Log warnings */
+#define LOG_ERROR    0x0004              /* Log error */
+#define LOG_TRACE    0x0008              /* Generic trace messages */
+#define LOG_ITRACE   0x0010              /* Log Instruction trace */
+#define LOG_MICRO    0x0020              /* Log micro instructions */
+#define LOG_REG      0x0040              /* Log Micro register state */
+#define LOG_MEM      0x0080              /* Log memory access */
+#define LOG_MPXCHN   0x0100              /* Log muliplex channel status */
+#define LOG_SELCHN   0x0200              /* Log selecter channel status */
+#define LOG_DEVICE   0x0400              /* Log device messages */
+#define LOG_CONSOLE  0x0800              /* Log console traffic */
+#define LOG_TAPE     0x1000              /* Log detailed tape information */
+#define LOG_DISK     0x2000              /* Log detailed disk information */
+#define LOG_CARD     0x4000              /* Log detailed card information */
 
 void log_init(char *filename);
 void log_print_c(int level, const char *fmt, ...);
 void log_print_s(int level, char *filename, int line, const char *fmt, ...);
 void log_print(int level, char *filename, int line, const char *fmt, ...);
 
-#define log_trace(...) if ((log_level & LOG_TRACE) != 0) \
-                              log_print( LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
-
 #define log_info(...) if ((log_level & LOG_INFO) != 0) \
                               log_print( LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
 
 #define log_warn(...) if ((log_level & LOG_WARN) != 0) \
                               log_print( LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_error(...) if ((log_level & LOG_ERROR) != 0) \
+                              log_print( LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_trace(...) if ((log_level & LOG_TRACE) != 0) \
+                              log_print( LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
 
 #define log_itrace(...) if ((log_level & LOG_ITRACE) != 0) \
                               log_print( LOG_ITRACE, __FILE__, __LINE__, __VA_ARGS__)
