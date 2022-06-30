@@ -3499,10 +3499,10 @@ struct _dec_case {
       int       i;
       int       l1, l2;
       uint8_t   data;
-      uint8_t   data2;
       int       addr;
 
       init_cpu();
+      data = 0;
       for (test = &dec_cases[0]; test->op != 0; test++) {
           l1 = l2 = 0;
           addr = 0x1000;
@@ -3543,9 +3543,9 @@ struct _dec_case {
                    data |= (strchr(hex, test->out[i]) - hex);
                    l1++;
                    addr++;
-                   result[i] = hex[data2 & 0xf];
+                   result[i] = hex[data & 0xf];
                } else {
-                   data2 = get_mem_b(addr);
+                   uint8_t data2 = get_mem_b(addr);
                    result[i] = hex[(data2 >> 4) & 0xf];
                    data = (strchr(hex, test->out[i]) - hex) << 4;
                }

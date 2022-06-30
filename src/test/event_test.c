@@ -45,7 +45,7 @@ int        d_data;
 static void
 a_callback(struct _device *unit, void *arg, int iarg)
 {
-    if (arg != NULL) 
+    if (arg != NULL)
        *((int *)arg) = iarg;
     a_time = step_count;
 }
@@ -53,7 +53,7 @@ a_callback(struct _device *unit, void *arg, int iarg)
 static void
 b_callback(struct _device *unit, void *arg, int iarg)
 {
-    if (arg != NULL) 
+    if (arg != NULL)
         *((int *)arg) = iarg;
     b_time = step_count;
 }
@@ -61,7 +61,7 @@ b_callback(struct _device *unit, void *arg, int iarg)
 static void
 c_callback(struct _device *unit, void *arg, int iarg)
 {
-    if (arg != NULL) 
+    if (arg != NULL)
         *((int *)arg) = iarg;
     c_time = step_count;
     add_event(unit, &a_callback, iarg, arg, iarg);
@@ -70,7 +70,7 @@ c_callback(struct _device *unit, void *arg, int iarg)
 static void
 d_callback(struct _device *unit, void *arg, int iarg)
 {
-    if (arg != NULL) 
+    if (arg != NULL)
         *((int *)arg) = iarg;
     d_time = step_count;
 }
