@@ -87,16 +87,16 @@
 
           3906 bpt
 
-          index to HA  GAP 36 bytes. (34)0x00 - 0xff 0x0e 
+          index to HA  GAP 36 bytes. (34)0x00 - 0xff 0x0e
           alpha gap        18 bytes. 0xcc - (15)0x00 0xff 0x0e
           beta gap         18 bytes  0xcc - (9)0xff, (6)0x00, (1)0xff, 0x0e
           AM gap           -  byte   0xcc -(>21) 0xff, (4)0x00, (1)0xff, (2AM)0xff, 0x0e
-  
+
           Data rate 6.8us per byte.
 
           156,000 = 6.4us per byte
-          
-          1us step time. 
+
+          1us step time.
 */
 
 #include "config.h"
@@ -218,8 +218,10 @@ static void
 seek_callback(struct _device *unit, void *arg, int iarg)
 {
     struct _dasd_t *dasd = (struct _dasd_t *)unit;
-    log_disk("Seek done\n");
+    log_disk("Seek done %d head %x\n", dasd->ncyl, dasd->head);
     dasd->attn = 1;
+    dasd->diff = 0;
+    dasd->flags &= ~1;
     dasd->cyl = dasd->ncyl;
 }
 
@@ -228,7 +230,7 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
 {
     if ((ft & BIT7) == 0)
         return;
-    log_disk("tags  %02x %02x\n", ft, fc);
+    log_disk("tags  %02x %02x head=%d\n", ft, fc, dasd->head);
     if (ft & BIT0) {    /* Handle control function */
         if (fc & BIT1) { /* Read gate */
             dasd->attn = 0;
@@ -243,13 +245,16 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
         if (fc & BIT2) { /* Start seek */
             log_disk("Start seek to %02x, diff = %d, dir=%d\n",
                     dasd->ncyl, dasd->diff, dasd->dir);
-            add_event((struct _device *)dasd, seek_callback, 50,  NULL, 0);
+            if (dasd->diff != 0) {
+                add_event((struct _device *)dasd, seek_callback, 50,  NULL, 0);
+                dasd->flags |= 1;
+            }
         }
         if (fc & BIT3) {  /* Head reset */
             log_disk("Head reset\n");
         }
         if (fc & BIT5) { /* Select head */
-            log_disk("Select head\n");
+            log_disk("Select head %d\n", dasd->head);
         }
     }
     if (ft & BIT1) {    /* Set cylinder */
@@ -259,7 +264,7 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
     if (ft & BIT2) {    /* Set Head and sign */
         dasd->dir = (fc & BIT0) != 0;
         dasd->head = (fc & 0xf);
-        log_disk("set diff %d head  %x\n", dasd->dir, dasd->head);
+        log_disk("set diff %d head %x\n", dasd->dir, dasd->head);
     }
     if (ft & BIT3) {    /* Set Difference */
         dasd->diff = fc;
@@ -277,6 +282,12 @@ int
 dasd_check_attn(struct _dasd_t *dasd)
 {
     return dasd->attn;
+}
+
+int
+dasd_check_seek(struct _dasd_t *dasd)
+{
+    return (dasd->flags & 1) != 0;
 }
 
 
@@ -298,12 +309,28 @@ dasd_update(struct _dasd_t *dasd)
     int        count;        /* Position counter */
     int        type  = dasd->type;
 
+    pos = ((dasd->tsize * disk_type[type].heads) * dasd->cyl) + sizeof(struct dasd_header);
+    /* Check if read or write command, if so grab correct cylinder */
+    if (dasd->fpos != pos) {
+        uint32_t tsize = dasd->tsize * disk_type[type].heads;
+        if (dasd->dirty) {
+              (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
+              (void)write(dasd->fd, dasd->cbuf, tsize);
+              dasd->dirty = 0;
+        }
+        dasd->fpos = pos;
+        log_info("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
+        (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
+        (void)read(dasd->fd, dasd->cbuf, tsize);
+        dasd->tstart = (dasd->tsize * dasd->head);
+    }
+
     count = tpos = rpos = 0;
 log_disk("Update position %d\n", dasd->cpos);
     for (pos = 0; pos < dasd->cpos; pos ++) {
-         rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
+         rec = &dasd->cbuf[rpos + dasd->tstart];
          da = &dasd->cbuf[tpos + dasd->tstart];
-log_disk("State=%d %d\n", state, count);
+log_disk("State=%d %d t=%d r=%d\n", state, count, tpos, rpos);
          switch(state) {
          case DK_POS_INDEX:             /* At Index Mark */
               if (count > disk_type[type].g1) {
@@ -316,7 +343,7 @@ log_disk("State=%d %d\n", state, count);
               }
 log_disk("Index\n");
               break;
-        
+
          case DK_POS_HA:                /* In home address (c) */
               /* Return 5 bytes + 2 checksum */
               switch (count) {
@@ -345,15 +372,17 @@ log_disk("HA Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[coun
               dasd->ck_sum[0] = 0xff;
               dasd->ck_sum[1] = 0xff;
               count = -1;
+                      rec = &dasd->cbuf[rpos + dasd->tstart];
               state = DK_POS_CNT0;
+log_disk("GAP1 c=%02x %02x h=%02x %02x r=%02x k=%02x d=%02x %02x %d t=%d r=%d t=%d h=%d\n", rec[0], rec[1], rec[2], rec[3], rec[4],
+         rec[5], rec[6], rec[7], count, dasd->tpos, dasd->rpos, dasd->tstart, dasd->head);
 log_disk("Gap1 %d\n", count);
               break;
 
          case DK_POS_CNT0:              /* In count (c) */
-              switch(count) { 
-              case 0:    /* Cyl high */
-                      rpos = tpos;
-                      rec = &dasd->cbuf[rpos + dasd->tstart];
+              rec = &dasd->cbuf[rpos + dasd->tstart];
+              switch(count) {
+              case 0:    /* Flag */
                       /* Check for end of track */
                       if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
                          state = DK_POS_END;
@@ -361,27 +390,29 @@ log_disk("Gap1 %d\n", count);
                          dasd->klen = rec[5];
                          dasd->dlen = (rec[6] << 8) | rec[7];
                       }
+                      break;
                       /* Fall through */
-              case 1:   /* Cyl low */
-              case 2:   /* Head high */
-              case 3:   /* Head low */
-              case 4:   /* Record ID */
-              case 5:   /* Length of Key */
-              case 6:   /* Length of data high */
-              case 7:   /* Length of data low */
-                      dasd->ck_sum[count & 1] ^= rec[count];
+              case 1:   /* Cyl high */
+              case 2:   /* Cyl low */
+              case 3:   /* Head high */
+              case 4:   /* Head low */
+              case 5:   /* Record ID */
+              case 6:   /* Length of Key */
+              case 7:   /* Length of data high */
+              case 8:   /* Length of data low */
+                      dasd->ck_sum[(count - 1) & 1] ^= rec[count - 1];
                       tpos++;
                       break;
-              case 8:   /* Checksum 1 */
+              case 9:   /* Checksum 1 */
                       break;
-              case 9:   /* Checksum 2 */
+              case 10:   /* Checksum 2 */
                       state = DK_POS_GAP2;
                       if (dasd->klen == 0)
                           state = DK_POS_GAP3;
                       count = -1;
                       break;
               }
-log_disk("CNT0 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[count]);
+log_disk("CNT0 Check=%02x %02x %02x %d %d\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[count - 1], count, tpos);
               break;
 
 
@@ -390,14 +421,15 @@ log_disk("CNT0 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[co
                   break;
               count = -1;
               state = DK_POS_CNT1;
+log_disk("GAP1 c=%02x %02x h=%02x %02x r=%02x k=%02x d=%02x %02x %d t=%d r=%d t=%d h=%d\n", rec[0], rec[1], rec[2], rec[3], rec[4],
+         rec[5], rec[6], rec[7], count, dasd->tpos, dasd->rpos, dasd->tstart, dasd->head);
 log_disk("AM %d\n", count);
               break;
 
          case DK_POS_CNT1:
-              switch(count) { 
-              case 0:    /* Cyl high */
-                      rpos = tpos;
-                      rec = &dasd->cbuf[rpos + dasd->tstart];
+              rec = &dasd->cbuf[rpos + dasd->tstart];
+              switch(count) {
+              case 0:   /* Flag */
                       /* Check for end of track */
                       if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
                          state = DK_POS_END;
@@ -406,27 +438,28 @@ log_disk("AM %d\n", count);
                          dasd->klen = rec[5];
                          dasd->dlen = (rec[6] << 8) | rec[7];
                       }
-                      /* Fall through */
-              case 1:   /* Cyl low */
-              case 2:   /* Head high */
-              case 3:   /* Head low */
-              case 4:   /* Record ID */
-              case 5:   /* Length of Key */
-              case 6:   /* Length of data high */
-              case 7:   /* Length of data low */
-                      dasd->ck_sum[count & 1] ^= rec[count];
+                      break;
+              case 1:   /* Cyl high */
+              case 2:   /* Cyl low */
+              case 3:   /* Head high */
+              case 4:   /* Head low */
+              case 5:   /* Record ID */
+              case 6:   /* Length of Key */
+              case 7:   /* Length of data high */
+              case 8:   /* Length of data low */
+                      dasd->ck_sum[(count - 1) & 1] ^= rec[(count - 1)];
                       tpos++;
                       break;
-              case 8:   /* Checksum 1 */
+              case 9:   /* Checksum 1 */
                       break;
-              case 9:   /* Checksum 2 */
+              case 10:   /* Checksum 2 */
                       state = DK_POS_GAP2;
                       if (dasd->klen == 0)
                           state = DK_POS_GAP3;
                       count = -1;
                       break;
               }
-log_disk("CNT0 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[count]);
+log_disk("CNT1 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[count-1]);
               break;
 
          case DK_POS_GAP2:                /* Beginning of record */
@@ -466,8 +499,7 @@ log_disk("CNT0 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[co
                   tpos++;
               }
               if (count == (dasd->dlen + 2)) {
-                  rpos += dasd->dlen + dasd->klen + 8;
-                  tpos = rpos;
+                  rpos = tpos;
                   state = DK_POS_AM;
                   count = -1;
                   dasd->ck_sum[0] = 0xff;
@@ -502,7 +534,7 @@ dasd_step(struct _dasd_t *dasd, uint8_t *ix)
     uint8_t             *da;
     size_t               pos;
 
-log_disk("Disk step %d %d %d %s\n", dasd->step, dasd->cpos, dasd->tsize, dasd->file_name);
+log_disk("Disk step %d %d %d c=%d h=%d %s\n", dasd->step, dasd->cpos, dasd->tsize, dasd->cyl, dasd->head, dasd->file_name);
     if (dasd->step < disk_type[type].rate) {
         dasd->step++;
         return;
@@ -540,20 +572,26 @@ dasd_read_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
 log_disk("Disk read %d %d %d\n", dasd->state, count, dasd->cpos);
     dasd->step = 0;
     *am = 0;
-    pos = (dasd->tsize * disk_type[type].heads) * dasd->cyl;
+    pos = ((dasd->tsize * disk_type[type].heads) * dasd->cyl) + sizeof(struct dasd_header);
     /* Check if read or write command, if so grab correct cylinder */
     if (dasd->fpos != pos) {
         uint32_t tsize = dasd->tsize * disk_type[type].heads;
-        size_t   fpos = sizeof(struct dasd_header) + pos;
+        int r;
         if (dasd->dirty) {
               (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
-              (void)write(dasd->fd, dasd->cbuf, tsize);
+              r = write(dasd->fd, dasd->cbuf, tsize);
+              if (r != tsize) {
+                  log_error("Disk write on %s %d\n", dasd->file_name, r);
+              }
               dasd->dirty = 0;
         }
-        dasd->fpos = fpos;
+        dasd->fpos = pos;
         log_info("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
         (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
-        (void)read(dasd->fd, dasd->cbuf, tsize);
+        r = read(dasd->fd, dasd->cbuf, tsize);
+        if (r != tsize) {
+            log_error("Disk read on %s %d\n", dasd->file_name, r);
+        }
         dasd->tstart = (dasd->tsize * dasd->head);
     }
     log_info("state %02x %d\n", dasd->state, dasd->tpos);
@@ -574,6 +612,7 @@ log_disk("Disk read %d %d %d\n", dasd->state, count, dasd->cpos);
 
     dasd->cpos++;
     dasd->count++;
+    dasd->dirty = 1;
 
     switch(dasd->state) {
     case DK_POS_INDEX:             /* At Index Mark */
@@ -591,7 +630,7 @@ log_disk("Gap0=%02x %d\n", *data, count);
              return 0;
          }
          break;
-    
+
     case DK_POS_HA:                /* In home address (c) */
          /* Return 5 bytes + 2 checksum */
          switch (count) {
@@ -629,10 +668,11 @@ log_disk("HA Check=%02x %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], dasd->tpos
          break;
 
     case DK_POS_CNT0:              /* In count (c) */
-         switch(count) { 
-         case 0:    /* Cyl high */
+         rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
+         switch(count) {
+         case 0:    /* Flag */
                  dasd->rpos = dasd->tpos;
-                 rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
+                 dasd->rcnt = 0;
                  /* Check for end of track */
                  if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
                     dasd->state = DK_POS_END;
@@ -640,23 +680,26 @@ log_disk("HA Check=%02x %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], dasd->tpos
                     dasd->klen = rec[5];
                     dasd->dlen = (rec[6] << 8) | rec[7];
                  }
+                 *data = 0;
 log_disk("CNT0 %02x %02x %02x %02x %02x %d %d\n", rec[0], rec[1], rec[2], rec[3], rec[4], dasd->klen, dasd->dlen);
-                 /* Fall through */
-         case 1:   /* Cyl low */
-         case 2:   /* Head high */
-         case 3:   /* Head low */
-         case 4:   /* Record ID */
-         case 5:   /* Length of Key */
-         case 6:   /* Length of data high */
-         case 7:   /* Length of data low */
-                 *data = rec[count];
-                 dasd->ck_sum[count & 1] ^= rec[count];
+                 break;
+
+         case 1:    /* Cyl high */
+         case 2:   /* Cyl low */
+         case 3:   /* Head high */
+         case 4:   /* Head low */
+         case 5:   /* Record ID */
+         case 6:   /* Length of Key */
+         case 7:   /* Length of data high */
+         case 8:   /* Length of data low */
+                 *data = rec[count - 1];
+                 dasd->ck_sum[(count - 1) & 1] ^= *data;
                  dasd->tpos++;
                  break;
-         case 8:   /* Checksum 1 */
+         case 9:   /* Checksum 1 */
                  *data = dasd->ck_sum[0];
                  break;
-         case 9:   /* Checksum 2 */
+         case 10:  /* Checksum 2 */
                  *data = dasd->ck_sum[1];
                  dasd->state = DK_POS_GAP2;
                  if (dasd->klen == 0)
@@ -686,8 +729,10 @@ log_disk("CNT0 Check=%02x %02x %d %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], 
          break;
 
     case DK_POS_CNT1:
-         switch(count) { 
-         case 0:    /* Cyl high */
+         rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
+         switch(count) {
+         case 0:    /* Flag */
+                 dasd->rcnt++;
                  dasd->rpos = dasd->tpos;
                  rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
                  /* Check for end of track */
@@ -698,24 +743,35 @@ log_disk("CNT0 Check=%02x %02x %d %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], 
                     dasd->klen = rec[5];
                     dasd->dlen = (rec[6] << 8) | rec[7];
                  }
+                 *data = 0;
+                 if (rec[0] & 0x80)
+                    *data |= 0x40;
+                 if (dasd->rcnt & 1)
+                    *data |= 0x80;
 log_disk("CNT1 %02x %02x %02x %02x %02x %d %d\n", rec[0], rec[1], rec[2], rec[3], rec[4], dasd->klen, dasd->dlen);
-                 /* Fall through */
-         case 1:   /* Cyl low */
-         case 2:   /* Head high */
-         case 3:   /* Head low */
-         case 4:   /* Record ID */
-         case 5:   /* Length of Key */
-         case 6:   /* Length of data high */
-         case 7:   /* Length of data low */
-                 *data = rec[count];
-                 dasd->ck_sum[count & 1] ^= rec[count];
+                 dasd->ck_sum[0] ^= *data;
+                 break;
+         case 1:    /* Cyl high */
+                 *data = rec[0] & 0x7f;  /* Remove overflow indicator */
+                 dasd->ck_sum[1] ^= *data;
                  dasd->tpos++;
                  break;
-         case 8:   /* Checksum 1 */
-                 *data = dasd->ck_sum[0];
+         case 2:   /* Cyl low */
+         case 3:   /* Head high */
+         case 4:   /* Head low */
+         case 5:   /* Record ID */
+         case 6:   /* Length of Key */
+         case 7:   /* Length of data high */
+         case 8:   /* Length of data low */
+                 *data = rec[count - 1];
+                 dasd->ck_sum[count & 1] ^= *data;
+                 dasd->tpos++;
                  break;
-         case 9:   /* Checksum 2 */
+         case 9:   /* Checksum 1 */
                  *data = dasd->ck_sum[1];
+                 break;
+         case 10:  /* Checksum 2 */
+                 *data = dasd->ck_sum[0];
                  dasd->state = DK_POS_GAP2;
                  if (dasd->klen == 0)
                      dasd->state = DK_POS_GAP3;
@@ -744,7 +800,7 @@ log_disk("CNT1 Check=%02x %02x %d %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], 
              *data = dasd->ck_sum[0];
          } else {
              *data = dasd->ck_sum[1];
-             dasd->state = DK_POS_GAP2;
+             dasd->state = DK_POS_GAP3;
              dasd->count = 0;
          }
 log_disk("KEY Check=%02x %02x %d %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], count, *data);
@@ -777,6 +833,7 @@ log_disk("DATA Check=%02x %02x %d %d %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], 
          break;
 
     case DK_POS_END:               /* Past end of data */
+log_disk("End %d %d\n", dasd->cpos, dasd->tpos);
          dasd->count = 0;
          dasd->klen = 0;
          dasd->dlen = 0;
@@ -795,26 +852,33 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
     uint8_t             *rec;
     uint8_t             *da;
     size_t               pos;
+    int                  i;
 
     if (dasd->step < disk_type[type].rate) {
         dasd->step++;
         return 0;
     }
     dasd->step = 0;
-    pos = (dasd->tsize * disk_type[type].heads) * dasd->cyl;
+    pos = ((dasd->tsize * disk_type[type].heads) * dasd->cyl) + sizeof(struct dasd_header);
     /* Check if read or write command, if so grab correct cylinder */
     if (dasd->fpos != pos) {
         uint32_t tsize = dasd->tsize * disk_type[type].heads;
-        size_t   fpos = sizeof(struct dasd_header) + pos;
+        int r;
         if (dasd->dirty) {
               (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
-              (void)write(dasd->fd, dasd->cbuf, tsize);
+              r = write(dasd->fd, dasd->cbuf, tsize);
+              if (r != tsize) {
+                  log_error("Disk write on %s %d\n", dasd->file_name, r);
+              }
               dasd->dirty = 0;
         }
+        dasd->fpos = pos;
         log_info("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
-        dasd->fpos = fpos;
         (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
-        (void)read(dasd->fd, dasd->cbuf, tsize);
+        r = read(dasd->fd, dasd->cbuf, tsize);
+        if (r != tsize) {
+            log_error("Disk read on %s %d\n", dasd->file_name, r);
+        }
         dasd->tstart = (dasd->tsize * dasd->head);
     }
     log_info("state %02x %d\n", dasd->state, dasd->tpos);
@@ -836,20 +900,25 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
     dasd->cpos++;
     switch(dasd->state) {
     case DK_POS_INDEX:             /* At Index Mark */
-         if (count > disk_type[type].g1) {
-             dasd->tstart = dasd->tsize * (dasd->head);
+         if (*data == 0) {
+             dasd->count = 0;
+         }
+         if (*data == 0xff) {
+             dasd->count = disk_type[type].g1 - 1;
+log_disk("All ones\n");
+         }
+         if (*data == 0xe && dasd->count >= disk_type[type].g1) {
+log_disk("Sync\n");
+//             dasd->tstart = dasd->tsize * (dasd->head);
              dasd->tpos = dasd->rpos = 0;
-             dasd->count = -1;
+             dasd->count = 0;
              dasd->state = DK_POS_HA;
              dasd->ck_sum[0] = 0xff;
              dasd->ck_sum[1] = 0xff;
-         } else {
-             *data = gap0[count];
          }
          break;
-    
+
     case DK_POS_HA:                /* In home address (c) */
-         dasd->tpos++;
          /* Return 5 bytes + 2 checksum */
          switch (count) {
          case 0:   /* Track flag */
@@ -857,56 +926,81 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
          case 2:   /* Cyl low */
          case 3:   /* Head high */
          case 4:   /* Head low */
-               *data = rec[dasd->count];
-               dasd->ck_sum[dasd->count & 1] ^= rec[dasd->count];
+               dasd->tpos++;
+               rec[count] = *data;
+               dasd->ck_sum[count & 1] ^= *data;
                break;
          case 5:   /* Checksum 1 */
-               *data = dasd->ck_sum[0];
+log_disk("HA %02x %02x %02x %02x %02x\n", rec[0], rec[1], rec[2], rec[3], rec[4]);
                break;
          case 6:   /* Checksum 2 */
-               *data = dasd->ck_sum[0];
-               dasd->tpos = 5;
-               dasd->state = DK_POS_CNT0;
-               dasd->count = -1;
+               dasd->state = DK_POS_GAP1;
+               dasd->count = 0;
                dasd->ck_sum[0] = 0xff;
                dasd->ck_sum[1] = 0xff;
          }
+log_disk("HA Check=%02x %02x %d s=%d h=%d\n", dasd->ck_sum[0], dasd->ck_sum[1], dasd->tpos, dasd->tstart, dasd->head);
          break;
-    case DK_POS_CNT0:              /* In count (c) */
-         if (count < disk_type[type].g1) {
-             *data = gap1[count];
-             break;
+
+    case DK_POS_GAP1:
+         if (*data == 0) {
+             dasd->count = 0;
          }
-         dasd->tpos++;
-         switch(count) { 
-         case 0:    /* Cyl high */
-                 rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
-                 /* Check for end of track */
-                 if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
-                    dasd->state = DK_POS_END;
-                 } else {
-                    dasd->klen = rec[5];
-                    dasd->dlen = (rec[6] << 8) | rec[7];
-                 }
-                 /* Fall through */
-         case 1:   /* Cyl low */
-         case 2:   /* Head high */
-         case 3:   /* Head low */
-         case 4:   /* Record ID */
-         case 5:   /* Length of Key */
-         case 6:   /* Length of data high */
-         case 7:   /* Length of data low */
-                 *data = rec[dasd->count];
-                 dasd->ck_sum[dasd->count & 1] ^= rec[dasd->count];
+         if (*data == 0xff) {
+             dasd->count = disk_type[type].g1 - 1;
+         }
+         if (*data == 0xe && dasd->count >= disk_type[type].g1) {
+log_disk("Sync 1\n");
+ //            dasd->tstart = dasd->tsize * (dasd->head);
+             dasd->tpos = dasd->rpos = 5;
+             dasd->count = 0;
+             dasd->state = DK_POS_CNT0;
+             dasd->ck_sum[0] = 0xff;
+             dasd->ck_sum[1] = 0xff;
+             rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
+log_disk("GAP1 c=%02x %02x h=%02x %02x r=%02x k=%02x d=%02x %02x %d t=%d r=%d t=%d h=%d\n", rec[0], rec[1], rec[2], rec[3], rec[4],
+         rec[5], rec[6], rec[7], count, dasd->tpos, dasd->rpos, dasd->tstart, dasd->head);
+             for (i = 0; i < 8; i++)
+                  rec[i] = 0xff;
+         }
+         break;
+
+    case DK_POS_CNT0:              /* In count (c) */
+         rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
+         switch(count) {
+         case 0:    /* Flag */
+                 dasd->klen = *data;   /* Save flag for next byte */
+log_disk("CNT0 f c=%02x %02x h=%02x %02x r=%02x k=%02x d=%02x %02x %d %d %d\n", rec[0], rec[1], rec[2], rec[3], rec[4],
+         rec[5], rec[6], rec[7], count, dasd->tpos, dasd->rpos);
                  break;
-         case 8:   /* Checksum 1 */
-                 *data = dasd->ck_sum[0];
-         case 9:   /* Checksum 2 */
-                 *data = dasd->ck_sum[1];
-                 dasd->state = DK_POS_KEY;
-                 if (dasd->klen == 0)
-                     dasd->state = DK_POS_DATA;
-                 dasd->count = -1;
+         case 1:    /* Cyl high */
+                 *data |= (dasd->klen & 0x40) ? 0x80:0;
+                 dasd->klen = 0;
+                 /* Fall through */
+         case 2:   /* Cyl low */
+         case 3:   /* Head high */
+         case 4:   /* Head low */
+         case 5:   /* Record ID */
+         case 6:   /* Length of Key */
+         case 7:   /* Length of data high */
+         case 8:   /* Length of data low */
+                 dasd->tpos++;
+                 rec[(count - 1)] = *data;
+                 dasd->ck_sum[(count - 1) & 1] ^= *data;
+log_disk("CNT0 c=%02x %02x h=%02x %02x r=%02x k=%02x d=%02x %02x %d t=%d r=%d t=%d h=%d r=%d\n", rec[0], rec[1], rec[2], rec[3], rec[4],
+         rec[5], rec[6], rec[7], count, dasd->tpos, dasd->rpos, dasd->tstart, dasd->head, dasd->rpos);
+                 break;
+         case 9:   /* Checksum 1 */
+                 break;
+         case 10:   /* Checksum 2 */
+log_disk("CNT0 %02x %02x %02x %02x %02x %02x %02x %02x\n", rec[0], rec[1], rec[2], rec[3], rec[4],
+            rec[5], rec[6], rec[7]);
+                 dasd->klen = rec[5];
+                 dasd->dlen = (rec[6] << 8) | rec[7];
+                 dasd->state = DK_POS_GAP2;
+                 if (rec[5] == 0)  /* Check key length */
+                     dasd->state = DK_POS_GAP3;
+                 dasd->count = 0;
                  dasd->ck_sum[0] = 0xff;
                  dasd->ck_sum[1] = 0xff;
                  break;
@@ -914,44 +1008,52 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
          break;
 
     case DK_POS_AM:                /* Beginning of record */
-         if (count < (disk_type[type].g2 * 2)) {
-             *data = gap2[count];
-             if (*data == 0xaa) {
-                 *data = 0xff;
-                 *am = 1;
-             }
-             break;
+         if (*data == 0) {
+             dasd->count = 0;
          }
-         dasd->tpos++;
-         switch(count) { 
-         case 0:    /* Cyl high */
-                 rec = &dasd->cbuf[dasd->rpos + dasd->tstart];
-                 /* Check for end of track */
-                 if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
-                    dasd->state = DK_POS_END;
-                    dasd->count = -1;
-                 } else {
-                    dasd->klen = rec[5];
-                    dasd->dlen = (rec[6] << 8) | rec[7];
-                 }
-                 /* Fall through */
-         case 1:   /* Cyl low */
-         case 2:   /* Head high */
-         case 3:   /* Head low */
-         case 4:   /* Record ID */
-         case 5:   /* Length of Key */
-         case 6:   /* Length of data high */
-         case 7:   /* Length of data low */
-                 *data = rec[dasd->count];
-                 dasd->ck_sum[dasd->count & 1] ^= rec[dasd->count];
+         if (*data == 0xff) {
+             dasd->count = disk_type[type].g1 - 1;
+         }
+         if (*data == 0xe && dasd->count >= disk_type[type].g1) {
+log_disk("Sync am\n");
+             dasd->ck_sum[0] = 0xff;
+             dasd->ck_sum[1] = 0xff;
+             dasd->count = 0;
+             dasd->state = DK_POS_CNT1;
+             for (i = 0; i < 8; i++)
+                  rec[i] = 0xff;
+         }
+         break;
+
+    case DK_POS_CNT1:
+         switch(count) {
+         case 0:    /* Flag */
+                 dasd->rcnt++;
+                 dasd->rpos = dasd->tpos;
+                 dasd->klen = *data;   /* Save flag for next byte */
                  break;
-         case 8:   /* Checksum 1 */
-                 *data = dasd->ck_sum[0];
-         case 9:   /* Checksum 2 */
-                 *data = dasd->ck_sum[1];
-                 dasd->state = DK_POS_KEY;
-                 if (dasd->klen == 0)
-                     dasd->state = DK_POS_DATA;
+         case 1:    /* Cyl high */
+                 *data |= (dasd->klen & 0x40) ? 0x80:0;
+                 dasd->klen = 0;
+                 /* Fall through */
+         case 2:   /* Cyl low */
+         case 3:   /* Head high */
+         case 4:   /* Head low */
+         case 5:   /* Record ID */
+         case 6:   /* Length of Key */
+         case 7:   /* Length of data high */
+         case 8:   /* Length of data low */
+                 dasd->tpos++;
+                 *da = *data;
+                 dasd->ck_sum[(dasd->count - 1) & 1] ^= *data;
+                 break;
+         case 9:   /* Checksum 1 */
+         case 10:   /* Checksum 2 */
+                 dasd->klen = rec[5];
+                 dasd->dlen = (rec[6] << 8) | rec[7];
+                 dasd->state = DK_POS_GAP2;
+                 if (rec[5] == 0)  /* Check key length */
+                     dasd->state = DK_POS_GAP3;
                  dasd->count = -1;
                  dasd->ck_sum[0] = 0xff;
                  dasd->ck_sum[1] = 0xff;
@@ -959,39 +1061,57 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
          }
          break;
 
-    case DK_POS_KEY:               /* In Key area */
-         if (count < disk_type[type].g2) {
-             *data = gap1[count];
-             break;
+    case DK_POS_GAP2:
+         if (*data == 0) {
+             dasd->count = 0;
          }
-         dasd->tpos++;
+         if (*data == 0xff) {
+             dasd->count = disk_type[type].g1 - 1;
+         }
+         if (*data == 0xe && dasd->count >= disk_type[type].g1) {
+log_disk("Sync 2\n");
+             dasd->count = 0;
+             dasd->state = DK_POS_KEY;
+             dasd->ck_sum[0] = 0xff;
+             dasd->ck_sum[1] = 0xff;
+         }
+         break;
+
+    case DK_POS_KEY:               /* In Key area */
          if (dasd->count < dasd->klen) {
-             *data = *da;
+             dasd->tpos++;
+             *da = *data;
              dasd->ck_sum[dasd->count & 1] ^= *da;
-         } else if (dasd->count == dasd->klen) {
-             *data = dasd->ck_sum[0];
-         } else {
-             *data = dasd->ck_sum[1];
+         } else if (dasd->count == (dasd->klen + 2)) {
+             dasd->state = DK_POS_GAP3;
+             dasd->count = 0;
+         }
+         break;
+
+    case DK_POS_GAP3:
+         if (*data == 0xcc) {
+             dasd->count = 0;
+         }
+         if (*data == 0xff && dasd->count == 1) {
+             dasd->count = 0;  /* Still in leader */
+         }
+         if (*data == 0xe) {
+log_disk("Sync 3\n");
+             dasd->count = 0;
              dasd->state = DK_POS_DATA;
-             dasd->count = -1;
+             dasd->ck_sum[0] = 0xff;
+             dasd->ck_sum[1] = 0xff;
          }
          break;
 
     case DK_POS_DATA:              /* In Data area */
-         if (count < disk_type[type].g2) {
-             *data = gap1[count];
-             break;
-         }
-         dasd->tpos++;
          if (dasd->count < dasd->dlen) {
-             *data = *da;
+             dasd->tpos++;
+             *da = *data;
              dasd->ck_sum[dasd->count & 1] ^= *da;
-         } else if (dasd->count == dasd->dlen) {
-             *data = dasd->ck_sum[0];
-         } else {
-             *data = dasd->ck_sum[1];
+         } else if (dasd->count == (dasd->dlen + 2)) {
              dasd->state = DK_POS_AM;
-             dasd->count = -1;
+             dasd->count = 0;
          }
          break;
 
@@ -1214,11 +1334,11 @@ static uint8_t volrec[84] = {0xE5,0xD6,0xD3,0xF1,    /* VOL1, key */
                              0x40,0x00,0x00,0x00,0x01,0x01,  /* CCHHR */
                              0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,
                              0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,
-                             0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,  
+                             0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,
                              0x40,0xE2,0xC9,0xD4,0xC8,0x40,  /* SIMH */
                              0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,
                              0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,
-                             0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40, 
+                             0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,
                              0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,
                              0x40,0x40};
 
@@ -1230,102 +1350,114 @@ dasd_format(struct _dasd_t * dasd, int flag) {
     int                 cyl;
     uint32_t            hd;
     int                 pos;
+    int                 r;
 
 //    if (flag || get_yn("Initialize dasd? [Y] ", TRUE)) {
     log_info("Format\n");
-        memset(&hdr, 0, sizeof(struct dasd_header));
-        memcpy(&hdr.devid[0], "CKD_P370", 8);
-        hdr.heads = disk_type[type].heads;
-        hdr.tracksize = (disk_type[type].bpt | 0x1ff) + 1;
-        hdr.devtype = disk_type[type].dev_type;
-        (void)lseek(dasd->fd, 0, SEEK_SET);
-        write(dasd->fd, &hdr, sizeof(struct dasd_header));
-        tsize = hdr.tracksize * hdr.heads;
-        dasd->tsize = hdr.tracksize;
-        if (dasd->cbuf == NULL && (dasd->cbuf = (uint8_t *)calloc(tsize, sizeof(uint8_t))) == 0)
-            return 1;
-        for (cyl = 0; cyl <= disk_type[type].cyl; cyl++) {
-            pos = 0;
-            for (hd = 0; hd < disk_type[type].heads; hd++) {
-                int cpos = pos;
-                dasd->cbuf[pos++] = 0;            /* HA */
-                dasd->cbuf[pos++] = (cyl >> 8);
+    memset(&hdr, 0, sizeof(struct dasd_header));
+    memcpy(&hdr.devid[0], "CKD_P370", 8);
+    hdr.heads = disk_type[type].heads;
+    hdr.tracksize = (disk_type[type].bpt | 0x1ff) + 1;
+    hdr.devtype = disk_type[type].dev_type;
+    (void)lseek(dasd->fd, 0, SEEK_SET);
+    r = write(dasd->fd, &hdr, sizeof(struct dasd_header));
+    if (r != sizeof(struct dasd_header)) {
+        log_error("Disk write on %s %d\n", dasd->file_name, r);
+    }
+    tsize = hdr.tracksize * hdr.heads;
+    dasd->tsize = hdr.tracksize;
+    if (dasd->cbuf == NULL && (dasd->cbuf = (uint8_t *)calloc(tsize, sizeof(uint8_t))) == 0)
+        return 1;
+    for (cyl = 0; cyl <= disk_type[type].cyl; cyl++) {
+        pos = 0;
+        for (hd = 0; hd < disk_type[type].heads; hd++) {
+            int cpos = pos;
+            dasd->cbuf[pos++] = 0;            /* HA */
+            dasd->cbuf[pos++] = (cyl >> 8);
+            dasd->cbuf[pos++] = (cyl & 0xff);
+            dasd->cbuf[pos++] = (hd >> 8);
+            dasd->cbuf[pos++] = (hd & 0xff);
+            dasd->cbuf[pos++] = (cyl >> 8);   /* R0 */
+            dasd->cbuf[pos++] = (cyl & 0xff);
+            dasd->cbuf[pos++] = (hd >> 8);
+            dasd->cbuf[pos++] = (hd & 0xff);
+            dasd->cbuf[pos++] = 0;              /* Rec */
+            dasd->cbuf[pos++] = 0;              /* keylen */
+            dasd->cbuf[pos++] = 0;              /* dlen */
+            dasd->cbuf[pos++] = 8;              /*  */
+            pos += 8;
+            dasd->cbuf[pos++] = (cyl >> 8);   /* R1 */
+            dasd->cbuf[pos++] = (cyl & 0xff);
+            dasd->cbuf[pos++] = (hd >> 8);
+            dasd->cbuf[pos++] = (hd & 0xff);
+            dasd->cbuf[pos++] = 1;              /* Rec */
+            if (cyl == 0 && hd == 0 && flag) {
+                unsigned int p;
+                /* R1, IPL1 */
+                dasd->cbuf[pos++] = 4;              /* keylen */
+                dasd->cbuf[pos++] = 0;              /* dlen */
+                dasd->cbuf[pos++] = 24;              /*  */
+                for (p = 0; p < sizeof (ipl1rec); p++)
+                    dasd->cbuf[pos++] = ipl1rec[p];
+                dasd->cbuf[pos++] = (cyl >> 8);   /* R2 */
                 dasd->cbuf[pos++] = (cyl & 0xff);
                 dasd->cbuf[pos++] = (hd >> 8);
                 dasd->cbuf[pos++] = (hd & 0xff);
-                dasd->cbuf[pos++] = (cyl >> 8);   /* R0 */
+                dasd->cbuf[pos++] = 2;              /* Rec */
+                /* R2, IPL2 */
+                dasd->cbuf[pos++] = 4;              /* keylen */
+                dasd->cbuf[pos++] = 0;              /* dlen */
+                dasd->cbuf[pos++] = 144;            /*  */
+                for (p = 0; p < sizeof (ipl2key); p++)
+                    dasd->cbuf[pos++] = ipl2key[p];
+                pos += 144;
+                dasd->cbuf[pos++] = (cyl >> 8);   /* R3 */
                 dasd->cbuf[pos++] = (cyl & 0xff);
                 dasd->cbuf[pos++] = (hd >> 8);
                 dasd->cbuf[pos++] = (hd & 0xff);
-                dasd->cbuf[pos++] = 0;              /* Rec */
+                dasd->cbuf[pos++] = 3;              /* Rec */
+                /* R3, VOL1 */
+                dasd->cbuf[pos++] = 4;              /* keylen */
+                dasd->cbuf[pos++] = 0;              /* dlen */
+                dasd->cbuf[pos++] = 80;             /*  */
+                for (p = 0; p < sizeof (volrec); p++)
+                    dasd->cbuf[pos++] = volrec[p];
+            } else {
                 dasd->cbuf[pos++] = 0;              /* keylen */
                 dasd->cbuf[pos++] = 0;              /* dlen */
-                dasd->cbuf[pos++] = 8;              /*  */
-                pos += 8;
-                dasd->cbuf[pos++] = (cyl >> 8);   /* R1 */
-                dasd->cbuf[pos++] = (cyl & 0xff);
-                dasd->cbuf[pos++] = (hd >> 8);
-                dasd->cbuf[pos++] = (hd & 0xff);
-                dasd->cbuf[pos++] = 1;              /* Rec */
-                if (cyl == 0 && hd == 0 && flag) {
-                    unsigned int p;
-                    /* R1, IPL1 */
-                    dasd->cbuf[pos++] = 4;              /* keylen */
-                    dasd->cbuf[pos++] = 0;              /* dlen */
-                    dasd->cbuf[pos++] = 24;              /*  */
-                    for (p = 0; p < sizeof (ipl1rec); p++) 
-                        dasd->cbuf[pos++] = ipl1rec[p];
-                    dasd->cbuf[pos++] = (cyl >> 8);   /* R2 */
-                    dasd->cbuf[pos++] = (cyl & 0xff);
-                    dasd->cbuf[pos++] = (hd >> 8);
-                    dasd->cbuf[pos++] = (hd & 0xff);
-                    dasd->cbuf[pos++] = 2;              /* Rec */
-                    /* R2, IPL2 */
-                    dasd->cbuf[pos++] = 4;              /* keylen */
-                    dasd->cbuf[pos++] = 0;              /* dlen */
-                    dasd->cbuf[pos++] = 144;            /*  */
-                    for (p = 0; p < sizeof (ipl2key); p++) 
-                        dasd->cbuf[pos++] = ipl2key[p];
-                    pos += 144;
-                    dasd->cbuf[pos++] = (cyl >> 8);   /* R3 */
-                    dasd->cbuf[pos++] = (cyl & 0xff);
-                    dasd->cbuf[pos++] = (hd >> 8);
-                    dasd->cbuf[pos++] = (hd & 0xff);
-                    dasd->cbuf[pos++] = 3;              /* Rec */
-                    /* R3, VOL1 */
-                    dasd->cbuf[pos++] = 4;              /* keylen */
-                    dasd->cbuf[pos++] = 0;              /* dlen */
-                    dasd->cbuf[pos++] = 80;             /*  */
-                    for (p = 0; p < sizeof (volrec); p++) 
-                        dasd->cbuf[pos++] = volrec[p];
-                } else {
-                    dasd->cbuf[pos++] = 0;              /* keylen */
-                    dasd->cbuf[pos++] = 0;              /* dlen */
-                    dasd->cbuf[pos++] = 0;              /*  */
-                }
-                dasd->cbuf[pos++] = 0xff;           /* End record */
-                dasd->cbuf[pos++] = 0xff;
-                dasd->cbuf[pos++] = 0xff;
-                dasd->cbuf[pos++] = 0xff;
-                pos = cpos + dasd->tsize;
+                dasd->cbuf[pos++] = 0;              /*  */
             }
-            write(dasd->fd, dasd->cbuf,tsize);
+            dasd->cbuf[pos++] = 0xff;           /* End record */
+            dasd->cbuf[pos++] = 0xff;
+            dasd->cbuf[pos++] = 0xff;
+            dasd->cbuf[pos++] = 0xff;
+            pos = cpos + dasd->tsize;
         }
-        (void)lseek(dasd->fd, sizeof(struct dasd_header), SEEK_SET);
-        (void)read(dasd->fd, dasd->cbuf, tsize);
-        dasd->cpos = sizeof(struct dasd_header);
-        dasd->cyl = 0;
-        return 0;
+        r = write(dasd->fd, dasd->cbuf, tsize);
+        if (r != tsize) {
+            log_error("Disk write on %s %d\n", dasd->file_name, r);
+        }
+        memset(dasd->cbuf, 0, tsize);
+    }
+    (void)lseek(dasd->fd, sizeof(struct dasd_header), SEEK_SET);
+    r = read(dasd->fd, dasd->cbuf, tsize);
+    if (r != tsize) {
+        log_error("Disk read on %s %d\n", dasd->file_name, r);
+    }
+    dasd->cpos = sizeof(struct dasd_header);
+    dasd->cyl = 0;
+    return 0;
 }
 
 int
 dasd_attach(struct _dasd_t *dasd, char *file_name, int type, int init)
 {
-    uint32_t            i;
+    int                 i;
     struct dasd_header  hdr;
     uint32_t            tsize;
     off_t               isize;
     size_t              dsize;
+    int                 r;
 
     dasd->type = type;
     log_info("Attach %s %d\n", file_name, type);
@@ -1375,7 +1507,10 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int type, int init)
     tsize = hdr.tracksize * hdr.heads;
     dasd->tsize = hdr.tracksize;
     (void)lseek(dasd->fd, sizeof(struct dasd_header), SEEK_SET);
-    (void)read(dasd->fd, dasd->cbuf, tsize);
+    r = read(dasd->fd, dasd->cbuf, tsize);
+    if (r != tsize) {
+        log_error("Disk read on %s %d\n", dasd->file_name, r);
+    }
     dasd->fpos = sizeof(struct dasd_header);
     dasd->cyl = 0;
     return 1;

@@ -98,11 +98,49 @@ step_2841(void *data)
    char       buffer[1024];
    char       tbuf[20];
 
-   sal = &ros_2841[nextWX];
+   /* Walk through all drives and update current position */
+   ctx->SC_REG = 0;
+   for (i = 0; i < 8; i++) {
+        uint8_t    ix;
+        ix = 0;
+        if (ctx->disk[i] == NULL)
+            continue;
+        if ((ctx->UR_REG & (0x80 >> i)) != 0 && (ctx->FT & 0x81) == 0x81 && (ctx->FC & 0x04) != 0) {
+            uint8_t   data, am;
+            if ((ctx->FC & 0x40) != 0) {
+                if (dasd_read_byte(ctx->disk[i], &data, &am, &ix)) {
+                    log_disk("Disk read %d %02x\n", i, data);
+                    ctx->ST_REG |= BIT4;
+                    ctx->DR_REG = data;
+                }
+            } else if ((ctx->FC & 0x80) != 0) {
+                data = ctx->DR_REG;
+                if (dasd_write_byte(ctx->disk[i], &data, &am, &ix)) {
+                    log_disk("Disk write %d %02x\n", i, data);
+                    ctx->ST_REG |= BIT4;
+                }
+            } else {
+                dasd_step(ctx->disk[i], &ix);
+            }
+        } else {
+           /* If not selected, just keep in sync */
+          log_disk("Disk stepper %d\n", i);
+            dasd_step(ctx->disk[i], &ix);
+        }
+        /* Check if drive has attention signal */
+        if (dasd_check_attn(ctx->disk[i])) {
+            ctx->SC_REG |= 0x80 >> i;
+          log_disk("Disk attn %d\n", i);
+        }
+        if ((ctx->ST_REG & BIT1) != 0 && ix)
+            ctx->index = 1;
+   }
+
+   sal = &ros_2841[ctx->WX];
 
    /* Disassemble micro instruction */
    if (log_level & LOG_MICRO) {
-       sprintf(buffer, "%s %03X: %02X %s ", sal->NOTE, nextWX, sal->CN, ca_name[sal->CA]);
+       sprintf(buffer, "%s %03X: %02X %s ", sal->NOTE, ctx->WX, sal->CN, ca_name[sal->CA]);
 
        switch (sal->CC) {
        case 0:
@@ -216,43 +254,6 @@ step_2841(void *data)
        log_micro(buffer);
    }
 
-   /* Walk through all drives and update current position */
-   ctx->SC_REG = 0;
-   for (i = 0; i < 8; i++) {
-        uint8_t    ix;
-        ix = 0;
-        if (ctx->disk[i] == NULL)
-            continue;
-        if ((ctx->UR_REG & (0x80 >> i)) != 0 && (ctx->FT & 0x81) == 0x81) {
-            uint8_t   data, am;
-            if ((ctx->FC & 0x40) != 0) {
-                if (dasd_read_byte(ctx->disk[i], &data, &am, &ix)) {
-          log_disk("Disk read %d %02x\n", i, data);
-                    ctx->ST_REG |= BIT4;
-                    ctx->DR_REG = data;
-                }
-            } else if ((ctx->FC & 0x80) != 0) {
-          log_disk("Disk write %d\n", i);
-                data = ctx->DR_REG;
-                if (dasd_write_byte(ctx->disk[i], &data, &am, &ix)) {
-                    ctx->ST_REG |= BIT4;
-                }
-            } else {
-                dasd_step(ctx->disk[i], &ix);
-            }
-        } else {
-           /* If not selected, just keep in sync */
-          log_disk("Disk stepper %d\n", i);
-            dasd_step(ctx->disk[i], &ix);
-        }
-        /* Check if drive has attention signal */
-        if (dasd_check_attn(ctx->disk[i])) {
-            ctx->SC_REG |= 0x80 >> i;
-          log_disk("Disk attn %d\n", i);
-        }
-        if ((ctx->ST_REG & BIT1) != 0 && ix)
-            ctx->index = 1;
-   }
 
    /* Base next address. */
    nextWX = (ctx->WX & 0xf00) | sal->CN;
@@ -383,8 +384,6 @@ step_2841(void *data)
               nextWX |= 0x1;
            break;
    }
-
-   ctx->WX = nextWX;
 
    /* Set B Bus input */
    switch (sal->CB) {
@@ -700,12 +699,14 @@ step_2841(void *data)
            break;
    }
 
-   log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x %d\n",
+   ctx->WX = nextWX;
+
+   log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x WX=%03x %d\n",
            ctx->OP_REG, ctx->DW_REG, ctx->UR_REG, ctx->BX_REG, ctx->BY_REG,
-           ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG, ctx->SC_REG, ctx->selected);
-   log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x A=%02x B=%02x > %02x\n",
+           ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG, ctx->SC_REG, ctx->WX, ctx->selected);
+   log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x A=%02x B=%02x > %02x %x\n",
            ctx->KL_REG, ctx->ER_REG, ctx->GP_REG, ctx->IG_REG, ctx->DR_REG,
-           ctx->ST_REG, ctx->FT, ctx->FC, ctx->Abus, ctx->Bbus, ctx->Alu_out);
+           ctx->ST_REG, ctx->FT, ctx->FC, ctx->Abus, ctx->Bbus, ctx->Alu_out, ctx->carry);
 }
 
 

@@ -35,7 +35,7 @@
 int main(int argc, const char *argv[])
 {
     int result;
-    log_level = 0xfff;
+    log_level = 0x3fff;
     log_init("disk_debug.log");
     result = ctest_main(argc, argv);
     return result;

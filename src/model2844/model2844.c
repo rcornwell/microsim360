@@ -97,12 +97,51 @@ step_2844(struct _2844_context *ctx)
    char       buffer[1024];
    char       tbuf[20];
 
+   /* Walk through all drives and update current position */
+   ctx->SC_REG = 0;
+   for (i = 0; i < 8; i++) {
+        uint8_t    ix;
+        ix = 0;
+        if (ctx->disk[i] == NULL)
+            continue;
+        if ((ctx->UR_REG & (0x80 >> i)) != 0 && (ctx->FT & 0x81) == 0x81 && (ctx->FC & 0x04) != 0) {
+            uint8_t   data, am;
+            if ((ctx->FC & 0x40) != 0) {
+                if (dasd_read_byte(ctx->disk[i], &data, &am, &ix)) {
+                    log_disk("Disk read %d %02x\n", i, data);
+                    ctx->ST_REG |= BIT4;
+                    ctx->DR_REG = data;
+                }
+            } else if ((ctx->FC & 0x80) != 0) {
+                data = ctx->DR_REG;
+                if (dasd_write_byte(ctx->disk[i], &data, &am, &ix)) {
+                    log_disk("Disk write %d %02x\n", i, data);
+                    ctx->ST_REG |= BIT4;
+                }
+            } else {
+                dasd_step(ctx->disk[i], &ix);
+            }
+        } else {
+           /* If not selected, just keep in sync */
+          log_disk("Disk stepper %d\n", i);
+            dasd_step(ctx->disk[i], &ix);
+        }
+        /* Check if drive has attention signal */
+        if (dasd_check_attn(ctx->disk[i])) {
+            ctx->SC_REG |= 0x80 >> i;
+          log_disk("Disk attn %d\n", i);
+        }
+        if ((ctx->ST_REG & BIT1) != 0 && ix)
+            ctx->index = 1;
+   }
+
+
    sal = &ros_2844[nextWX];
 
    /* Disassemble micro instruction */
    if (log_level & LOG_MICRO) {
        sprintf(buffer, "%s %03X: %02X %s ", sal->NOTE, nextWX, sal->CN, ca_name[sal->CA]);
-      
+
        switch (sal->CC) {
        case 0:
        case 1:
@@ -117,7 +156,7 @@ step_2844(struct _2844_context *ctx)
        }
        if (sal->CV == 1)
            strcat(buffer, "-");
-      
+
        if (sal->CB == 2) {
           sprintf(tbuf, "%02x", sal->CK);
           strcat(buffer, tbuf);
@@ -134,8 +173,8 @@ step_2844(struct _2844_context *ctx)
        if (sal->CC > 3 && sal->CC < 7)
            strcat(buffer, "C");
        if (sal->BP)
-           strcat(buffer, " BYPASS");
-      
+           strcat(buffer, " OM");
+
        sprintf(tbuf, " %02x ", sal->CK);
        strcat(buffer, tbuf);
        strcat(buffer, cs_name[sal->CS]);
@@ -215,7 +254,7 @@ step_2844(struct _2844_context *ctx)
 
 
    /* Base next address. */
-   nextWX = (ctx->WX & 0xf00) | sal->CN;
+   nextWX = (ctx->WX & 0xe00) | sal->CN | (sal->BP << 8);
 
    /* Decode the X6 bit */
    switch (sal->CH) {
@@ -306,14 +345,17 @@ step_2844(struct _2844_context *ctx)
            nextWX = (nextWX & 0xf00) | (ctx->Abus);
            break;
    case 7: /* INLIN */
-              nextWX |= 0x1;
+//              nextWX |= 0x1;
            break;
    case 8: /* SERVO */
            if ((ctx->tags & CHAN_SRV_OUT) != 0)
               nextWX |= 0x1;
            break;
    case 9: /* SORSP */
-           if (ctx->tr_1 == 0 && ctx->tr_2 == 0 && (ctx->IG_REG & 0x20) != 0)  /* System not taken byte */
+           if ((ctx->srv_in && (ctx->IG_REG & BIT2) != 0) ||
+               (ctx->srv_req && (ctx->IG_REG & BIT2) != 0) ||
+               (ctx->srv_in && (ctx->tags & CHAN_SRV_OUT) != 0))
+//           if (ctx->tr_1 == 0 && ctx->tr_2 == 0 && (ctx->IG_REG & 0x20) != 0)  /* System not taken byte */
               nextWX |= 0x1;
            break;
    case 10: /* SELTO */
@@ -333,6 +375,7 @@ step_2844(struct _2844_context *ctx)
               nextWX |= 0x1;
            break;
    case 14: /* index */
+           if (ctx->index)
               nextWX |= 0x1;
            break;
    case 15: /* OP7 */
@@ -373,6 +416,8 @@ step_2844(struct _2844_context *ctx)
           break;
    case 0x03:    /* IH */
           ctx->Abus = ctx->bus_out;
+          ctx->tr_1 = 1;
+          log_trace("Set TR1 read IH\n");
           break;
    case 0x04:    /* FR */
           ctx->Abus = ctx->FR_REG;
@@ -415,39 +460,55 @@ step_2844(struct _2844_context *ctx)
           ctx->Abus = 0;
           break;
    case 0x11:    /* SC */   /* Gated attention registers */
-          ctx->Abus = 0;
+          ctx->Abus = ctx->SC_REG;
           break;
    case 0x12:    /* FS */   /* File status */
           ctx->Abus = 0;
+          if (ctx->UR_REG == 0x00)
+              ctx->Abus |= BIT1;
+          if (ctx->disk[ctx->unit_num] != NULL &&
+                dasd_check_seek(ctx->disk[ctx->unit_num]))
+              ctx->Abus |= BIT0;
           break;
    case 0x13:    /* BX */
           ctx->Abus = ctx->BX_REG;
           break;
    case 0x14:    /* DR */
           ctx->Abus = ctx->DR_REG;
+          /* Set transfer control 1 if read */
+          if ((ctx->IG_REG & BIT2) != 0) {
+              ctx->tr_1 = 1;
+              log_trace("Set TR1\n");
+          }
           break;
    case 0x15:    /* ER */
           ctx->Abus = ctx->ER_REG;
+          ctx->srv_in = 0;
           break;
    case 0x16:    /* IE */
-          ctx->Abus = ctx->IE;
+          ctx->Abus = ctx->IE & 0x1e;
           break;
    case 0x17:    /* OA */   /* Old address */
-          ctx->Abus = 0;
+          ctx->Abus = dasd_cur_cyl(ctx->disk[ctx->unit_num]);
           break;
    case 0x18:    /* CX */
           ctx->Abus = ctx->CX_REG;
           break;
    case 0x19:    /* IS */  /* Status */
-          ctx->Abus = ctx->addr;
+          ctx->Abus = (ctx->addr & 0xf0);
+          ctx->Abus |= (ctx->SC_REG != 0);
+          if (ctx->disk[ctx->unit_num] != NULL)
+              ctx->Abus |= 4;
+          if (ctx->unit_num == 0)
+              ctx->Abus |= 8;
           break;
    case 0x1A:    /* UR */
           ctx->Abus = ctx->UR_REG;
           break;
    case 0x1B:    /* SL */   /* Selected drive */
-          ctx->Abus = ctx->UR_REG;
+          ctx->Abus = (0x100 >> ctx->unit_num) & 0xff;
           break;
-   case 0x1C:    /* AH */ 
+   case 0x1C:    /* AH */
 //          ctx->Abus = ctx->AH_REG;
           break;
    case 0x1D:    /* AL */
@@ -511,11 +572,6 @@ step_2844(struct _2844_context *ctx)
    ctx->d_nzero = (ctx->Alu_out != 0);
    ctx->carry = (carries & 0x80) != 0;
 
-   /* If bypass set result to A bus */
-   if (sal->BP) {
-      ctx->Alu_out = ctx->Abus;
-   }
-
    /* Save results into destination */
    switch (sal->CD) {
    case 0:  /* D */
@@ -548,10 +604,10 @@ step_2844(struct _2844_context *ctx)
            break;
    case 10: /* UR */
            ctx->UR_REG = ctx->Alu_out;
+           ctx->unit_num = ctx->Alu_out & 07;
            break;
    case 11:  /* DW */
            ctx->DW_REG = ctx->Alu_out;
-           ctx->tr_1 = 1;
            break;
    case 12:  /* DR */
            ctx->DR_REG = ctx->Alu_out;
@@ -561,12 +617,20 @@ step_2844(struct _2844_context *ctx)
            ctx->FT &= ~ctx->Alu_out;
            if (sal->CN & 4)
                ctx->FT |= ctx->Alu_out;
+           dasd_settags(ctx->disk[ctx->unit_num], ctx->FT, ctx->FC);
+
+           /* Check if enabling read/write gate */
+           if (ctx->FT == 0x81 && (ctx->FC & 0xc0) != 0) {
+              /* Adjust our position */
+               dasd_update(ctx->disk[ctx->unit_num]);
+           }
            break;
    case 14:  /* FC */
            /* Drive FC register */
            ctx->FC &= ~ctx->Alu_out;
            if (sal->CN & 4)
                ctx->FC |= ctx->Alu_out;
+           dasd_settags(ctx->disk[ctx->unit_num], ctx->FT, ctx->FC);
            break;
    case 15:  /* IG */
            ctx->IG_REG = ctx->Alu_out;
@@ -577,10 +641,10 @@ step_2844(struct _2844_context *ctx)
 //           ctx->BT_REG = ctx->Alu_out;
            break;
    case 0x12:    /* WH */
-     //      ctx->WH_REG = ctx->Alu_out;
+           ctx->WH_REG = ctx->Alu_out;
            break;
    case 0x13:    /* WL */
-    //       ctx->WL_REG = ctx->Alu_out;
+           ctx->WL_REG = ctx->Alu_out;
            break;
    case 0x14:    /* AH */
 //           ctx->AH_REG = ctx->Alu_out;
@@ -595,10 +659,10 @@ step_2844(struct _2844_context *ctx)
    //        ctx->BL_REG = ctx->Alu_out;
            break;
    case 0x18:    /* CX */
-           ctx->BL_REG = ctx->Alu_out;
+           ctx->CX_REG = ctx->Alu_out;
            break;
    case 0x19:    /* BX */
-           ctx->BL_REG = ctx->Alu_out;
+           ctx->BX_REG = ctx->Alu_out;
            break;
    case 0x1A:    /* SP */
            ctx->SP_REG = ctx->Alu_out;
@@ -606,8 +670,8 @@ step_2844(struct _2844_context *ctx)
    case 0x1B:    /* SW */
 //           ctx->SW_REG = ctx->Alu_out;
            break;
-   case 0x1C:    /* IE */ 
-           ctx->IE = ctx->Alu_out & 0x1f;
+   case 0x1C:    /* IE */
+           ctx->IE = ctx->Alu_out;
            break;
    case 0x1D:    /* none */
            break;
@@ -687,12 +751,12 @@ step_2844(struct _2844_context *ctx)
            break;
    }
 
-   log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x\n",
+   log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x WX=%03x %d\n",
            ctx->OP_REG, ctx->DW_REG, ctx->UR_REG, ctx->BX_REG, ctx->BY_REG,
-           ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG);
-   log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x A=%02x B=%02x > %02x\n",
+           ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG, ctx->SC_REG, ctx->WX, ctx->selected);
+   log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x SP=%02x CX=%02x A=%02x B=%02x > %02x %x\n",
            ctx->KL_REG, ctx->ER_REG, ctx->GP_REG, ctx->IG_REG, ctx->DR_REG,
-           ctx->ST_REG, ctx->FT, ctx->FC, ctx->Abus, ctx->Bbus, ctx->Alu_out);
+           ctx->ST_REG, ctx->FT, ctx->FC, ctx->SP_REG, ctx->CX_REG, ctx->Abus, ctx->Bbus, ctx->Alu_out, ctx->carry);
 }
 
 
@@ -736,17 +800,30 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 log_trace("Drop Op in\n");
         ctx->opr_in = 0;
         ctx->IG_REG &= ~BIT1;
+        *tags &= ~CHAN_OPR_IN;
     }
-  
+
     if ((*tags & CHAN_SEL_OUT) != 0 && ctx->addressed) {
-        ctx->selected = 1; 
+        ctx->selected = 1;
     } else {
         ctx->selected = 0;
     }
 
     if (ctx->opr_in) {
         *tags |= CHAN_OPR_IN;
-        *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+//        *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+    }
+
+    /* If request, enable request in */
+    if (ctx->selected == 0 && (ctx->IG_REG & BIT6) != 0) {
+       *tags |= CHAN_REQ_IN;
+       ctx->request = 1;
+    }
+
+    if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {
+       *tags &= ~(CHAN_REQ_IN);
+       ctx->request = 0;
+       ctx->selected = 1;
     }
 
     /* Present end status */
@@ -756,10 +833,11 @@ log_trace("Drop Op in\n");
             *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);
             *tags |= (CHAN_OPR_IN|CHAN_ADR_IN);
             /* Send address */
+            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
             ctx->tr_1 = 0;
             ctx->tr_2 = 0;
         }
-        
+#if 0
         /* Wait for channel to accept it with CMD out */
         if ((*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN))
                     == (CHAN_SEL_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
@@ -779,7 +857,7 @@ log_trace("Drop Op in\n");
         }
 
         /* Wait for CMD out or Service out */
-        if (ctx->tr_2 && 
+        if (ctx->tr_2 &&
             (*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) ==
                      (CHAN_SEL_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
              /* stacked status */
@@ -787,7 +865,7 @@ log_trace("Drop Op in\n");
         }
 
         /* Wait for CMD out or Service out */
-        if (ctx->tr_2 && 
+        if (ctx->tr_2 &&
             (*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) ==
                      (CHAN_SEL_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
              /* status accepted */
@@ -798,28 +876,64 @@ log_trace("Drop Op in\n");
         if ((*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_OPR_IN)) == 0) {
             *tags |= CHAN_REQ_IN;
         }
+#endif
     }
 
 
     if (ctx->selected) {
+#if 0
          if ((*tags & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN|CHAN_SRV_OUT) &&
                  (ctx->IG_REG & BIT5) == 0) {
 log_trace("Drop selct\n");
             ctx->addressed = 0;
          }
-         *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN|CHAN_STA_IN|CHAN_SRV_IN);
+#endif
+         *tags &= ~(CHAN_SEL_OUT);
 
          if (ctx->IG_REG & BIT7) {
              *tags |= CHAN_ADR_IN;
             *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
              ctx->opr_in = 1;
+             ctx->tr_1 = 0;
+         } else {
+             *tags &= ~CHAN_ADR_IN;
          }
+
          if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
              ctx->ER_REG |= BIT2;
          } else {
              ctx->ER_REG &= ~BIT2;
          }
 
+log_trace("TR1=%d TR2=%d SVC=%d SVI=%d\n", ctx->tr_1, ctx->tr_2, ctx->svc_req, ctx->srv_in);
+         ctx->tr_2 = ctx->svc_req;
+         if (ctx->srv_in) {
+             ctx->svc_req = 0;
+log_trace("Clear svc request\n");
+         }
+
+         if (((ctx->IG_REG & BIT2) != 0 && ctx->tr_1) ||
+             ((ctx->IG_REG & BIT0) != 0 && ctx->srv_in == 0)) {
+             ctx->svc_req = 1;
+log_trace("Raise svc request %d\n", ctx->svc_req);
+         }
+
+         if (ctx->tr_2) {
+             ctx->srv_in = 1;
+             *tags |= CHAN_SRV_IN;
+             *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+log_trace("Raise Service in\n");
+         }
+
+         if ((ctx->tr_1 && (ctx->IG_REG & BIT2) == 0) ||
+             ((ctx->IG_REG & BIT2) != 0 && (*tags & CHAN_SRV_OUT) != 0 && ctx->tr_2 == 0)) {
+             ctx->srv_in = 0;
+             *tags &= ~CHAN_SRV_IN;
+log_trace("Clear Service in\n");
+         }
+         ctx->tr_1 = 0;
+
+#if 0
          /* If read latch */
          if ((ctx->IG_REG & BIT2) != 0 && ctx->tr_1 && (*tags & CHAN_SRV_OUT) == 0) {
              ctx->tr_1 = 0;
@@ -831,15 +945,17 @@ log_trace("Drop selct\n");
              ctx->tr_1 = 0;
              ctx->tr_2 = 1;
          }
+#endif
 
          /* If status latch */
          if ((ctx->IG_REG & BIT5) != 0) {
              *tags |= CHAN_STA_IN;
-            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
-             ctx->tr_1 = 0;
-             ctx->tr_2 = 0;
+             *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+         } else {
+             *tags &= ~CHAN_STA_IN;
          }
 
+#if 0
          if (ctx->tr_2) {
             *tags |= CHAN_SRV_IN;
             *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
@@ -848,6 +964,7 @@ log_trace("Drop selct\n");
                 ctx->tr_2 = 0;
             }
          }
+#endif
     }
 }
 
@@ -856,6 +973,7 @@ model2844_init(void *rend, uint16_t addr)
 {
  //    SDL_Surface *text;
  //    SDL_Renderer *render = (SDL_Renderer *)rend;
+     int    i;
      struct _device *dev2844;
      struct _2844_context *disk;
 
@@ -875,6 +993,9 @@ model2844_init(void *rend, uint16_t addr)
      dev2844->rect[0].h = 142;
      dev2844->n_units = 1;
      dev2844->addr = addr;
+     disk->addr = addr;
+     for (i = 0; i < 8; i++)
+         disk->disk[i] = NULL;
      add_chan(dev2844, addr);
      return dev2844;
 }

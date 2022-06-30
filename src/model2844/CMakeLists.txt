@@ -35,9 +35,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(${PROJECT_NAME} model2844_ros.h)
 
 if (RUN_TESTS)
-add_executable(test2844_test test/ctest_main.c test/disk_test.c 
-                             ../logger.c ../device/xlat.c ../device/device.c
-                                   model2844.c model2844_ros.c)
+add_executable(test2844_test test/ctest_main.c test/disk_test.c ../event.c
+               ../logger.c ../conf.c ../device/dasd.c ../device/xlat.c
+               ../device/device.c model2844.c model2844_ros.c)
 target_link_libraries(test2844_test)
 add_dependencies(test2844_test model2844_ros.h)
 add_custom_command(TARGET test2844_test

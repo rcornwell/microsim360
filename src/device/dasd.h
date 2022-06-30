@@ -87,16 +87,16 @@
 
           3906 bpt
 
-          index to HA  GAP 36 bytes. (34)0x00 - 0xff 0x0e 
+          index to HA  GAP 36 bytes. (34)0x00 - 0xff 0x0e
           alpha gap        18 bytes. 0xcc - (15)0x00 0xff 0x0e
           beta gap         18 bytes  0xcc - (9)0xff, (6)0x00, (1)0xff, 0x0e
           AM gap           -  byte   0xcc -(>21) 0xff, (4)0x00, (1)0xff, (2AM)0xff, 0x0e
-  
+
           Data rate 6.8us per byte.
 
           156,000 = 6.4us per byte
-          
-          1us step time. 
+
+          1us step time.
 */
 
 #include <stdint.h>
@@ -124,6 +124,7 @@ struct _dasd_t
      uint16_t           count;       /* Current position in field */
      uint16_t           dlen;        /* remaining in data */
      uint32_t           tsize;       /* Size of one track include rounding */
+     uint8_t            rcnt;        /* Record count */
      uint8_t            state;       /* Current state */
      uint8_t            dirty;       /* Track is dirty */
      uint8_t            klen;        /* remaining in key */
@@ -142,6 +143,8 @@ void dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc);
 uint8_t dasd_cur_cyl(struct _dasd_t *dasd);
 
 int dasd_check_attn(struct _dasd_t *dasd);
+
+int dasd_check_seek(struct _dasd_t *dasd);
 
 void dasd_update(struct _dasd_t *dasd);
 
