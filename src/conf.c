@@ -28,7 +28,7 @@
  *
  * logfile "string"
  * log option [[,] option]
- * cpunumber memsize 
+ * cpunumber memsize
  * 1050 port=# (default 3270).
  * controller [address] option=opt
  * unit       address   option=opt file="name" label=value
@@ -45,24 +45,26 @@
  * 2030E/1    # Specifies a Model 30 with 1 selector channel.
  * 1050 port=3200
  * 2821  000
- * 2540R 00C
- * 2540P 00D
- * 1403  00E file="printout.txt"
- * 2415  0c0 7-track
+ * 2540R 00C ctrl=000
+ * 2540P 00D ctrl=000
+ * 1403  00E ctrl=000 file="printout.txt"
+ * 2415  0c0 7track
  * 2400  0c0 file="systap.tap"
- * 2400  0c1 file="sys001.tap" new ring
- * 2400  0c2 file="sys002.tap" new ring
- * 2400  0c3 file="sys003.tap" new ring
- * 2400  0c4 file="sys004.tap" new ring
- * 2400  0c5 7-track
+ * 2400  0c1 file="sys001.tap" ring
+ * 2400  0c2 file="sys002.tap" ring
+ * 2400  0c3 file="sys003.tap" ring
+ * 2400  0c4 file="sys004.tap" ring
+ * 2400  0c5 7track
  * 2841  190
  * 2311  190 file="system.ckd"
  * 2311  191 file="data.ckd" new label=111111
- * 
+ *
  */
 
 #include "config.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <fcntl.h>
 #include <ctype.h>
 #ifdef HAVE_UNISTD_H
@@ -71,7 +73,7 @@
 
 #include "logger.h"
 #include "device.h"
-#include "panel.h"
+//#include "panel.h"
 #include "conf.h"
 
 /*
@@ -88,6 +90,11 @@ char       line_buffer[1024];
  * Pointer to where to grab next character from.
  */
 char      *line_ptr;
+
+/* Define header to look for */
+DEV_LIST_SECTION struct _control model_list_start = {
+        "list_start", 0, 0, NULL, NULL, DEV_LIST_MAGIC
+    };
 
 
 int
@@ -125,7 +132,7 @@ get_model(struct _option *opt)
            *p = toupper(*line_ptr);
             p++;
             len++;
-        } else { 
+        } else {
             fprintf(stderr, "Invalid character in option\n");
             free(opt);
             return 0;
@@ -164,7 +171,7 @@ get_model(struct _option *opt)
     }
     opt->flags = flags;
     return 1;
-}  
+}
 
 int
 get_addr(struct _option *opt)
@@ -202,15 +209,15 @@ get_addr(struct _option *opt)
     }
     opt->addr = i;
     return 1;
-}  
+}
 
 int
 get_string(struct _option *opt)
 {
     char           *p;
     int             len;
-    int             i;
     int             quote=0;
+
     /* Skip leading space */
     while(isspace(*line_ptr))
         line_ptr++;
@@ -269,7 +276,7 @@ get_option(struct _option *opt)
     /* Grab either a word or a number */
     p = &opt->opt[0];
     len = 0;
-    while (len < 20 && isalnum(*line_ptr) || *line_ptr == '-') {
+    while (len < 20 && (isalnum(*line_ptr) || *line_ptr == '-')) {
        *p = toupper(*line_ptr);
        p++;
        len++;
@@ -286,7 +293,7 @@ get_option(struct _option *opt)
         }
     }
     return 1;
-}  
+}
 
 int
 get_integer(struct _option *opt, int *value)
@@ -308,7 +315,7 @@ get_integer(struct _option *opt, int *value)
         }
     }
     return 1;
-}  
+}
 
 int
 get_index(struct _option *opt, char *list[])
@@ -326,7 +333,24 @@ get_index(struct _option *opt, char *list[])
     }
     fprintf(stderr, "Option %s not valid (%s)\n", opt->opt, opt->string);
     return -1;
-}  
+}
+
+/*
+ * Find first device list entry.
+ */
+struct _control *
+dev_list()
+{
+    struct _control *list_begin = &model_list_start;
+    while (1) {
+        struct _control *t = list_begin;
+        t--;
+        if (t->magic != DEV_LIST_MAGIC)
+            break;
+        list_begin--;
+    }
+    return list_begin;
+}
 
 int
 load_config(char *name)
@@ -367,16 +391,79 @@ load_config(char *name)
                                 return 0;
                              }
                              break;
+                   case LOG_TYPE:
+                             if ((devlist->create)(&opt) == 0) {
+                                fprintf(stderr, "Unable to set log %s\n", opt.opt);
+                                fclose(config);
+                                return 0;
+                             }
+                             break;
+                   default:
+                             fprintf(stderr, "Unknown type %d\n", devlist->type);
+                             break;
                    }
                }
            }
            if (fnd == 0) {
                 fprintf(stderr, "Unknown device %s\n", opt.opt);
            }
-           
        }
     }
     fclose(config);
     return 1;
 }
+
+int
+load_line(char *line)
+{
+    struct _option opt;
+    struct _control *devlist;
+    int            fnd;
+
+    line_ptr = line;
+    fprintf(stderr, "line=%s", line_buffer);
+    fnd = 0;
+    if (get_model(&opt)) {
+        for (devlist = dev_list(); devlist->magic == DEV_LIST_MAGIC; devlist++) {
+            if (strcmp(opt.opt, devlist->name) == 0) {
+                fnd = 1;
+                switch(devlist->type) {
+                case HEAD_TYPE:
+                          break;
+                case DEVICE_TYPE:
+                case CTRL_TYPE:
+                case UNIT_TYPE:
+                          if (get_addr(&opt) == 0) {
+                             fprintf(stderr, "Missing address on %s\n", opt.opt);
+                             fclose(config);
+                             return 0;
+                          }
+                          /* Fall through */
+                case CPU_TYPE:
+                          if ((devlist->create)(&opt) == 0) {
+                             fprintf(stderr, "Unable to create device %s\n", opt.opt);
+                             fclose(config);
+                             return 0;
+                          }
+                          break;
+                case LOG_TYPE:
+                          if ((devlist->create)(&opt) == 0) {
+                             fprintf(stderr, "Unable to set log %s\n", opt.opt);
+                             fclose(config);
+                             return 0;
+                          }
+                          break;
+                default:
+                          fprintf(stderr, "Unknown type %d\n", devlist->type);
+                          break;
+                }
+            }
+        }
+        if (fnd == 0) {
+             fprintf(stderr, "Unknown device %s\n", opt.opt);
+        }
+    }
+    return 1;
+}
+
 

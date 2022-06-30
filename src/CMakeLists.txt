@@ -42,7 +42,7 @@ target_sources(${PROJECT_NAME} PUBLIC main.c conf.c logger.c event.c layout.c)
 
 
 if (RUN_TESTS)
-add_executable(sim_test test/ctest_main.c test/event_test.c event.c logger.c)
+add_executable(sim_test test/ctest_main.c test/event_test.c event.c logger.c conf.c)
 
 add_custom_command(TARGET sim_test
             COMMAND sim_test

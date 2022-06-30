@@ -37,8 +37,8 @@ add_dependencies(${PROJECT_NAME} model2050_ros.h)
 
 if (RUN_TESTS)
 add_executable(inst2050_test test/ctest_main.c test/model2050_test.c
-           ../logger.c ../device/disassem.c ../device/xlat.c ../device/device.c
-           ../test/io_test.c ../test/test_device.c ${model2050_src})
+           ../logger.c ../conf.c ../device/disassem.c ../device/xlat.c
+           ../device/device.c ../test/io_test.c ../test/test_device.c ${model2050_src})
 if (UNIX)
 target_link_libraries(inst2050_test m)
 endif()

@@ -605,6 +605,7 @@ cycle_2050()
     if (timer_event) {
         timer_event = 0;
         if (!INT_TMR && allow_man_operation == 0) {
+log_trace("Update timer\n");
            timer_update = 1;
         }
     }
@@ -674,6 +675,9 @@ cycle_2050()
         cpu_2050.init_bump_mem = 0;
         cpu_2050.bump_mem = 0;
         LOAD = 0;
+        INTR = 0;
+        timer_irq = 0;
+        timer_update = 0;
     }
 
     if (SEL_ENTER && CHN_MODE != 0) {
@@ -689,6 +693,9 @@ cycle_2050()
         cpu_2050.init_bump_mem = 0;
         cpu_2050.bump_mem = 0;
         SYS_RST = 0;
+        INTR = 0;
+        timer_irq = 0;
+        timer_update = 0;
     }
 
     if (ROAR_RST) {
@@ -782,10 +789,15 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
              log_info("mem write  %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
 
              if (cpu_2050.init_mem | cpu_2050.init_bump_mem) {
-             log_info("mem init  %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
-                 cpu_2050.mem_state = R1;
+             log_info("mem init  %06X %08x %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG,
+    mem_max);
                  cpu_2050.bump_mem = cpu_2050.init_bump_mem;
                  cpu_2050.init_mem = cpu_2050.init_bump_mem = 0;
+                 if (cpu_2050.SAR_REG > mem_max) {
+                     cpu_2050.ROAR = IVAD;
+                     goto channel;
+                 }
+                 cpu_2050.mem_state = R1;
                  if (sal->al == 30 || sal->ss == 3 || sal->iv == 4 || sal->iv == 7 ||
                      sal->tr == 29)
                      goto channel;
@@ -1049,14 +1061,8 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
             a_bit = ((cpu_2050.alu_out & BS_MASK[cpu_2050.BS_REG]) == 0);
             break;
     case 35: /* EDITPAT  */
-            if (cpu_2050.v_bus == 0x22) {
-                a_bit = 1;
-            } else if (cpu_2050.v_bus == 0x21) {
-                b_bit = 1;
-            } else if (cpu_2050.v_bus != 0x20) {
-                a_bit = 1;
-                b_bit = 1;
-            }
+            a_bit = ((cpu_2050.ED_STAT & 0x2) != 0);
+            b_bit = ((cpu_2050.ED_STAT & 0x1) != 0);
             break;
     case 36: /* PROB, in problem state */
             a_bit = (cpu_2050.AMWP & 1) != 0;
@@ -1131,11 +1137,16 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
             if (timer_update) {   /* Timer update, give it priority */
                b_bit = 1;
                a_bit = 1;
+log_trace("Time Up\n");
             }
-            if (cpu_2050.IBFULL && (cpu_2050.MASK & BIT0) != 0)
+            if (cpu_2050.IBFULL && (cpu_2050.MASK & BIT0) != 0) {
                b_bit = 1;
-            if ((cpu_2050.MASK & BIT7) != 0 && (INTR || timer_irq))
-               b_bit = 1;
+log_trace("Chan\n");
+}
+            if ((cpu_2050.MASK & BIT7) != 0 && (INTR | timer_irq)) {
+               a_bit = 1;
+log_trace("Ext %d t=%d\n", INTR, timer_irq);
+}
             break;
     case 59: /* CROS: Direct date hold sense branch  */
             break;
@@ -1258,6 +1269,8 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
             case 1:  /* Undefined */
                      break;
             case 2:  /* D->ROAR,SCAN */
+                     cpu_2050.NROAR = ((cpu_2050.SDR_REG >> 1) & 0xfff);
+                     cpu_2050.io_mode = ((cpu_2050.SDR_REG & BIT7) != 0);
                      break;
             case 3:  /* Undefined */
                      break;
@@ -1613,7 +1626,10 @@ log_trace("Bib = %02x E=%x P=%2x\n", bib, sal->ce, (bib & sal->ce & 0xf) << 4);
                 cpu_2050.u_bus = 0;
                 break;
         case 4:  /* XTR  Gate external interrupt register to lu bus */
-                if (INTR) {
+                if (timer_irq) {
+                    cpu_2050.u_bus = BIT0;
+                    timer_irq = 0;
+                } else if (INTR) {
                     cpu_2050.u_bus = BIT1;
                     INTR = 0;
                 }
@@ -1644,6 +1660,13 @@ log_trace("Bib = %02x E=%x P=%2x\n", bib, sal->ce, (bib & sal->ce & 0xf) << 4);
         case 3:   /* Undefined */
                 cpu_2050.v_bus = 0;
                 break;
+        }
+
+        /* Update ED stats */
+        if ((cpu_2050.v_bus & 0xfc) == 0x20) {
+            cpu_2050.ED_STAT = (cpu_2050.v_bus & 0x3);
+        } else {
+            cpu_2050.ED_STAT = 0x3;
         }
     }
 
@@ -1832,7 +1855,11 @@ log_trace("Bib = %02x E=%x P=%2x\n", bib, sal->ce, (bib & sal->ce & 0xf) << 4);
                  } else {
                      cpu_2050.IA_REG += 4;
                      cpu_2050.SAR_REG = cpu_2050.IA_REG;
-                     cpu_2050.init_mem = 1;
+                     if (cpu_2050.SAR_REG > mem_max) {
+                         cpu_2050.IVA = 1;
+                     } else {
+                         cpu_2050.init_mem = 1;
+                     }
                  }
                  break;
          case 5:  /* Undefined */
@@ -1895,7 +1922,11 @@ log_trace("Bib = %02x E=%x P=%2x\n", bib, sal->ce, (bib & sal->ce & 0xf) << 4);
                  } else {
                      cpu_2050.IA_REG += 4;
                      cpu_2050.SAR_REG = cpu_2050.IA_REG;
-                     cpu_2050.init_mem = 1;
+                     if (cpu_2050.SAR_REG > mem_max) {
+                         cpu_2050.IVA = 1;
+                     } else {
+                         cpu_2050.init_mem = 1;
+                     }
                  }
                  break;
          case 5:  /* IA+2/4 based on ILC if ILC == 0 or 1, IAR+= 2, ILC = 2 or 3, IAR+=4 */
@@ -1917,7 +1948,11 @@ log_trace("Bib = %02x E=%x P=%2x\n", bib, sal->ce, (bib & sal->ce & 0xf) << 4);
                  } else {
                      cpu_2050.SAR_REG = (cpu_2050.IA_REG + 2);
                  }
-                 cpu_2050.init_mem = 1;
+                 if (cpu_2050.SAR_REG > mem_max) {
+                     cpu_2050.IVA = 1;
+                 } else {
+                     cpu_2050.init_mem = 1;
+                 }
                  break;
          }
 
@@ -2215,14 +2250,14 @@ log_trace("t=%08x %08x\n", l_update, carries);
                                   (cpu_2050.R_REG & 0x0fffffff);
             break;
     case 25: /* F->SR4 */
-            cpu_2050.aob_latch = (cpu_2050.alu_out >> 4) | ((cpu_2050.F_REG & 0xf) << 28);
+            cpu_2050.aob_latch = (cpu_2050.alu_out >> 4) | (((uint32_t)cpu_2050.F_REG & 0xf) << 28);
             break;
     case 26: /* E->FPSL4 */
             cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) |
                                   (cpu_2050.alu_out & 0xff000000) | (sal->ce & 0xf);
             break;
     case 27: /* F->SR1->Q */
-            cpu_2050.aob_latch = (cpu_2050.alu_out >> 1) | ((cpu_2050.F_REG & 0x1) << 31);
+            cpu_2050.aob_latch = (cpu_2050.alu_out >> 1) | (((uint32_t)cpu_2050.F_REG & 0x1) << 31);
             cpu_2050.Q_REG = (cpu_2050.alu_out & 1);
             break;
     case 28: /* DKEY-> */
@@ -2324,11 +2359,40 @@ log_trace("t=%08x %08x\n", l_update, carries);
              /* Emit x101 read main storage address 84 set IA to 84 */
              /* Emit x110 undefined */
              /* Emit x111 undefined */
+            switch(sal->ce & 07) {
+            case 0:  cpu_2050.SAR_REG = 0x80;
+                     cpu_2050.init_mem = 1;
+                     cpu_2050.update_d = 1;
+                     break;
+            case 1:  cpu_2050.SAR_REG = 0x80;
+                     cpu_2050.init_mem = 1;
+                     break;
+            case 2:  cpu_2050.SAR_REG = 0x80;
+                     cpu_2050.init_mem = 1;
+                     break;
+            case 4:  cpu_2050.SAR_REG = 0x84;
+                     cpu_2050.IA_REG = 0x84;
+                     cpu_2050.init_mem = 1;
+                     cpu_2050.update_d = 1;
+                     break;
+            case 5:  cpu_2050.SAR_REG = 0x84;
+                     cpu_2050.IA_REG = 0x84;
+                     cpu_2050.init_mem = 1;
+                     break;
+            case 3:
+            case 6:
+            case 7:
+                     break;
+            }
             break;
     case 9:  /* R,AN, initaite memory request, suppress invalid memory address trap */
             cpu_2050.R_REG = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
-            cpu_2050.init_mem = 1;
+            if (cpu_2050.SAR_REG > mem_max) {
+                cpu_2050.IVA = 1;
+            } else {
+                cpu_2050.init_mem = 1;
+            }
             break;
     case 10:  /* R,AW, initiate memory request, invalid address trap if not word boundry  */
             cpu_2050.R_REG = cpu_2050.aob_latch;
@@ -3036,6 +3100,10 @@ log_trace("clear last word\n");
                 cpu_2050.LB_REG = cpu_2050.w_bus & 03;
                 break;
         case 4: /* W27->PSW4, 2-7 -> PSW 34-39  */
+                if (load_mode) {
+                    timer_irq = 0;
+                    timer_update = 0;
+                }
                 load_mode = 0;
                 cpu_2050.CC = (cpu_2050.w_bus >> 4) & 0x3;
                 cpu_2050.PMASK = cpu_2050.w_bus & 0xf;
@@ -3556,7 +3624,8 @@ log_trace("Backward\n");
                              cpu_2050.BFR2 = cpu_2050.BUS_IN & 0xff;
                              if ((cpu_2050.IOSTAT & 0x70) == 0x10) { /* Backword */
                                  cpu_2050.BI_REG = 0x1 << (cpu_2050.BFR1 & 3);
-                             } if ((cpu_2050.IOSTAT & 0x70) == 0x30) { /* Skip */
+                             }
+                             if ((cpu_2050.IOSTAT & 0x70) == 0x30) { /* Skip */
                                  cpu_2050.BI_REG = 0;
                              } else {
                                  cpu_2050.BI_REG = 0x8 >> (cpu_2050.BFR1 & 3);
@@ -3969,10 +4038,10 @@ Selector:
     xxxx 1100  Read   input backard           0001
     xxxx 1000  TIC
 
-         bit 4&!bit7 -> bit 7 
+         bit 4&!bit7 -> bit 7
          bit 7       -> bit 5,6
          0           -> bit 4
-    
+ 
      0 input fwd
      1 input back
      3 skip

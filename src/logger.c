@@ -27,7 +27,9 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "logger.h"
+#include "device.h"
 
 int log_level;
 extern uint64_t     step_count;
@@ -69,7 +71,7 @@ log_init(char *filename)
 
 static int last_level = 0;
 
-void 
+void
 log_print_s(int level, char *file, int line, const char *fmt, ...)
 {
     va_list        ap;
@@ -96,7 +98,8 @@ log_print_s(int level, char *file, int line, const char *fmt, ...)
     vfprintf(log_file, fmt, ap);
     va_end(ap);
 }
-void 
+
+void
 log_print_c(int level, const char *fmt, ...)
 {
     va_list        ap;
@@ -124,7 +127,7 @@ log_print_c(int level, const char *fmt, ...)
 }
 
 
-void 
+void
 log_print(int level, char *file, int line, const char *fmt, ...)
 {
     va_list        ap;
@@ -165,3 +168,47 @@ log_print(int level, char *file, int line, const char *fmt, ...)
     fflush(log_file);
 }
 
+int
+logFILE_create(struct _option *opt)
+{
+    struct _option opts;
+
+    if (get_string(&opts)) {
+        log_info("logging to %s\n", opts.string);
+        log_init(opts.string);
+    } else {
+        log_error("Unable to open log file\n");
+        return 0;
+    }
+    return 1;
+}
+
+int
+logLEVEL_create(struct _option *opt)
+{
+    struct _option opts;
+    int            i;
+    int            r = 1;
+
+    while (get_option(&opts)) {
+        if (opts.flags != 0) {
+            log_error("No options allowed on tag: %s\n", opts.opt);
+            r = 0;
+        } else {
+            for (i = 0; log_type[i].name != NULL; i++) {
+                if (strcmp(opts.opt, log_type[i].name) == 0) {
+                    log_level |= log_type[i].mask;
+                    break;
+                }
+            }
+            if (log_type[i].name == NULL) {
+                log_error("No option %s\n", opts.opt);
+                r = 0;
+            }
+        }
+    }
+    return r;
+}
+
+LOG_OPT_STRUCT(FILE);
+LOG_OPT_STRUCT(LEVEL);

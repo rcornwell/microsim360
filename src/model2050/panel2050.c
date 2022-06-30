@@ -175,7 +175,7 @@ setup_fp2050(void *rend)
     int	     hx, wx;
     int      h2, w2;
     int      mark[40];
-    char     buffer[10];
+    char     buffer[20];
     Uint32   f;
     SDL_Renderer *render = (SDL_Renderer *)rend;
 
@@ -286,8 +286,8 @@ setup_fp2050(void *rend)
     SET_INDICATOR8(&roller[3].disp[3].ind[15], &cpu_2050.F_REG, 1, 0);
     SET_INDICATOR8(&roller[3].disp[3].ind[16], &cpu_2050.F_REG, 0, 0);
     SET_INDICATOR8(&roller[3].disp[3].ind[17], &cpu_2050.Q_REG, 0, 0);
-    SET_INDICATOR8(&roller[3].disp[3].ind[18], NULL, 1, 0);  /* Edit stats */
-    SET_INDICATOR8(&roller[3].disp[3].ind[19], NULL, 0, 0);  /* Edit stats */
+    SET_INDICATOR8(&roller[3].disp[3].ind[18], &cpu_2050.ED_STAT, 1, 0);
+    SET_INDICATOR8(&roller[3].disp[3].ind[19], &cpu_2050.ED_STAT, 0, 0);
     SET_INDICATOR8(&roller[3].disp[3].ind[20], &cpu_2050.S_REG, 7, 0);
     SET_INDICATOR8(&roller[3].disp[3].ind[21], &cpu_2050.S_REG, 6, 0);
     SET_INDICATOR8(&roller[3].disp[3].ind[22], &cpu_2050.S_REG, 5, 0);
@@ -449,7 +449,7 @@ setup_fp2050(void *rend)
     ADD_LINE(150,(h2 * 47) - (h2/2), 930, c1);
     ADD_MARK(150, (h2 * 42), h2 * (47-42) - (h2/2), c1);
     ADD_MARK(150+929, (h2 * 42), h2 * (47-42) - (h2/2), c1);
-    for (i = 1; i <= 36; i++) {
+    for (i = 1; i < 36; i++) {
 //        sprintf(buffer, "%d", i);
  //       ADD_LABEL(j, (h2 * 46), f1_wd*2, buffer, c1, cc);
         lamp[lamp_ptr].rect.x = j;
@@ -487,7 +487,7 @@ setup_fp2050(void *rend)
     ADD_MARK(150, (h2 * 48), h2 * (56-48), c1);
     ADD_MARK(150+929, (h2 * 48), h2 * (56-48), c1);
     j = 150 + 35;
-    for (i = 0; i <= 36; i++) {
+    for (i = 0; i < 36; i++) {
         mark[i] = j;
         j += lamp_offset[i];
         lamp[lamp_ptr].rect.x = j;
@@ -543,7 +543,7 @@ setup_fp2050(void *rend)
     j = 150 + 35;
     ADD_AREA(150,(h2 * 57) - (h2/2), h2, 931, &c1);
     ADD_LABEL(150,(h2 * 57) - (h2/2), 931, "INSTRUCTION ADDRESS REGISTER", c, c1);
-    for (i = 0; i <= 36; i++) {
+    for (i = 0; i < 36; i++) {
         mark[i] = j;
         j += lamp_offset[i];
         if (i > 8) {

@@ -120,26 +120,9 @@ model1052_init_ctx(uint16_t port)
 }
 
 int
-get_option(struct _option *opt)
-{
-    return 0;
-}
-
-int
-get_integer(struct _option *opt, int *value)
-{
-    return 0;
-}
-
-int
 main(int argc, const char *argv[])
 {
-    struct _option opt;
-
-    strcpy(opt.opt, "2030");
-    opt.model = 'F';
-    if (model2030_create(&opt) == 0)
-        return 1;
+    load_line("2030F/1");
     log_level = 0x37f;
     log_init("debug.log");
     int result = ctest_main(argc, argv);

@@ -118,35 +118,6 @@ struct _control {
     unsigned int    magic;
 };
 
-
-#define HEAD_TYPE    0
-#define CPU_TYPE     1
-#define DEVICE_TYPE  2
-#define CTRL_TYPE    3
-#define UNIT_TYPE    4
-
-#define CHAR_OPT     1
-#define NUM_MOD      2
-#define NUM_OPT      4
-
-#define DEV_LIST_MAGIC   0xdeadbeef
-
-#if defined(_MSC_VER)
-#pragma segment(".devlist$u")
-#define DEV_LIST_SECTION __declspec(allocate(".devlist$u")) __declspec(align(1))
-#elif defined(__APPLE__)
-#define DEV_LIST_SECTION __attribute__ ((used, section ("__DATA, .devlist"), aligned(1)))
-#else
-#define DEV_LIST_SECTION __attribute__ ((used, section (".devlist"), aligned(1)))
-#endif
-
-
-#define DEV_LIST_STRUCT(mod, type, opts) \
-    static struct _control DEV_LIST_SECTION model_##mod## DEV_LIST_SECTION = { \
-        #mod, type, opts, model##mod##_create, model##mod##_init, DEV_LIST_MAGIC, \
-    }
-
-
 extern struct _device *chan[6];         /* Channels */
 extern struct _disk   *disk;            /* Disk controller that need to be run */
 
@@ -164,44 +135,12 @@ void add_disk(void (*fnc)(void *), void *drive);
 
 void step_disk();
 
-/* Return pointer to list of devices */
-struct _control *dev_list();
-
 extern char *title;
 
 extern void (*setup_cpu)(void *rend);
 
 extern void (*step_cpu)();
 
-
-/******************************************************************
- *
- *    Configuration file format.
- *
- *  CPU=model C30, D30, E30, F30, E50...
- *
- *
- *  CNTL=2415-4,180,TRANS,CONV
- *  UNIT=2415,180
- *  UNIT=2415,181
- *  UNIT=2415,182
- *  UNIT=2415,183
- *  
- *  CNTL=2821-1,000
- *  UNIT=2540R,00C
- *  UNIT=2540P,00D
- *  UNIT=1403,00E
- *
- *  CNTL=2841,190
- *  UNIT=2311,190
- *  UNIT=2311,191
- *  UNIT=2311,192
- *  UNIT=2311,193
- *  UNIT=2311,194
- *  UNIT=2311,195
- *  UNIT=2311,196
- *  UNIT=2311,197
- */
 
 
 /*
@@ -247,5 +186,5 @@ extern void (*step_cpu)();
   *
   *   Opr-out        off reset.
   *   Req-in         Device had data for channel. Do not raise if Supr-out and Status.
-  */   
+  */
 #endif

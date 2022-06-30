@@ -40,6 +40,41 @@ struct _option {
     char      string[PATH_MAX];
 };
 
+#define HEAD_TYPE    0
+#define CPU_TYPE     1
+#define DEVICE_TYPE  2
+#define CTRL_TYPE    3
+#define UNIT_TYPE    4
+#define LOG_TYPE     5
+
+#define CHAR_OPT     1
+#define NUM_MOD      2
+#define NUM_OPT      4
+
+#define DEV_LIST_MAGIC   0xdeadbeef
+
+#if defined(_MSC_VER)
+#pragma section(".devlist", read, shared)
+#define DEV_LIST_SECTION __declspec(allocate(".devlist")) __declspec(align(1))
+#elif defined(__APPLE__)
+#define DEV_LIST_SECTION __attribute__ ((used, section ("__DATA, .devlist"), aligned(1)))
+#else
+#define DEV_LIST_SECTION __attribute__ ((used, section (".devlist"), aligned(1)))
+#endif
+
+
+#define DEV_LIST_STRUCT(mod, type, opts) \
+    DEV_LIST_SECTION static struct _control model_##mod = { \
+        #mod, type, opts, model##mod##_create, NULL, DEV_LIST_MAGIC, \
+    }
+
+#define STRINGIFY(x) #x
+
+#define LOG_OPT_STRUCT(opt) \
+    DEV_LIST_SECTION static struct _control log_##opt = { \
+        STRINGIFY(LOG##opt), LOG_TYPE, 0, log##opt##_create, NULL, DEV_LIST_MAGIC, \
+    }
+
 
 /* Example
  * 2030E/1    # Specifies a Model 30 with 1 selector channel.
@@ -58,7 +93,7 @@ struct _option {
  * 2841  190
  * 2311  190 file="system.ckd"
  * 2311  191 file="data.ckd" new label=111111
- * 
+ *
  */
 
 int get_model(struct _option *opt);
@@ -74,5 +109,7 @@ int get_integer(struct _option *opt, int *value);
 int get_index(struct _option *opt, char *list[]);
 
 int load_config(char *name);
+
+int load_line(char *line);
 
 #endif

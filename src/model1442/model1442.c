@@ -1397,7 +1397,19 @@ model1442_create(struct _option *opt)
 
      /* Parse options given on definition */
      while (get_option(&opts)) {
-           if (strcmp(opts.opt, "FORMAT") == 0) {
+           if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
+               if (read_deck(card->feed, opts.string) != 1) {
+                  log_error("Unable to attach deck %s\n", opts.string);
+                  return 0;
+               }
+           } else if (strcmp(opts.opt, "EMPTY") == 0) {
+               empty_cards(card->feed);
+           } else if (strcmp(opts.opt, "BLANK") == 0 && opts.flags == 1) {
+               int num;
+               if (get_integer(&opts, &num) != 0)
+                   return 0;
+               blank_deck(card->feed, num);
+           } else if (strcmp(opts.opt, "FORMAT") == 0) {
                i = get_index(&opts, type_label);
                if (i >= 0)
                    card->feed->mode = i;

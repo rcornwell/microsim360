@@ -27,10 +27,12 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "xlat.h"
 #include "model2030.h"
 
 struct ROS_2030 ros_2030[4096];
 
+#if 0
 uint16_t const odd_parity[256] = {
     /*    0    1    2    3    4    5    6    7 */
     /* 00x */ 0x100, 0x000, 0x000, 0x100, 0x000, 0x100, 0x100, 0x000,
@@ -66,7 +68,7 @@ uint16_t const odd_parity[256] = {
     /* 36x */ 0x100, 0x000, 0x000, 0x100, 0x000, 0x100, 0x100, 0x000,
     /* 37x */ 0x000, 0x100, 0x100, 0x000, 0x100, 0x000, 0x000, 0x100
 };
-
+#endif
 
 int
 main(int argc, char *argv[])
@@ -100,8 +102,6 @@ main(int argc, char *argv[])
        in = stdin;
        out = stdout;
     }
-    base = 16;
-    shift = 4;
 loop:
 
     /* Read in a line and pack it into ros array */
@@ -110,6 +110,7 @@ loop:
         f = 0;
         base = 16;
         shift = 4;
+        addr = 0xffff;
 
         while (*p != '#') {
             num = 0;
@@ -193,9 +194,13 @@ loop:
             }
             f++;
         }
+        if (f != 0 && addr == 0xffff) {
+           fprintf(stderr, "Invalid address %s\n", line);
+           continue;
+        }
         if (*p == '#' && f != 0) {
            while (*++p == ' ');
-           for (i = 0; i < 16; i++) {
+           for (i = 0; i < 15; i++) {
               if (*p == '\n' || *p == '\0')
                  break;
               ros_2030[addr].note[i] = *p++;

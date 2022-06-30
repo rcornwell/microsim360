@@ -181,6 +181,7 @@ struct _2415_context {
     int                    rew_delay;    /* Delay until processing rewinding units */
     int                    rdy_flags;    /* Unit has become ready */
     struct _tape_buffer   *tape[6];      /* Tape units */
+    int                    track_7;      /* Support 7 track drives */
     int                    mode7;        /* Tape mode for 7 track tapes */
     int                    mode9;        /* Tape mode for 9 track tapes */
 };
@@ -2070,13 +2071,13 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
         }
     }
 
-    popup->ind[0].value = &ctx->tape[u]->format;
+    popup->ind[0].value = &ctx->tape[u]->format;  /* Select */
     popup->ind[0].shift = 8;
-    popup->ind[1].value = &ctx->tape[u]->format;
+    popup->ind[1].value = &ctx->tape[u]->format;  /* Ready */
     popup->ind[1].shift = 9;
-    popup->ind[2].value = &ctx->tape[u]->format;
+    popup->ind[2].value = &ctx->tape[u]->format;  /* File protect */
     popup->ind[2].shift = 2;
-    popup->ind[3].value = &ctx->tape[u]->format;
+    popup->ind[3].value = &ctx->tape[u]->format;  /* Tape indicator */
     popup->ind[3].shift = 3;
 
     text = TTF_RenderText_Solid(font14, "Tape: ", c1);
@@ -2454,9 +2455,15 @@ model2415_init(void *rend, uint16_t addr) {
 int
 model2415_create(struct _option *opt)
 {
-     struct _device *dev2415;
+     struct _option  opts;
+     struct _device  *dev2415;
      struct _2415_context *tape;
-     int     i;
+     char            *file;
+     int             i;
+     int             track7;
+     int             ring;
+     int             fmt;
+     int             den;
 
      /* Check if dealing with unit */
      if (opt->model == 'U') {
@@ -2469,7 +2476,45 @@ model2415_create(struct _option *opt)
          tape = (struct _2415_context *)dev2415->dev;
          tape->tape[i] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
          tape->tape[i]->format = TRACK9;
-         tape->tape[i]->format |= ONLINE;
+         /* Parse options given on definition */
+         file = NULL;
+         track7 = 0;
+         ring = 0;
+         den = 1;
+         fmt = TYPE_TAP;
+         while (get_option(&opts)) {
+               if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
+                   file = strdup(opts.string);
+               } else if (strcmp(opts.opt, "7TRACK") == 0) {
+                   track7 = 1;
+               } else if (strcmp(opts.opt, "NORING") == 0) {
+                   ring = 0;
+               } else if (strcmp(opts.opt, "RING") == 0) {
+                   ring = 1;
+               } else if (strcmp(opts.opt, "FORMAT") == 0) {
+                   fmt = get_index(&opts, format_type);
+               } else if (strcmp(opts.opt, "800") == 0) {
+                   den = 0;
+               } else if (strcmp(opts.opt, "1600") == 0) {
+                   den = 1;
+               } else {
+                   fprintf(stderr, "Invalid option %s to 2415 Unit\n", opts.opt);
+                   free(tape->tape[i]);
+                   tape->tape[i] = NULL;
+                   return 0;
+               }
+         }
+         if (track7) {
+            tape->tape[i]->format &= ~TRACK9;
+         }
+         if (file != NULL) {
+             if (tape_attach(tape->tape[i], file, fmt, ring, den) == 0) {
+                log_warn("Unable to open file %s\n", file);
+             } else {
+                tape->tape[i]->format |= ONLINE;
+             }
+             free(file);
+         }
      } else {
          if ((dev2415 = calloc(1, sizeof(struct _device))) == NULL)
              return 0;
@@ -2506,16 +2551,19 @@ model2415_create(struct _option *opt)
          tape->state = STATE_IDLE;
          tape->selected = 0;
          tape->nunits = dev2415->n_units;
-#if 0
-//         tape_attach(tape->tape[0], "../test_progs/bos.tap", TYPE_E11, 0, 1);
-         tape_attach(tape->tape[0], "../test_progs/sysres.tap", TYPE_E11, 0, 1);
-         tape_attach(tape->tape[1], "sys001.tap", TYPE_E11, 1, 1);
-         tape_attach(tape->tape[2], "sys002.tap", TYPE_E11, 1, 1);
-         tape_attach(tape->tape[3], "sys003.tap", TYPE_E11, 1, 1);
-         tape_attach(tape->tape[4], "sys004.tap", TYPE_E11, 1, 1);
-         tape_attach(tape->tape[5], "sys005.tap", TYPE_E11, 1, 1);
-#endif
-         for (i = 0; i < dev2415->n_units; i++)
+         /* Parse options given on definition */
+         while (get_option(&opts)) {
+               if (strcmp(opts.opt, "7TRACK") == 0) {
+                   tape->track_7 = 1;
+               } else {
+                   fprintf(stderr, "Invalid option %s to 1442\n", opts.opt);
+                   free(tape);
+                   free(dev2415);
+                   return 0;
+               }
+         }
+
+         for (i = 0; i < 6; i++)
              tape->sense[i] = 0;
          add_chan(dev2415, opt->addr);
      }

@@ -21,10 +21,9 @@
 
 # Program to convert ROS text into C data.
 set(CROS30 ${CMAKE_CURRENT_SOURCE_DIR}/ccros2030.txt)
-add_executable(cros2030 cros2030.c)
+add_executable(cros2030 cros2030.c ../device/xlat.c)
 target_include_directories(cros2030 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_SOURCE_DIR}/..
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../model1052
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
 add_custom_target(model2030_ros.h
        COMMAND cros2030 ${CROS30} model2030_ros.h
@@ -39,8 +38,9 @@ add_dependencies(${PROJECT_NAME} model2030_ros.h)
 
 if (RUN_TESTS)
 add_executable(inst2030_test test/ctest_main.c test/model2030_test.c
-           ../logger.c ../device/disassem.c ../device/xlat.c ../device/device.c
-           ../test/io_test.c ../test/sel_test.c ../test/test_device.c ${model2030_src})
+           ../logger.c ../conf.c ../device/disassem.c ../device/xlat.c
+           ../device/device.c ../test/io_test.c ../test/sel_test.c
+           ../test/test_device.c ${model2030_src})
 if (UNIX)
 target_link_libraries(inst2030_test m)
 endif()

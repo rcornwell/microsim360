@@ -27,7 +27,6 @@
 #include <stdint.h>
 #include "device.h"
 #include "conf.h"
-#include "model1052.h"
 
 #ifndef _MODEL30_H_
 #define _MODEL30_H_

@@ -454,8 +454,6 @@ cycle_2030()
                        if ((cpu_2030.GF[0] & BIT0) != 0)
                            cpu_2030.Abus |= BIT4;
                        /* Channel select. */
-                       if (0 == 0)
-                           cpu_2030.Abus |= BIT5;
                        /* Chain Request */
                        if (sel_chain_req[0] != 0)
                            cpu_2030.Abus |= BIT7;
@@ -512,8 +510,7 @@ cycle_2030()
                        if ((cpu_2030.GF[1] & BIT0) != 0)
                            cpu_2030.Abus |= BIT4;
                        /* Channel select. */
-                       if (0 == 0)
-                           cpu_2030.Abus |= BIT5;
+                       cpu_2030.Abus |= BIT5;
                        /* Chain Request */
                        if (sel_chain_req[1] != 0)
                            cpu_2030.Abus |= BIT7;
@@ -682,10 +679,10 @@ cycle_2030()
    if ((cpu_2030.MASK & BIT2) && (sel_intrp_lch[1] || (cpu_2030.GF[1] & BIT4) != 0)) {
        interrupt = 1;
    }
-   stop_req = !(process_stop & !interrupt & end_of_e_cycle);
+   stop_req = !(process_stop & (!interrupt) & end_of_e_cycle);
 
    clock_rst = hard_stop | ((sal->CA != 0xE) & cf_stop);
-   clock_stop = (proc_stop_loop_active & !sel_ros_req & !mpx_share_req);
+   clock_stop = (proc_stop_loop_active & (!sel_ros_req) & (!mpx_share_req));
    if (clock_stop || clock_rst) {
       clock_start_lch = 0;
       e_cy_stop_sample = 0;
@@ -1013,7 +1010,7 @@ cycle_2030()
                   buf[2] = '(';
                   buf[3] = '\0';
                   strcat(dis_buffer, buf);
-                  strcat(dis_buffer, (sal->CM < 3) ? cu2_name[sal->CU]: cu1_name[sal->CU]);
+                  strcat(dis_buffer, cu1_name[sal->CU]);
                   buf[0] = ')';
                   buf[1] = ' ';
                   buf[2] = hex[(sal->CN >> 4) & 0xf];
@@ -1680,7 +1677,7 @@ cycle_2030()
                   case 1: cpu_2030.Abus = cpu_2030.GD[cpu_2030.ch_sel]; break;
                   case 2: cpu_2030.Abus = cpu_2030.GC[cpu_2030.ch_sel]; break;
                   case 3: cpu_2030.Abus = cpu_2030.GK[cpu_2030.ch_sel]; break;
-                  case 4: cpu_2030.Abus = cpu_2030.GE[cpu_2030.ch_sel]; 
+                  case 4: cpu_2030.Abus = cpu_2030.GE[cpu_2030.ch_sel];
                           if ((cpu_2030.GF[cpu_2030.ch_sel] & BIT4) != 0)
                               cpu_2030.Abus |= BIT0;
                           allow_a_reg_chk = 0;
@@ -1749,9 +1746,9 @@ cycle_2030()
            }
 
            /* Set up Alu A input */
+           abus_f = 0;
            switch (sal->CF) {
            case 0:
-                   abus_f = 0;
                    break;
            case 1:
                    abus_f = cpu_2030.Abus & 0xf;
@@ -2597,7 +2594,7 @@ chan_scan:
                     cpu_2030.SEL_TAGS[i] |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
                     log_selchn("Select request\n");
                 }
-                if (sel_intrp_lch[i] == 0 && 
+                if (sel_intrp_lch[i] == 0 &&
                      cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                     sel_ros_req |= 1 << i;
                     log_selchn("Select addressed\n");
@@ -2627,7 +2624,7 @@ chan_scan:
 
              /* If error on status in, set stop flag */
              if (sel_chan_busy[i] && sel_poll_ctrl[i] == 0 && (
-                 ((cpu_2030.GE[i] & (BIT1||BIT2|BIT3|BIT5|BIT6)) != 0) ||
+                 ((cpu_2030.GE[i] & (BIT1|BIT2|BIT3|BIT5|BIT6)) != 0) ||
                  ((cpu_2030.GE[i] & BIT4) == 0 && sel_cnt_rdy_not_zero[i] == 0 && (cpu_2030.GF[i] & BIT0) == 0) ||
                  ((cpu_2030.GE[i] & BIT4) != 0 && CHK_SW == 0))) {
                  sel_status_stop_cond[i] = 1;

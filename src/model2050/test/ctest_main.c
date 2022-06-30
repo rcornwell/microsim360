@@ -98,13 +98,7 @@ setup_fp2050(void *rend)
 int
 main(int argc, const char *argv[])
 {
-    struct _option opt;
-
-    strcpy(opt.opt, "2050");
-    opt.model = 'F';
-    if (model2050_create(&opt) == 0)
-        return 1;
-
+    load_line("2050F");
     log_level = 0xfff;
     log_init("debug.log");
     RATE_SW = 1;

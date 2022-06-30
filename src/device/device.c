@@ -31,12 +31,6 @@
 #include "device.h"
 
 
-/* Define header to look for */
-static struct _control DEV_LIST_SECTION model_list DEV_LIST_SECTION  = {
-        "list", 0, 0, NULL, NULL, DEV_LIST_MAGIC
-    };
-
-
 char *bus_tags[] = {
     "SLO", "ADO", "CMD", "SRO", "SUP", "HLD", "OPO", NULL,
     "OPI", "ADI", "STI", "SVI", "RQI", NULL, NULL, NULL };
@@ -55,10 +49,11 @@ void (*step_cpu)() = NULL;
 void
 print_tags(char *name, int state, uint16_t tags, uint16_t bus_out)
 {
-    char   buffer[1024];
-    int i;
 
     if ((tags & 0xf8ff) != 0) {
+        char   buffer[1024];
+        int i;
+
         sprintf(buffer, "%s state=%d Tags: bus=%03x %04x ", name, state, bus_out, tags);
         for (i = 0; i < 16; i++) {
             if (bus_tags[i] != NULL) {
@@ -70,8 +65,8 @@ print_tags(char *name, int state, uint16_t tags, uint16_t bus_out)
               }
             }
         }
-    strcat(buffer, "\n");
-    log_device(buffer);
+        strcat(buffer, "\n");
+        log_device(buffer);
     }
 }
 
@@ -162,23 +157,4 @@ step_disk()
     for (d = disk; d != NULL; d = d->next)
         (d->step)(d->disk);
 }
-
-/*
- * Find first device list entry.
- */
-struct _control *
-dev_list()
-{
-    struct _control *list_begin = &model_list;
-    while (1) {
-        struct _control *t = list_begin;
-        t--;
-        if (t->magic != DEV_LIST_MAGIC)
-            break;
-        list_begin--;
-    }
-    list_begin++;
-    return list_begin;
-}
-
 

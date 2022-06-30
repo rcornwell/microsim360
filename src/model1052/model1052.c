@@ -180,6 +180,7 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  ctx->state = STATE_SEL;
                  ctx->selected = 1;
                  log_device("console selected\n");
+                 break;
              }
              break;
 
@@ -885,58 +886,6 @@ model1052_init_ctx(uint16_t port)
     return ctx;
 }
 
-int
-model1052_create(struct _option *opt)
-{
-    struct _device  *dev1052;
-    void            *ctx;
-    uint16_t         port = 3270;
-    struct _option   opts;
-
-    while (get_option(&opts)) {
-         int       v;
-         char      *p;
-         if (strcmp(opts.opt, "PORT") == 0 && opts.string[0] != '\0') {
-             v = 0;
-             for (p = &opts.string[0]; *p != '\0'; p++) {
-                 if (*p >= '0' && *p <= '9') {
-                     v = (v * 10) + (*p - '0');
-                 } else {
-                     fprintf(stderr, "Port not numeric %s\n", opts.string);
-                     return 0;
-                 }
-             }
-             port = v;
-         } else {
-             fprintf(stderr, "Invalid option %s\n", opts.opt);
-             return 0;
-         }
-    }
-    if ((dev1052 = calloc(1, sizeof(struct _device))) == NULL)
-         return 0;
-    if ((ctx = model1052_init_ctx(port)) == NULL) {
-         free(dev1052);
-         return 0;
-    }
-
-    dev1052->bus_func = &model1052_dev;
-    dev1052->dev = (void *)ctx;
-    dev1052->draw_model = NULL;
-    dev1052->create_ctrl =  NULL;
-    dev1052->rect[0].x = 0;
-    dev1052->rect[0].y = 0;
-    dev1052->rect[0].w = 0;
-    dev1052->rect[0].h = 0;
-    dev1052->n_units = 1;
-    dev1052->addr = opt->addr;
-
-    if (opt->addr != 0)
-       add_chan(dev1052, opt->addr);
-    return 1;
-}
-
-DEV_LIST_STRUCT(1052, DEVICE_TYPE, 0);
-
 void
 model1052_out(void *data, uint16_t out_char)
 {
@@ -975,7 +924,7 @@ model1052_in(void *data, uint16_t *in_char)
  *   Bit 5 - Send CR.
  *   Bit 6 - Reset attention signal.
  *   Bit 7 - Reset latch.
- *     
+ *
  *
  *  Tags_out
  *   Bit 0  - Cancel
@@ -998,7 +947,7 @@ model1052_func(void *data, uint16_t *tags_out, uint16_t tags_in, uint16_t *t_req
    if (ctx->cons != 0) {
        /* Set default tags out */
        *tags_out = BIT3;
-      
+
        /* If we have reset signal, clear pending input and flags */
        if (tags_in & BIT7) {
           ctx->in_flg = 0;
@@ -1008,32 +957,32 @@ model1052_func(void *data, uint16_t *tags_out, uint16_t tags_in, uint16_t *t_req
           ctx->eob_flg = 0;
           ctx->home_loop = 0;
        }
-      
+
        /* Clear attention signal */
        if (tags_in & BIT6) {
            ctx->attn_flg = 0;
        }
-      
+
        /* If Output enabled, if input done, signal ready */
        if ((tags_in & BIT0) != 0) {
            ctx->home_loop = 1;
        }
-      
+
        /* If microshare enabled */
        if ((tags_in & BIT2) != 0) {
            *tags_out |= 0x00;
        }
-      
+
        /* If proceed set, signal that we can accept input */
        if ((tags_in & (BIT1|BIT3)) == (BIT1|BIT3)) {
           ctx->in_flg = 1;
        }
-      
+
        /* Check if sending characters and finished */
        if (ctx->home_loop != 0 && ctx->out_flg == 0 && ctx->out_cr == 0) {
            *tags_out |= BIT1;
        }
-      
+
        /* If we have any input ready flag it as available */
        if (ctx->in_len > 0) {
            *tags_out |= BIT1;
@@ -1046,22 +995,22 @@ model1052_func(void *data, uint16_t *tags_out, uint16_t tags_in, uint16_t *t_req
                *tags_out |= BIT2;
            }
        }
-      
+
        /* If we have attention signal to CPU */
        if (ctx->attn_flg) {
            *tags_out |= BIT6;
        }
-      
+
        /* If request CR signal to send one */
        if ((tags_in & BIT5) != 0) {
            ctx->out_cr = 1;
        }
-      
+
        /* Check if we need to notify the CPU of anything */
        if ((*tags_out & 0xef) != 0) {
           *t_request = 1;
        }
-      
+
        log_console("Cons %02x %02x %d\n", tags_in, *tags_out, *t_request);
    }
 }
@@ -1217,4 +1166,56 @@ model1052_thrd(void *data)
    }
    return 0;
 }
+
+int
+model1052_create(struct _option *opt)
+{
+    struct _device  *dev1052;
+    void            *ctx;
+    uint16_t         port = 3270;
+    struct _option   opts;
+
+    while (get_option(&opts)) {
+         int       v;
+         char      *p;
+         if (strcmp(opts.opt, "PORT") == 0 && opts.string[0] != '\0') {
+             v = 0;
+             for (p = &opts.string[0]; *p != '\0'; p++) {
+                 if (*p >= '0' && *p <= '9') {
+                     v = (v * 10) + (*p - '0');
+                 } else {
+                     fprintf(stderr, "Port not numeric %s\n", opts.string);
+                     return 0;
+                 }
+             }
+             port = v;
+         } else {
+             fprintf(stderr, "Invalid option %s\n", opts.opt);
+             return 0;
+         }
+    }
+    if ((dev1052 = calloc(1, sizeof(struct _device))) == NULL)
+         return 0;
+    if ((ctx = model1052_init_ctx(port)) == NULL) {
+         free(dev1052);
+         return 0;
+    }
+
+    dev1052->bus_func = &model1052_dev;
+    dev1052->dev = (void *)ctx;
+    dev1052->draw_model = NULL;
+    dev1052->create_ctrl =  NULL;
+    dev1052->rect[0].x = 0;
+    dev1052->rect[0].y = 0;
+    dev1052->rect[0].w = 0;
+    dev1052->rect[0].h = 0;
+    dev1052->n_units = 1;
+    dev1052->addr = opt->addr;
+
+    if (opt->addr != 0)
+       add_chan(dev1052, opt->addr);
+    return 1;
+}
+
+DEV_LIST_STRUCT(1052, DEVICE_TYPE, 0);
 

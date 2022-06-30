@@ -1400,6 +1400,7 @@ model1443_create(struct _option *opt)
 {
      struct _device       *dev1443;
      struct _1443_context *lpr;
+     struct _option        opts;
 
      if ((dev1443 = calloc(1, sizeof(struct _device))) == NULL)
          return 0;
@@ -1425,7 +1426,41 @@ model1443_create(struct _option *opt)
      lpr->sense = 0;
      lpr->file_name = NULL;
      lpr->form = 1;
+     lpr->fcb = &cctape_legacy[0];
+     lpr->lpp = 66;
      add_chan(dev1443, opt->addr);
+
+     /* Parse options given on definition */
+     while (get_option(&opts)) {
+           if (strcmp(opts.opt, "START") == 0 && lpr->file != NULL) {
+               lpr->ready = 1;
+           } else if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
+               if (lpr->file != NULL) {
+                   fclose(lpr->file);
+                   lpr->form = 1;
+               }
+               free(lpr->file_name);
+               lpr->file_name = NULL;
+               lpr->file = fopen(opts.string, "a");
+               if (lpr->file != NULL) {
+                  lpr->row = 0;
+                  if ((lpr->file_name = (char *)malloc(strlen(opts.string)+1)) == NULL) {
+                      fclose(lpr->file);
+                      free(lpr);
+                      free(dev1443);
+                      return 0;
+                  }
+                  strcpy(lpr->file_name, opts.string);
+                  lpr->form = 0;
+               }
+           } else {
+               fprintf(stderr, "Invalid option %s to 1443\n", opts.opt);
+               free(lpr);
+               free(dev1443);
+               return 0;
+           }
+     }
+
      return 1;
 }
 
