@@ -40,11 +40,11 @@
                 look like this.
 
     ASCII mode recognizes some additional forms of input which allows the
-    intermixing of binary cards with text cards. 
+    intermixing of binary cards with text cards.
 
     Lines beginning with ~raw are taken as a number of 4 digit octal values
     with represent each column of the card from 12 row down to 9 row. If there
-    is not enough octal numbers to span a full card the remainder of the 
+    is not enough octal numbers to span a full card the remainder of the
     card will not be punched.
 
     Also ~eor, will generate a 7/8/9 punch card. An ~eof will gernerate a
@@ -284,10 +284,10 @@ stack_size(struct card_context *card_ctx)
 int
 read_card(struct card_context *card_ctx, uint16_t (*image)[80])
 {
-    int                   i;
-    uint16_t             (*img)[80];
+    int                  i;
+    uint16_t            (*img)[80];
     uint8_t              out[81];
-    int                   ok = 1;
+    int                  ok = 1;
 
     if (card_ctx->hopper_pos >= card_ctx->hopper_cards)
         return 0;
@@ -295,6 +295,8 @@ read_card(struct card_context *card_ctx, uint16_t (*image)[80])
     img = &(*card_ctx->images)[card_ctx->hopper_pos];
     for (i = 0; i < 80; i++) {
         out[i] = hol_to_ebcdic_table[(int)(*img)[i]];
+        if (out[i] == 0x100)
+            ok = 0;
     }
     if (ok) {
         log_card_s("Read hopper: [");
@@ -312,7 +314,7 @@ read_card(struct card_context *card_ctx, uint16_t (*image)[80])
 
 
 struct _card_buffer {
-   uint8_t              buffer[8192+500];    /* Buffer data */
+   uint8_t               buffer[8192+500];    /* Buffer data */
    int                   len;                 /* Amount of data in buffer */
    int                   size;                /* Size of last card read */
 };
@@ -511,11 +513,12 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
     int                  i;
     int                  outp = 0;
     int                  mode = card_ctx->mode;
-    int                  ok = 1;
 
 
     /* Fix mode if in auto mode */
     if (mode == MODE_AUTO) {
+         int          ok = 1;
+
          /* Try to convert each column to ascii */
          for (i = 0; i < 80; i++) {
              out[i] = hol_to_ascii_table[(*image)[i]];
@@ -619,7 +622,6 @@ read_deck(struct card_context *card_ctx, char *file_name)
 {
     struct _card_buffer   buf;
     int                   i;
-    int                   j;
     int                   l;
     int                   cards = 0;
     int                   r = 1;
@@ -646,7 +648,7 @@ read_deck(struct card_context *card_ctx, char *file_name)
 
     /* Move stack down if any cards in it */
     if (card_ctx->hopper_pos > 0) {
-       for ( i = 0; card_ctx->hopper_pos < card_ctx->hopper_cards; i++) {
+       for (i = 0; card_ctx->hopper_pos < card_ctx->hopper_cards; i++) {
            memcpy(&card_ctx->images[i], &card_ctx->images[card_ctx->hopper_pos], 80 * sizeof(uint16_t));
            card_ctx->hopper_pos++;
        }
@@ -657,6 +659,8 @@ read_deck(struct card_context *card_ctx, char *file_name)
 
     /* Slurp up requested file */
     do {
+        int                   j;
+
         if (buf.len < 500 && !feof(card_ctx->file)) {
             l = fread(&buf.buffer[buf.len], 1, 8192, card_ctx->file);
             if (l < 0)
@@ -846,7 +850,6 @@ save_deck(struct card_context *card_ctx, char *file_name)
 struct card_context *
 init_card_context()
 {
-    unsigned int         i;
     static int           ebcdic_init = 0;
     struct card_context *card_ctx;
 
@@ -856,6 +859,8 @@ init_card_context()
 
     /* Initialize reverse mapping if not initialized */
     if (!ebcdic_init) {
+        unsigned int         i;
+
         for (i = 0; i < 4096; i++)
             hol_to_ebcdic_table[i] = 0x100;
         for (i = 0; i < 256; i++) {
