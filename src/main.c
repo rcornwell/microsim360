@@ -23,7 +23,7 @@
  *
  */
 
-/* 
+/*
  * CPU size A     2k
  *          B     4k
  *          C     8k
@@ -42,7 +42,7 @@
  *
  * logfile "string"
  * log option [[,] option]
- * cpunumber memsize 
+ * cpunumber memsize
  * 1050 port=# (default 3270).
  * controller [address] option=opt
  * unit       address   option=opt file="name" label=value
@@ -62,17 +62,17 @@
  * 2540R 00C
  * 2540P 00D
  * 1403  00E file="printout.txt"
- * 2415  0c0 7-track
+ * 2415  0c0 7track
  * 2400  0c0 file="systap.tap"
- * 2400  0c1 file="sys001.tap" new ring
- * 2400  0c2 file="sys002.tap" new ring
- * 2400  0c3 file="sys003.tap" new ring
- * 2400  0c4 file="sys004.tap" new ring
- * 2400  0c5 7-track
+ * 2400  0c1 file="sys001.tap" ring
+ * 2400  0c2 file="sys002.tap" ring
+ * 2400  0c3 file="sys003.tap" ring
+ * 2400  0c4 file="sys004.tap" ring
+ * 2400  0c5 7track
  * 2841  190
  * 2311  190 file="system.ckd"
  * 2311  191 file="data.ckd" new label=111111
- * 
+ *
  */
 
 #include "config.h"

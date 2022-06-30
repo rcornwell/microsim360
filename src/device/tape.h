@@ -59,7 +59,7 @@ struct _tape_buffer {
      char         *file_name;           /* File name attached to */
      int           fd;                  /* Open file descriptor. */
      int           format;              /* Tape format, and flags */
-     long          pos;                 /* Position in file of start of buffer */
+     off_t         pos;                 /* Position in file of start of buffer */
      long          pos_frame;           /* Frame position from beginning of tape */
      int           pos_buff;            /* Position within buffer */
      int           len_buff;            /* Length of buffer */

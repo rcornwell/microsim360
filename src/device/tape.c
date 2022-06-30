@@ -153,10 +153,14 @@ tape_attach(struct _tape_buffer *tape, char *file_name, int type, int ring, int 
 void
 tape_detach(struct _tape_buffer *tape)
 {
+    int  r;
     /* If buffer is dirty flush it to the file */
     if (tape->dirty) {
         lseek(tape->fd, tape->pos, SEEK_SET);
-        (void)write(tape->fd, tape->buffer, tape->len_buff);
+        r = write(tape->fd, tape->buffer, tape->len_buff);
+        if (r != tape->len_buff) {
+            log_error("Tape write failed %s %d\n", tape->file_name, r);
+        }
         tape->dirty = 0;
     }
     close(tape->fd);
@@ -186,6 +190,7 @@ tape_read_byte(struct _tape_buffer *tape, uint8_t *data)
              lseek(tape->fd, tape->pos, SEEK_SET);
              r = write(tape->fd, tape->buffer, tape->len_buff);
              if (r != tape->len_buff) {
+                 log_error("Tape write failed %s %d\n", tape->file_name, r);
                  return -1;
              }
              tape->pos += tape->len_buff;
@@ -230,6 +235,7 @@ tape_peek_byte(struct _tape_buffer *tape, uint8_t *data)
              lseek(tape->fd, tape->pos, SEEK_SET);
              r = write(tape->fd, tape->buffer, tape->len_buff);
              if (r != tape->len_buff) {
+                 log_error("Tape write failed %s %d\n", tape->file_name, r);
                  return -1;
              }
              tape->pos += tape->len_buff;
@@ -271,6 +277,7 @@ tape_write_byte(struct _tape_buffer *tape, uint8_t data)
              lseek(tape->fd, tape->pos, SEEK_SET);
              r = write(tape->fd, tape->buffer, tape->len_buff);
              if (r != tape->len_buff) {
+                 log_error("Tape write failed %s %d\n", tape->file_name, r);
                  return -1;
              }
              tape->pos += tape->len_buff;
@@ -307,6 +314,7 @@ tape_readbk_byte(struct _tape_buffer *tape, uint8_t *data)
              lseek(tape->fd, tape->pos, SEEK_SET);
              r = write(tape->fd, tape->buffer, tape->len_buff);
              if (r != tape->len_buff) {
+                 log_error("Tape write failed %s %d\n", tape->file_name, r);
                  return -1;
              }
              tape->dirty = 0;
@@ -371,8 +379,8 @@ tape_write_prev(struct _tape_buffer *tape, uint8_t data)
 /*
  * Start write.
  *
- * Return: 
- * 
+ * Return:
+ *
  *    -1 if file write error.
  *     0
  *     1 successfull
@@ -404,11 +412,11 @@ tape_write_start(struct _tape_buffer *tape)
                            return r;
                    }
                    break;
-          
+
      case TYPE_P7B:
                    break;
-     } 
-     tape->lrecl = 0; 
+     }
+     tape->lrecl = 0;
      tape->orecl = 0;
      tape->format &= ~(FUNC_M << FUNC_V);
      tape->format |= FUNC_WRITE << FUNC_V;
@@ -418,8 +426,8 @@ tape_write_start(struct _tape_buffer *tape)
 /*
  * Write tape mark.
  *
- * Return: 
- * 
+ * Return:
+ *
  *    -1 if file write error.
  *     0
  *     1 successfull
@@ -451,15 +459,15 @@ tape_write_mark(struct _tape_buffer *tape)
                            return r;
                    }
                    break;
-          
+
      case TYPE_P7B:
                    temp = (IRG_MASK|BCD_TM);
                    r = tape_write_byte(tape, temp);
                    if (r != 1)
                        return r;
                    break;
-     } 
-     tape->lrecl = 0; 
+     }
+     tape->lrecl = 0;
      tape->orecl = 0;
      tape->pos_frame += 1200;  /* Add in IRG based on 1600BPI tape */
      tape->format &= ~(FUNC_M << FUNC_V);
@@ -496,7 +504,7 @@ tape_read_forw(struct _tape_buffer *tape)
      switch(tape->format & TAPE_FMT) {
      case TYPE_TAP:
      case TYPE_E11:
-                
+
                    tape->srec = tape->pos + tape->pos_buff;
                    /* Read in 4 byte logical record length */
                    for (i = 0; i < 4; i++) {
@@ -541,10 +549,10 @@ tape_read_forw(struct _tape_buffer *tape)
                    }
 
                    tape->orecl = tape->lrecl;
-                   tape->lrecl = 0; 
+                   tape->lrecl = 0;
                    log_tape("Tape read forward: %d %d\n", tape->orecl, tape->pos_buff);
                    break;
-          
+
      case TYPE_P7B:
                    /* Peek at current character. */
                    /* To see if it is a tape mark */
@@ -556,6 +564,8 @@ tape_read_forw(struct _tape_buffer *tape)
                    /* If tape mark, move over it */
                    if (lrecl[0] == (IRG_MASK|BCD_TM)) {
                        r = tape_read_byte(tape, &lrecl[0]);
+                       if (r < 0)
+                           return r;
                        tape->pos_frame += IRG_LEN;
                        tape->format |= TAPE_MARK;
                        r = tape_peek_byte(tape, &lrecl[0]);
@@ -564,7 +574,7 @@ tape_read_forw(struct _tape_buffer *tape)
                    }
                    tape->lrecl = 0;  /* Flag at beginning of record */
                    break;
-     } 
+     }
      return 1;
 }
 
@@ -591,7 +601,7 @@ tape_read_back(struct _tape_buffer *tape)
      switch(tape->format & TAPE_FMT) {
      case TYPE_TAP:
      case TYPE_E11:
-                
+
                    tape->srec = tape->pos + tape->pos_buff;
                    r = tape_readbk_byte(tape, &lrecl[0]);
                    /* Read in 4 byte logical record length */
@@ -638,7 +648,7 @@ tape_read_back(struct _tape_buffer *tape)
                    }
                    log_tape("Tape read backward: %d %d\n", tape->orecl, tape->pos_buff);
                    break;
-          
+
      case TYPE_P7B:
                    /* Peek at previous character */
                    tape->srec = tape->pos + tape->pos_buff;
@@ -664,7 +674,7 @@ tape_read_back(struct _tape_buffer *tape)
                        return 2;
                    }
                    break;
-     } 
+     }
      return 1;
 }
 
@@ -683,7 +693,7 @@ tape_read_frame(struct _tape_buffer *tape, uint8_t *data)
      int r = -1;
      int l = ((tape->format & DEN_MASK) == DEN_800) ? 2 : 1;
      log_tape("tape_read_frame %04x %s\n", tape->format, (tape->file_name == NULL) ? "" : tape->file_name);
-     
+
      if (tape->file_name == NULL)
         return -1;
      if (tape->format & TAPE_MARK)
@@ -741,7 +751,7 @@ tape_read_frame(struct _tape_buffer *tape, uint8_t *data)
                        break;
                    }
                    break;
-     } 
+     }
      tape->pos_frame += l;
      return r;
 }
@@ -766,7 +776,7 @@ tape_write_frame(struct _tape_buffer *tape, uint8_t data)
 
 /*
  * Finish a record.
- * 
+ *
  *  Return:
  *    -1 if not opened.
  *     0 if at end of media.
@@ -864,6 +874,8 @@ tape_finish_rec(struct _tape_buffer *tape)
                         }
                         /* Position us at head of next record */
                         r = tape_read_byte(tape, &lrecl[0]);
+                        if (r < 0)
+                           return r;
                         break;
                    }
                    break;
@@ -883,17 +895,21 @@ tape_finish_rec(struct _tape_buffer *tape)
                         /* If not at end of record, read until IRG */
                         while (tape->lrecl != 2) {
                             r = tape_read_frame(tape, &lrecl[0]);
+                            if (r < 0)
+                               return r;
                         }
                         break;
                    case FUNC_RDBACK:
                         /* If not at end of record, read until IRG */
                         while (tape->lrecl != 2) {
                             r = tape_read_frame(tape, &lrecl[0]);
+                            if (r < 0)
+                               return r;
                         }
                         break;
                    }
                    break;
-     } 
+     }
      tape->format &= ~(FUNC_M << FUNC_V);
      return 1;
 }
@@ -1056,7 +1072,7 @@ tape_init()
 }
 
 #if 0
-                  data rate          Speed     IRG   Start 7tm  9tm/800 9tm/1600    Rewind 
+                  data rate          Speed     IRG   Start 7tm  9tm/800 9tm/1600    Rewind
 2401   Model 1/4  30,000/60,000      37.5      .75   320ms 104.4 100.0   101.2       3.0m  160ips
 2401         2/5  60,000/120,000     75.0      .75    64ms  52.2  50.5    50.0       1.4m  320ips
 2401   Model 3/6  90,000/180,000    112.5      .75    48ms  34.8  33.5    33.7       1.0m  480ips
@@ -1067,7 +1083,7 @@ tape_init()
    Rewind disco  2400 30ms
    Rewind disco  2415 30us
                   us              irg
-2401  Model 1     33.3  - 800     16.0 ms           
+2401  Model 1     33.3  - 800     16.0 ms
 2401  Model 2     16.6  - 800      8.0 ms
 2401  Model 3     11.1  - 800      5.3 ms
 2401  Model 4     16.7  - 1600    16.0 ms
@@ -1075,7 +1091,7 @@ tape_init()
 2401  Model 6      5.6  - 1600     5.3 ms
 2415  9track 33.3/66.6 us          32ms/40ms (7track)
 
-   Length: 1600 
+   Length: 1600
            28800 inch
         46080000 frames
 
@@ -1085,7 +1101,7 @@ tape_init()
     63.0 frames per mm 1600
 
    Rewind speed  2415   3840 frames per 20ms
- 
 
 
-#endif    
+
+#endif

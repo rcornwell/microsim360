@@ -63,7 +63,7 @@ add_event(struct _device *dev, _callback func, int time, void *arg, int iarg)
     ptr_event = event_head;
     do {
         /* If event timeout is less, insert it in front */
-        if (new_event->time <= ptr_event->time) { 
+        if (new_event->time <= ptr_event->time) {
             /* Subtract off event time from next event */
             ptr_event->time -= new_event->time;
             new_event->prev = ptr_event->prev;
@@ -137,7 +137,7 @@ void
 advance()
 {
     struct _event *ptr_event;
-    
+
     ptr_event = event_head;
     if (ptr_event == NULL)
         return;

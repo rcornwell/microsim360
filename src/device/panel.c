@@ -378,7 +378,7 @@ add_led(struct _labels *lab, uint16_t *value, int shf, int x, int y, int idx)
     return w;
 }
 
-static int roller_light_offset[36] = {
+static int roller_light_offset[37] = {
    /* 0  1   2   3   4   5   6   7   8   9 */
       0, 24, 23, 24, 23, 24, 23, 24, 23, 24,
    /*10  11  12  13  14  15  16  17  18  19*/
@@ -386,7 +386,7 @@ static int roller_light_offset[36] = {
    /*20  21  22  23  24  25  26  27  28  29*/
      24, 25, 24, 25, 24, 25, 24, 24, 24, 24,
    /*30  31  32  33  34  35  */
-     23, 23, 23, 23, 23, 23
+     23, 23, 23, 23, 23, 23, 23
 };
 
 /*
@@ -1110,6 +1110,7 @@ timer_callback(uint32_t interval, void *param)
     SDL_Event     event;
     SDL_UserEvent userevent;
 
+    memset(&userevent, 0, sizeof(SDL_UserEvent));
     userevent.type = SDL_USEREVENT;
     userevent.code = 0;
     userevent.data1 = NULL;

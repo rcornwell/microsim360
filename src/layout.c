@@ -32,7 +32,7 @@ struct _perip {
     int       w;    /* Width of window */
     int       x;    /* X position of window */
     int       y;    /* Y position of window */
-    int       unit; 
+    int       unit;
     struct _device  *dev;
     struct _perip *next;
 } *perph;
