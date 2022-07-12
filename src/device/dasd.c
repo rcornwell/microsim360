@@ -146,14 +146,17 @@ struct disk_t
     uint8_t             dev_type;     /* Device type code */
     uint8_t             g1;           /* Bytes in Gap 1*/
     uint8_t             g2;           /* Bytes in Gap 2*/
+    uint8_t             sync;         /* Sync character */
     int                 rate;         /* Number of steps per disk byte */
 }
 
 disk_type[] =
 {
-       {"2303",  80,  10,  4984,  6,  0x03, 72, 36, 13},   /*   4.00 M */
-       {"2311",  203, 10,  3717,  6,  0x11, 36, 18, 13},   /*   7.32 M  156k/s 30 ms 145 full */
-       {"2314",  202, 20,  7294,  6,  0x14, 36, 18, 13},   /*  29.17 M */
+       {"2303",  80,  10,  4984,  6,  0x03, 72, 36, 6, 13},   /*   4.00 M */
+       {"2311",  203, 10,  3717,  6,  0x11, 36, 36, 6, 13},   /*   7.32 M  156k/s 30 ms 145 full */
+       {"2302",  250, 46,  4984,  6,  0x02, 72, 36, 6, 13},   /*  57.32 M 50ms, 120ms/10, 180ms> 10 */
+       {"2314",  202, 20,  7294,  6,  0x14, 36, 18, 5, 13},   /*  29.17 M */
+
        {NULL, 0}
 };
 
@@ -170,6 +173,7 @@ struct dasd_header
        uint8_t  resv[492];     /* pad to 512 byte block */
 };
 
+#if 0
 /* Gap is: */
 static uint8_t  gap0[] = {
        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -190,6 +194,7 @@ static uint8_t gap2[] = {  /* 0xaa = 0xff + AM */
 static uint8_t gap3[] = {
       0xcc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x06};
+#endif
 
 /* FT register.
  * Bit 0            Control
@@ -251,10 +256,19 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
             }
         }
         if (fc & BIT3) {  /* Head reset */
+            dasd->flags &= ~2;
             log_disk("Head reset\n");
         }
         if (fc & BIT5) { /* Select head */
             log_disk("Select head %d\n", dasd->head);
+        }
+        if (fc & BIT6) {  /* Recalibrate */
+            log_disk("Recalibrate %d\n", dasd->head);
+            dasd->ncyl = 0;
+            dasd->diff = 0;
+            dasd->head = 0;
+            dasd->flags |= 1;
+            add_event((struct _device *)dasd, seek_callback, 50,  NULL, 0);
         }
     }
     if (ft & BIT1) {    /* Set cylinder */
@@ -262,8 +276,17 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
         log_disk("set cyl  %02x\n", fc);
     }
     if (ft & BIT2) {    /* Set Head and sign */
-        dasd->dir = (fc & BIT0) != 0;
-        dasd->head = (fc & 0xf);
+        if (dasd->type == 3) {    /* 2314 */
+            dasd->dir = (fc & BIT0) != 0;
+            dasd->head = (fc & 0xf);
+        } else {                  /* 2311 */
+            if ((dasd->flags & 2) == 0) {
+               dasd->head = (fc & 0xf);
+               dasd->flags |= 2;
+            } else {
+               dasd->dir = (fc & BIT0) != 0;
+            }
+        }
         log_disk("set diff %d head %x\n", dasd->dir, dasd->head);
     }
     if (ft & BIT3) {    /* Set Difference */
@@ -417,12 +440,10 @@ log_disk("CNT0 Check=%02x %02x %02x %d %d\n", dasd->ck_sum[0], dasd->ck_sum[1], 
 
 
          case DK_POS_AM:                /* Beginning of record */
-              if (count < (disk_type[type].g2 * 2))
+              if (count < (disk_type[type].g2))
                   break;
               count = -1;
               state = DK_POS_CNT1;
-log_disk("GAP1 c=%02x %02x h=%02x %02x r=%02x k=%02x d=%02x %02x %d t=%d r=%d t=%d h=%d\n", rec[0], rec[1], rec[2], rec[3], rec[4],
-         rec[5], rec[6], rec[7], count, dasd->tpos, dasd->rpos, dasd->tstart, dasd->head);
 log_disk("AM %d\n", count);
               break;
 
@@ -459,6 +480,8 @@ log_disk("AM %d\n", count);
                       count = -1;
                       break;
               }
+log_disk("CNT1 c=%02x %02x h=%02x %02x r=%02x k=%02x d=%02x %02x %d t=%d r=%d t=%d h=%d\n", rec[0], rec[1], rec[2], rec[3], rec[4],
+         rec[5], rec[6], rec[7], count, dasd->tpos, dasd->rpos, dasd->tstart, dasd->head);
 log_disk("CNT1 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[count-1]);
               break;
 
@@ -470,6 +493,7 @@ log_disk("CNT1 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[co
               state = DK_POS_KEY;
               dasd->ck_sum[0] = 0xff;
               dasd->ck_sum[1] = 0xff;
+log_disk("Gap2 %d\n", count);
               break;
 
          case DK_POS_KEY:               /* In Key area */
@@ -478,11 +502,12 @@ log_disk("CNT1 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[co
                   tpos++;
               }
               if (count == (dasd->klen+2)) {
-                  dasd->state = DK_POS_GAP3;
+                  state = DK_POS_GAP3;
                   count = -1;
                   dasd->ck_sum[0] = 0xff;
                   dasd->ck_sum[1] = 0xff;
               }
+log_disk("Key %d %d\n", count, dasd->klen);
               break;
 
          case DK_POS_GAP3:                /* Beginning of record */
@@ -491,6 +516,7 @@ log_disk("CNT1 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[co
               }
               count = -1;
               state = DK_POS_DATA;
+log_disk("Gap3 %d\n", count);
               break;
 
          case DK_POS_DATA:              /* In Data area */
@@ -505,6 +531,7 @@ log_disk("CNT1 Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[co
                   dasd->ck_sum[0] = 0xff;
                   dasd->ck_sum[1] = 0xff;
               }
+log_disk("Data %d %d\n", count, dasd->dlen);
               break;
 
          case DK_POS_END:               /* Past end of data */
@@ -535,6 +562,7 @@ dasd_step(struct _dasd_t *dasd, uint8_t *ix)
     size_t               pos;
 
 log_disk("Disk step %d %d %d c=%d h=%d %s\n", dasd->step, dasd->cpos, dasd->tsize, dasd->cyl, dasd->head, dasd->file_name);
+    *ix = 0;
     if (dasd->step < disk_type[type].rate) {
         dasd->step++;
         return;
@@ -616,9 +644,8 @@ log_disk("Disk read %d %d %d\n", dasd->state, count, dasd->cpos);
 
     switch(dasd->state) {
     case DK_POS_INDEX:             /* At Index Mark */
-         *data = gap0[count];
 log_disk("Gap0=%02x %d\n", *data, count);
-         if (*data == 0x6) {
+         if (count == disk_type[type].g1) {
              dasd->tstart = dasd->tsize * (dasd->head);
              dasd->tpos = dasd->rpos = 0;
              dasd->count = 0;
@@ -626,6 +653,7 @@ log_disk("Gap0=%02x %d\n", *data, count);
              dasd->ck_sum[0] = 0xff;
              dasd->ck_sum[1] = 0xff;
              dasd->am_search = 0;
+             *data = disk_type[type].sync;
          } else {
              return 0;
          }
@@ -657,14 +685,18 @@ log_disk("HA Check=%02x %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], dasd->tpos
          break;
 
     case DK_POS_GAP1:
-         *data = gap1[count];
-         if (*data != 0x6) {
-            return 0;
+log_disk("Gap1  %d\n", count);
+         if (count == disk_type[type].g1) {
+             dasd->ck_sum[0] = 0xff;
+             dasd->ck_sum[1] = 0xff;
+             dasd->count = 0;
+             dasd->state = DK_POS_CNT0;
+             *data = disk_type[type].sync;
+             if (dasd->am_search)
+                 return 0;
+         } else {
+             return 0;
          }
-         dasd->ck_sum[0] = 0xff;
-         dasd->ck_sum[1] = 0xff;
-         dasd->count = 0;
-         dasd->state = DK_POS_CNT0;
          break;
 
     case DK_POS_CNT0:              /* In count (c) */
@@ -708,24 +740,27 @@ log_disk("CNT0 %02x %02x %02x %02x %02x %d %d\n", rec[0], rec[1], rec[2], rec[3]
                  break;
          }
 log_disk("CNT0 Check=%02x %02x %d %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], count, *data, dasd->tpos);
+         if (dasd->am_search)
+             return 0;
          break;
 
 
     case DK_POS_AM:                /* Beginning of record */
-         *data = gap2[count];
-         if (*data == 0xaa) {
-            *data = 0xff;
-            *am = 1;
-            dasd->am_search = 0;
-            return 0;
+log_disk("AM  %d\n", count);
+         if (count == disk_type[type].g2) {
+             *data = disk_type[type].sync;
+              dasd->ck_sum[0] = 0xff;
+              dasd->ck_sum[1] = 0xff;
+              dasd->count = 0;
+              dasd->state = DK_POS_CNT1;
+         } else if (count > (disk_type[type].g2 - 2)) {
+              *data = 0xff;
+              *am = 1;
+              dasd->am_search = 0;
+              return 0;
+         } else {
+              return 0;
          }
-         if (*data != 0x6) {
-            return 0;
-         }
-         dasd->ck_sum[0] = 0xff;
-         dasd->ck_sum[1] = 0xff;
-         dasd->count = 0;
-         dasd->state = DK_POS_CNT1;
          break;
 
     case DK_POS_CNT1:
@@ -779,16 +814,23 @@ log_disk("CNT1 %02x %02x %02x %02x %02x %d %d\n", rec[0], rec[1], rec[2], rec[3]
                  break;
          }
 log_disk("CNT1 Check=%02x %02x %d %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], count, *data, dasd->tpos);
+         if (dasd->am_search)
+             return 0;
          break;
 
     case DK_POS_GAP2:
-         *data = gap1[count];
-         if (*data != 0x6)
-            return 0;
-         dasd->ck_sum[0] = 0xff;
-         dasd->ck_sum[1] = 0xff;
-         dasd->count = 0;
-         dasd->state = DK_POS_KEY;
+log_disk("GAP2  %d\n", count);
+         if (count == disk_type[type].g2) {
+             dasd->ck_sum[0] = 0xff;
+             dasd->ck_sum[1] = 0xff;
+             dasd->count = 0;
+             dasd->state = DK_POS_KEY;
+             *data = disk_type[type].sync;
+             if (dasd->am_search)
+                 return 0;
+         } else {
+             return 0;
+         }
          break;
 
     case DK_POS_KEY:               /* In Key area */
@@ -804,16 +846,23 @@ log_disk("CNT1 Check=%02x %02x %d %02x %d\n", dasd->ck_sum[0], dasd->ck_sum[1], 
              dasd->count = 0;
          }
 log_disk("KEY Check=%02x %02x %d %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], count, *data);
+         if (dasd->am_search)
+             return 0;
          break;
 
     case DK_POS_GAP3:
-         *data = gap1[count];
-         if (*data != 0x6)
-            return 0;
-         dasd->ck_sum[0] = 0xff;
-         dasd->ck_sum[1] = 0xff;
-         dasd->count = 0;
-         dasd->state = DK_POS_DATA;
+log_disk("GAP3  %d\n", count);
+         if (count == disk_type[type].g2) {
+             dasd->ck_sum[0] = 0xff;
+             dasd->ck_sum[1] = 0xff;
+             dasd->count = 0;
+             dasd->state = DK_POS_DATA;
+             *data = disk_type[type].sync;
+             if (dasd->am_search)
+                 return 0;
+         } else {
+             return 0;
+         }
          break;
 
 
@@ -830,6 +879,8 @@ log_disk("KEY Check=%02x %02x %d %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], coun
              dasd->count = 0;
          }
 log_disk("DATA Check=%02x %02x %d %d %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], count, dasd->dlen, *data);
+         if (dasd->am_search)
+             return 0;
          break;
 
     case DK_POS_END:               /* Past end of data */

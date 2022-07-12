@@ -82,7 +82,7 @@ static char *cd_name[32] =
 
                      /* 0       1          2         3         4          5       6         7 */
 static char *cs_name[16] =
-                     { "",      "0->ST4", "1->ST1", "0->ST1", "0->ST0", "1->ST0", "0->ST5", "1->ST5",
+                     { "",      "0->ST4", "0->ST1", "1->ST1", "0->ST0", "1->ST0", "0->ST5", "1->ST5",
                      "0->ST2", "DNST21", "0->ST3", "1->ST3", "0->ST6", "1->ST6", "0->ST7", "1->ST7" };
 
 void
@@ -104,7 +104,7 @@ step_2844(struct _2844_context *ctx)
         ix = 0;
         if (ctx->disk[i] == NULL)
             continue;
-        if ((ctx->UR_REG & (0x80 >> i)) != 0 && (ctx->FT & 0x81) == 0x81 && (ctx->FC & 0x04) != 0) {
+        if ((ctx->UR_REG & 0xf) == i && (ctx->FT & 0x81) == 0x81 && (ctx->FC & 0x04) != 0) {
             uint8_t   data, am;
             if ((ctx->FC & 0x40) != 0) {
                 if (dasd_read_byte(ctx->disk[i], &data, &am, &ix)) {
@@ -130,6 +130,8 @@ step_2844(struct _2844_context *ctx)
         if (dasd_check_attn(ctx->disk[i])) {
             ctx->SC_REG |= 0x80 >> i;
           log_disk("Disk attn %d\n", i);
+            if (ctx->selected == 0)
+                ctx->request = 1;
         }
         if ((ctx->ST_REG & BIT1) != 0 && ix)
             ctx->index = 1;
@@ -355,11 +357,10 @@ step_2844(struct _2844_context *ctx)
            if ((ctx->srv_in && (ctx->IG_REG & BIT2) != 0) ||
                (ctx->srv_req && (ctx->IG_REG & BIT2) != 0) ||
                (ctx->srv_in && (ctx->tags & CHAN_SRV_OUT) != 0))
-//           if (ctx->tr_1 == 0 && ctx->tr_2 == 0 && (ctx->IG_REG & 0x20) != 0)  /* System not taken byte */
               nextWX |= 0x1;
            break;
    case 10: /* SELTO */
-           if (ctx->selected)
+           if (ctx->selected || ctx->SC_REG != 0)
               nextWX |= 0x1;
            break;
    case 11: /* OP1 */
@@ -464,11 +465,11 @@ step_2844(struct _2844_context *ctx)
           break;
    case 0x12:    /* FS */   /* File status */
           ctx->Abus = 0;
-          if (ctx->UR_REG == 0x00)
+          if ((ctx->FT & 0x1) != 0 && ctx->disk[ctx->unit_num] != NULL) {
+              if (dasd_check_seek(ctx->disk[ctx->unit_num]))
+                  ctx->Abus |= BIT0;
               ctx->Abus |= BIT1;
-          if (ctx->disk[ctx->unit_num] != NULL &&
-                dasd_check_seek(ctx->disk[ctx->unit_num]))
-              ctx->Abus |= BIT0;
+          }
           break;
    case 0x13:    /* BX */
           ctx->Abus = ctx->BX_REG;
@@ -703,48 +704,49 @@ step_2844(struct _2844_context *ctx)
    switch (sal->CS) {
    case 0x00:  /* Not used */
            break;
-   case 0x01:  /* 0 > ST0 */
-           ctx->ST_REG &= ~BIT0;
+   case 0x01:  /* 0 > ST4 */
+           ctx->ST_REG &= ~BIT4;
            break;
-   case 0x02:  /* 1 > ST0 */
-           ctx->ST_REG &= ~BIT0;
-           break;
-   case 0x03:  /* 0 > ST1 */
+   case 0x02:  /* 0 > ST1 */
            ctx->ST_REG &= ~BIT1;
            break;
-   case 0x04:  /* 1 -> ST1 */
+   case 0x03:  /* 1 > ST1 */
            ctx->ST_REG |= BIT1;
+           ctx->index = 0;
            break;
-   case 0x05:  /* 0 > ST2 */
-           ctx->ST_REG &= ~(BIT2);
+   case 0x04:  /* 0 > ST0 */
+           ctx->ST_REG &= ~BIT0;
            break;
-   case 0x06:  /* DNST21, 1>ST2 if D != 0 */
-           if (ctx->d_nzero)
-               ctx->ST_REG &= ~(BIT2);
+   case 0x05:  /* 1 > ST0 */
+           ctx->ST_REG |= BIT0;
            break;
-   case 0x07:  /* 0 > ST3 */
-           ctx->ST_REG |= BIT3;
+   case 0x06:  /* 0 > ST5 */
+           ctx->ST_REG &= ~BIT5;
            break;
-   case 0x08:  /* 1 > ST3 */
-           ctx->ST_REG &= ~(BIT3);
-           break;
-   case 0x09:  /* 0 > ST4 */
-           ctx->ST_REG |= BIT4;
-           break;
-   case 0x0A: /* 0 > ST5 */
-           ctx->ST_REG &= ~(BIT5);
-           break;
-   case 0x0B: /* 1 > ST5 */
+   case 0x07:  /* 1 > ST5 */
            ctx->ST_REG |= BIT5;
            break;
+   case 0x08:  /* 0 > ST2 */
+           ctx->ST_REG &= ~BIT2;
+           break;
+   case 0x09:  /* DNST21, 1>ST2 if D != 0 */
+           if (ctx->d_nzero)
+               ctx->ST_REG |= BIT2;
+           break;
+   case 0x0A: /* 0 > ST3 */
+           ctx->ST_REG &= ~BIT3;
+           break;
+   case 0x0B: /* 1 > ST3 */
+           ctx->ST_REG |= BIT3;
+           break;
    case 0x0C: /* 0 > ST6 */
-           ctx->ST_REG &= ~(BIT6);
+           ctx->ST_REG &= ~BIT6;
            break;
    case 0x0D: /* 1 > ST6 */
            ctx->ST_REG |= BIT6;
            break;
    case 0x0E: /* 0 > ST7 */
-           ctx->ST_REG &= ~(BIT7);
+           ctx->ST_REG &= ~BIT7;
            break;
    case 0x0F: /* 1 > ST7 */
            ctx->ST_REG |= BIT7;
@@ -754,9 +756,9 @@ step_2844(struct _2844_context *ctx)
    log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x WX=%03x %d\n",
            ctx->OP_REG, ctx->DW_REG, ctx->UR_REG, ctx->BX_REG, ctx->BY_REG,
            ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG, ctx->SC_REG, ctx->WX, ctx->selected);
-   log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x SP=%02x CX=%02x A=%02x B=%02x > %02x %x\n",
+   log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x SP=%02x CX=%02x A=%02x B=%02x > %02x %x %x\n",
            ctx->KL_REG, ctx->ER_REG, ctx->GP_REG, ctx->IG_REG, ctx->DR_REG,
-           ctx->ST_REG, ctx->FT, ctx->FC, ctx->SP_REG, ctx->CX_REG, ctx->Abus, ctx->Bbus, ctx->Alu_out, ctx->carry);
+           ctx->ST_REG, ctx->FT, ctx->FC, ctx->SP_REG, ctx->CX_REG, ctx->Abus, ctx->Bbus, ctx->Alu_out, ctx->carry, ctx->d_nzero);
 }
 
 
@@ -815,9 +817,9 @@ log_trace("Drop Op in\n");
     }
 
     /* If request, enable request in */
-    if (ctx->selected == 0 && (ctx->IG_REG & BIT6) != 0) {
+    if (ctx->selected == 0 && ctx->request) { //(ctx->IG_REG & BIT6) != 0) {
        *tags |= CHAN_REQ_IN;
-       ctx->request = 1;
+//       ctx->request = 1;
     }
 
     if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {

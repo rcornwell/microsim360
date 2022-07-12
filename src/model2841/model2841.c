@@ -286,7 +286,9 @@ step_2841(void *data)
               nextWX |= 0x2;
            break;
    case 7:  /* FILE */  /* 01 for 2311 */
-           //   nextWX |= 0x2;
+//           if (ctx->disk[ctx->unit_num] != NULL)
+ //              nextWX |= (ctx->disk[ctx->unit_num]->type & 0x2);
+   //           nextWX |= 0x2;
            break;
    case 8:  /* CK>W */
            nextWX = (nextWX & 0xff) | ((sal->CK & 0xf) << 8);
@@ -346,7 +348,9 @@ step_2841(void *data)
            nextWX = (nextWX & 0xf00) | (ctx->Abus);
            break;
    case 7: /*  File */
-           nextWX |= 0x1;
+//           if (ctx->disk[ctx->unit_num] != NULL)
+ //              nextWX |= (ctx->disk[ctx->unit_num]->type & 0x1);
+             nextWX |= 1;
            break;
    case 8: /* SERVO */
            if ((ctx->tags & CHAN_SRV_OUT) != 0)
@@ -359,8 +363,10 @@ step_2841(void *data)
               nextWX |= 0x1;
            break;
    case 10: /* SELTO */
-           if (ctx->selected)
+           if (ctx->selected) //  || ctx->SC_REG != 0)
               nextWX |= 0x1;
+//           if (ctx->SC_REG != 0 && ctx->opr_in == 0)
+ //             ctx->request = 1;
            break;
    case 11: /* OP1 */
            if ((ctx->OP_REG & BIT1) != 0)
@@ -486,8 +492,9 @@ step_2841(void *data)
    case 0x1D:    /* FS */
           /* Drive status register */
           ctx->Abus = 0;
-          if (ctx->UR_REG == 0x80)
-              ctx->Abus = BIT0|BIT1;
+          if (ctx->UR_REG == 0x80) {
+              ctx->Abus = BIT0|BIT1|0x8;
+          }
           break;
    case 0x1E:    /* OA */
           /* Drive old address register */
@@ -741,6 +748,7 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
         } else {
             ctx->addressed = 0;
         }
+        log_trace("Address parity error\n");
         ctx->ER_REG |= BIT1;
     } else {
         ctx->ER_REG &= ~BIT1;
@@ -749,6 +757,7 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     if ((ctx->IG_REG & BIT1) != 0) {
 log_trace("Drop Op in\n");
         ctx->opr_in = 0;
+        ctx->selected = 0;
         ctx->IG_REG &= ~BIT1;
         *tags &= ~CHAN_OPR_IN;
     }
@@ -767,8 +776,16 @@ log_trace("Drop selected\n");
 
     /* If request, enable request in */
     if (ctx->selected == 0 && (ctx->IG_REG & BIT6) != 0) {
-       *tags |= CHAN_REQ_IN;
        ctx->request = 1;
+    }
+
+    /* If Polling and attention pending, generate request in */
+    if (ctx->selected == 0 && (ctx->IG_REG & BIT4) != 0 && ctx->SC_REG != 0) {
+       ctx->request = 1;
+    }
+
+    if (ctx->selected == 0 && ctx->request) {
+       *tags |= CHAN_REQ_IN;
     }
 
     if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {
@@ -779,6 +796,7 @@ log_trace("Drop selected\n");
 
     /* Present end status */
     if (ctx->selected == 0 && (ctx->IG_REG & BIT5) != 0) {
+        print_tags("Disk", 0, *tags, bus_out);
         /* Wait for channel to request a poll */
         if ((*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_REQ_IN)) == (CHAN_SEL_OUT|CHAN_REQ_IN)) {
             *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);
@@ -788,6 +806,16 @@ log_trace("Drop selected\n");
             ctx->tr_1 = 0;
             ctx->tr_2 = 0;
         }
+#if 0
+        if ((*tags & (CHAN_OPR_IN)) == (CHAN_OPR_IN)) {
+            *tags |= (CHAN_STA_IN);
+            /* Send address */
+            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+            ctx->tr_1 = 0;
+            ctx->tr_2 = 0;
+            ctx->selected = 1;
+        }
+#endif
 
 #if 0
         /* Wait for channel to accept it with CMD out */
@@ -853,6 +881,7 @@ log_trace("Drop selct\n");
          }
 
          if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
+             log_trace("Data parity error\n");
              ctx->ER_REG |= BIT2;
          } else {
              ctx->ER_REG &= ~BIT2;
