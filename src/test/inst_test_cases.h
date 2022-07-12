@@ -2688,11 +2688,13 @@
       set_reg( 12, 0x00001000);
       set_reg( 13, 0x00002500);
       set_mem(0x2500, 0xaa12345d);
+      set_mem(0x1000, 0xffffffff);
+      set_mem(0x1004, 0xffffffff);
       set_mem(0x400, 0xf342c000);
       set_mem(0x404, 0xd0010000); /* UNPK 0(5, 12), 1(3, 13) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0xf1f2f3f4, get_mem(0x1000));
-      ASSERT_EQUAL_X(0xd5000000, get_mem(0x1004));
+      ASSERT_EQUAL_X(0xd5ffffff, get_mem(0x1004));
   }
 
   /* Zap */
