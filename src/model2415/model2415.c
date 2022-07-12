@@ -133,28 +133,9 @@
 #define START_DELAY     100
 #define STOP_DELAY      (10 * FRAME_DELAY)
 
-static uint8_t       parity_table[64] = {
-    /* 0    1    2    3    4    5    6    7 */
-    0000, 0100, 0100, 0000, 0100, 0000, 0000, 0100,
-    0100, 0000, 0000, 0100, 0000, 0100, 0100, 0000,
-    0100, 0000, 0000, 0100, 0000, 0100, 0100, 0000,
-    0000, 0100, 0100, 0000, 0100, 0000, 0000, 0100,
-    0100, 0000, 0000, 0100, 0000, 0100, 0100, 0000,
-    0000, 0100, 0100, 0000, 0100, 0000, 0000, 0100,
-    0000, 0100, 0100, 0000, 0100, 0000, 0000, 0100,
-    0100, 0000, 0000, 0100, 0000, 0100, 0100, 0000
-};
-
-static uint8_t       bcd_to_ebcdic[64] = {
-     0x40, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7,
-     0xf8, 0xf9, 0xf0, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f,
-     0x7a, 0x61, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7,
-     0xe8, 0xe9, 0xe0, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f,
-     0x60, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
-     0xd8, 0xd9, 0xd0, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f,
-     0x50, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7,
-     0xc8, 0xc9, 0xc0, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f};
-
+#define MT_ODD          0x01  /* Odd parity */
+#define MT_TRANS        0x02  /* Translation turned on ignored 9 track  */
+#define MT_CONV         0x04  /* Data converter on ignored 9 track  */
 
 struct _2415_context {
     int                    addr;         /* Device address */
@@ -168,6 +149,7 @@ struct _2415_context {
     int                    cmd_done;     /* Current read/write finished */
     int                    status;       /* Current bus status */
     uint8_t                data;         /* Current byte to send/recieve */
+    uint16_t               cbuffer;      /* Conversion buffer */
     int                    data_rdy;     /* Data is valid */
     int                    data_end;     /* No more data to send/recieve */
     int                    delay;        /* Delay time till operation done */
@@ -182,6 +164,7 @@ struct _2415_context {
     int                    rdy_flags;    /* Unit has become ready */
     struct _tape_buffer   *tape[6];      /* Tape units */
     int                    track_7;      /* Support 7 track drives */
+    int                    cc;           /* Character counter for 7 track tapes */
     int                    mode7;        /* Tape mode for 7 track tapes */
     int                    mode9;        /* Tape mode for 9 track tapes */
 };
@@ -201,9 +184,11 @@ rewind_callback(struct _device *unit, void *arg, int u)
            log_device("Rewind done %d\n", u);
            ctx->rew_flags &= ~(1 << u);
            if (ctx->run_flags & (1 << u)) {
+               log_device("Detach device %d\n", u);
                tape_detach(tape);
                ctx->run_flags &= ~(1 << u);
            } else if (ctx->chain_flag) {
+               log_device("Chain done device %d\n", u);
                ctx->cmd_done = 1;
                ctx->status = SNS_DEVEND|SNS_CHNEND;
                ctx->cmd = 0;
@@ -211,8 +196,10 @@ rewind_callback(struct _device *unit, void *arg, int u)
                if (ctx->cur_unit == u && ctx->state != STATE_IDLE) {
                   ctx->status &= ~(SNS_CTLEND|SNS_UNITCHK);
                   ctx->cmd_done = 1;
+                  log_device("Rewind finished %d\n", u);
                } else {
                   ctx->rdy_flags |= 1 << u;
+                  log_device("Rewind ready device %d\n", u);
                }
            }
        } else {
@@ -283,13 +270,91 @@ tape_callback(struct _device *unit, void *arg, int u)
     case 1: /* Write */
            log_device("Do write command %d %d %d\n", ctx->data_end, ctx->data_rdy, ctx->state);
            if (ctx->data_end) {
+               /* If 7 track and conversion, write last character */
+               if (!tape_9_track(ctx->tape[ctx->cur_unit]) && (ctx->mode7 & MT_CONV) != 0) {
+                   uint8_t   mode = (ctx->mode7 & MT_ODD) ? 0 : 0x100;
+                   switch(ctx->cc) {
+                   case 0:   /* ----76 543210 */
+                             /*     xx ^^^^^^ */
+                       break;
+
+                   case 1:   /* --76543210 76 */
+                             /*   xxxx^^^^ ^^ */
+                       ctx->data = (ctx->cbuffer & 03) << 4;
+                       break;
+
+                   case 2:    /* 76543210 7654 */
+                              /* xxxxxx^^ ^^^^ */
+                       ctx->data = (ctx->cbuffer & 0xf) << 2;
+                       ctx->data_rdy = 1;
+                       break;
+
+                   case 3:    /* ---- 765432 */
+                       ctx->data = ctx->cbuffer;
+                       ctx->data_rdy = 1;
+                       break;
+                   }
+                   ctx->data &= 077;
+                   ctx->data |= parity_table[ctx->data] ^ mode;
+                   if (ctx->data_rdy) {
+                      r = tape_write_frame(tape, ctx->data);
+                   }
+               }
                r = tape_finish_rec(tape);
                add_event(unit, done_callback, STOP_DELAY, (void *)tape, u);
            } else if (ctx->data_rdy == 0) {
               /* Do a write start */
                ctx->sense[0] &= ~(SENSE_WCZERO);
-               r = tape_write_frame(tape, ctx->data);
-               ctx->data_rdy = 1;
+               if (!tape_9_track(ctx->tape[ctx->cur_unit])) {
+                   uint8_t   mode = (ctx->mode7 & MT_ODD) ? 0 : 0x100;
+                   if (ctx->mode7 & MT_TRANS) {
+                       ctx->data = ((ctx->data & 0x30) ^ 0x30) | (ctx->data & 0xf);
+                       ctx->data_rdy = 1;
+                   }
+                   if (ctx->mode7 & MT_CONV) {
+                       uint8_t    t;
+                       switch(ctx->cc) {
+                       case 0:   /* ----76 543210 */
+                                 /*     ^^ ^^^^XX */
+                           ctx->cbuffer = ctx->data & 3;
+                           ctx->data >>= 2;
+                           ctx->data_rdy = 1;
+                           ctx->cc++;
+                           break;
+
+                       case 1:   /* --76543210 10 */
+                                 /*   ^^^^^^^^ ^^ */
+                           t = ctx->cbuffer;
+                           ctx->cbuffer = (ctx->data & 0xf);
+                           ctx->data = (t << 4) | ((ctx->data >> 4) & 0xf);
+                           ctx->data_rdy = 1;
+                           ctx->cc++;
+                           break;
+
+                       case 2:    /* 76543210 7654 */
+                                  /* xxxxxx^^ ^^^^ */
+                           t = ctx->cbuffer;
+                           ctx->cbuffer = ctx->data & 077;
+                           ctx->data = (t << 2) | ((ctx->data >> 6) & 0x3);
+                           ctx->data_rdy = 1;
+                           ctx->cc++;
+                           break;
+
+                       case 3:    /* ---- 765432 */
+                           ctx->data = ctx->cbuffer;
+                           ctx->data_rdy = 1;
+                           ctx->cc = 0;
+                           break;
+                      }
+                   }
+                   ctx->data &= 077;
+                   ctx->data |= parity_table[ctx->data] ^ mode;
+               } else {
+                   ctx->data_rdy = 1;
+               }
+               if (ctx->data_rdy) {
+                   r = tape_write_frame(tape, ctx->data);
+               }
                add_event(unit, tape_callback, FRAME_DELAY, (void *)tape, u);
            } else {
                /* If no more data, all is ok */
@@ -329,14 +394,86 @@ tape_callback(struct _device *unit, void *arg, int u)
                    /* End of record */
                    ctx->data_end = 1;
                    add_event(unit, tape_callback, FRAME_DELAY * 4, (void *)tape, u);
+                   if (!tape_9_track(ctx->tape[ctx->cur_unit])) {
+                       if (ctx->mode7 & MT_CONV) {
+                           switch(ctx->cc) {
+                           case 0:   /* ------ BA8421 */
+                               ctx->cbuffer = ctx->data;
+                               ctx->data_rdy = 1;
+                               break;
+
+                           case 1:   /* BA8421 BA8421 */
+                                     /*     ^^ ^^^^^^ */
+                               ctx->cbuffer >>= 8;
+                               ctx->data = (ctx->cbuffer & 0x0f);
+                               ctx->data_rdy = 1;
+                               break;
+
+                           case 2:    /* --BA8421 BA84 */
+                                      /*     ^^^^ ^^^^ */
+                               ctx->cbuffer >>= 8;
+                               ctx->data = (ctx->cbuffer & 0x03);
+                               ctx->data_rdy = 1;
+                               break;
+
+                           case 3:    /* ---- BA8421 BA */
+                               break;
+                          }
+                       }
+                   }
                } else if (r == 2) {
                    /* Read of tape mark */
                    ctx->data_end = 1;
                    ctx->status |= SNS_UNITEXP;
                    add_event(unit, done_callback, STOP_DELAY, (void *)tape, u);
                } else {
-                   ctx->data_rdy = 1;
                    add_event(unit, tape_callback, FRAME_DELAY, (void *)tape, u);
+                   if (!tape_9_track(ctx->tape[ctx->cur_unit])) {
+                       uint8_t   mode = (ctx->mode7 & MT_ODD) ? 0 : 0x100;
+                       if ((parity_table[ctx->data & 077] ^ (ctx->data & 0100) ^ mode) == 0) {
+                           ctx->sense[0] = SENSE_DCCHK;
+                           ctx->sense[3] = SENSE_VCR;
+                       }
+                       ctx->data &= 077;
+                       if (ctx->mode7 & MT_TRANS) {
+                           ctx->data = bcd_to_ebcdic[ctx->data];
+                       }
+                       if (ctx->mode7 & MT_CONV) {
+                           switch(ctx->cc) {
+                           case 0:   /* ------ BA8421 */
+                               ctx->cbuffer = ctx->data;
+                               ctx->cc++;
+                               break;
+
+                           case 1:   /* BA8421 BA8421 */
+                                     /*     ^^ ^^^^^^ */
+                               ctx->cbuffer |= ctx->data << 6;
+                               ctx->data = (ctx->cbuffer & 0xff);
+                               ctx->data_rdy = 1;
+                               ctx->cc++;
+                               break;
+
+                           case 2:    /* --BA8421 BA84 */
+                                      /*     ^^^^ ^^^^ */
+                               ctx->cbuffer >>= 8;
+                               ctx->cbuffer |= ctx->data << 4;
+                               ctx->data = (ctx->cbuffer & 0xff);
+                               ctx->data_rdy = 1;
+                               ctx->cc++;
+                               break;
+
+                           case 3:    /* ---- BA8421 BA */
+                               ctx->cbuffer >>= 8;
+                               ctx->cbuffer |= ctx->data << 2;
+                               ctx->data = (ctx->cbuffer & 0xff);
+                               ctx->data_rdy = 1;
+                               ctx->cc = 0;
+                               break;
+                          }
+                       }
+                   } else {
+                       ctx->data_rdy = 1;
+                   }
                    log_device("Tape Queued: %02x\n", ctx->data);
                }
            }
@@ -456,256 +593,6 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
         return;
     }
 
-#if 0
-    if (ctx->delay == 0) {
-        ctx->delay = FRAME_DELAY;
-        if (ctx->rew_flags != 0) {
-            log_device("Rewind Low speed %02x %02x\n", ctx->rew_flags, ctx->rdy_flags);
-            for ( i = 0; i < ctx->nunits; i++) {
-                if (ctx->tape[i] == NULL || (ctx->rew_flags & (1 << i)) == 0)
-                   continue;
-                if (ctx->tape[i]->pos_frame > (5 * 12 * 1600))
-                   continue;
-                r = tape_rewind_frames(ctx->tape[i], 1);
-                if (r == 0) {
-                    log_device("Rewind done %d\n", i);
-                    ctx->rew_flags &= ~(1 << i);
-                    if (ctx->run_flags & (1 << i)) {
-                        tape_detach(ctx->tape[i]);
-                        ctx->run_flags &= ~(1 << i);
-                    } else if (ctx->chain_flag) {
-                        ctx->state = STATE_END;
-                        ctx->status = SNS_DEVEND|SNS_CHNEND;
-                        ctx->cmd = 0;
-                    } else {
-                        if (ctx->cur_unit == i && ctx->state != STATE_IDLE) {
-                           ctx->status &= ~(SNS_CTLEND|SNS_UNITCHK);
-                           if (ctx->state == STATE_STACK) {
-                               ctx->state = STATE_END;
-                           }
-                        } else {
-                           ctx->rdy_flags |= 1 << i;
-                        }
-                    }
-                }
-            }
-        }
- //       log_device("Tape commnd scan %02x\n", ctx->cmd);
-        switch (ctx->cmd & 0xf) {
-        case 0: /* Test I/O */
-        case 4: /* Sense */
-        case 3: /* Mode command */
-        case 0xd: /* Mode command */
-               break;
-        case 1: /* Write */
-               log_device("Do write command %d %d %d\n", ctx->data_end, ctx->data_rdy, ctx->state);
-               if (ctx->cmd_done) {
-                   r = tape_finish_rec(ctx->tape[ctx->cur_unit]);
-                   ctx->state = STATE_END;
-                   ctx->status |= SNS_DEVEND|SNS_CHNEND;
-                   ctx->cmd = 0;
-               } else if (ctx->data_rdy) {
-                  /* Do a write start */
-                   ctx->sense[0] &= ~(SENSE_WCZERO);
-                   r = tape_write_frame(ctx->tape[ctx->cur_unit], ctx->data);
-                   ctx->data_rdy = 0;
-                   ctx->state = STATE_DATA_I;
-               } else {
-                   /* If no more data, all is ok */
-                   if (ctx->data_end == 0) {
-                       ctx->sense[0] |= SENSE_OVRRUN;
-                       ctx->data_end = 1;
-                   } else {
-                       ctx->delay *= 3;
-                       ctx->state = STATE_WAIT;
-                   }
-                   ctx->cmd_done = 1;
-               }
-               break;
-        case 2:  /* Read */
-        case 0xc:  /* Read backward */
-               /* If CPU does not want any more data, just read and ignore
-                  the rest of the data */
-               log_device("Do read command %d %d %d\n", ctx->data_end, ctx->data_rdy, ctx->state);
-               if (ctx->cmd_done) {
-                   ctx->state = STATE_END;
-                   ctx->status |= SNS_DEVEND|SNS_CHNEND;
-                   ctx->cmd = 0;
-          log_device("Tape Send end status \n");
-               } else if (ctx->data_end) {
-                   r = tape_read_frame(ctx->tape[ctx->cur_unit], &ctx->data);
-                   log_device("Tape read frame dataend %d\n", r);
-                   if (r != 1) {
-                       /* Process end */
-                       r = tape_finish_rec(ctx->tape[ctx->cur_unit]);
-       log_device("Tape finish read %d\n", r);
-                       ctx->delay *= 3;
-                       ctx->cmd_done = 1;
-                   }
-               } else if (ctx->data_rdy) {
-                   log_device("Tape read frame overrun \n");
-                   ctx->data_end = 1;
-                   ctx->delay = 1;
-                   ctx->sense[0] |= SENSE_OVRRUN;
-                   ctx->status = SNS_UNITCHK;
-               } else {
-                   r = tape_read_frame(ctx->tape[ctx->cur_unit], &ctx->data);
-                   log_device("Tape read frame %d\n", r);
-                   if (r < 0) {
-                       /* Set up read error */
-                   } else if (r == 0) {
-                       /* End of record */
-                       ctx->data_end = 1;
-                       ctx->delay *= 3;
-                       ctx->state = STATE_WAIT;
-                   } else if (r == 2) {
-                       /* Read of tape mark */
-                       ctx->data_end = 1;
-                       ctx->cmd_done = 1;
-                       ctx->status = SNS_UNITEXP;
-                       ctx->delay *= 3;
-                   } else {
-                       ctx->data_rdy = 1;
-                       ctx->state = STATE_DATA_O;
-                       log_device("Tape Queued\n");
-                   }
-               }
-               break;
-
-        case 7:  /* Tape motion control */
-        case 0xf:
-               switch (ctx->cmd & 0xff) {
-               case 0x0f:    /* Rewind and unload */
-                    tape_start_rewind(ctx->tape[ctx->cur_unit]);
-                    if (ctx->rew_delay == 0)
-                        ctx->rew_delay = REWIND_DELAY;
-                    ctx->rew_flags |= 1 << ctx->cur_unit;
-                    ctx->run_flags |= 1 << ctx->cur_unit;
-                    ctx->state = STATE_END;
-                    ctx->status = SNS_CTLEND|SNS_DEVEND|SNS_UNITCHK;
-                    ctx->cmd = 0;
-                    break;
-               case 0x07:    /* Rewind */
-                    log_device("start rewind %d\n", ctx->chain_flag);
-                    tape_start_rewind(ctx->tape[ctx->cur_unit]);
-                    ctx->rew_flags |= 1 << ctx->cur_unit;
-                    if (ctx->rew_delay == 0)
-                        ctx->rew_delay = REWIND_DELAY;
-                    if (ctx->chain_flag == 0) {
-                        ctx->state = STATE_END;
-                        ctx->status = SNS_DEVEND;
-                        ctx->cmd = 0;
-                    }
-                    break;
-               case 0x17:    /* Erase gap */
-                    ctx->delay *= 4;
-                    ctx->status = SNS_DEVEND;
-                    ctx->state = STATE_END;
-                    break;
-               case 0x1f:    /* Write tape mark */
-                    ctx->delay = FRAME_DELAY;
-                    if (ctx->cmd_done) {
-                          log_device("Write tape mark end\n");
-                        ctx->delay *= 3;;
-                        ctx->status = SNS_DEVEND;
-                        ctx->state = STATE_END;
-                    } else {
-                        r = tape_write_mark(ctx->tape[ctx->cur_unit]);
-                        log_device("Write tape mark %d\n", r);
-                        ctx->cmd_done = 1;
-                    }
-                    break;
-               case 0x37:    /* Forward space block */
-               case 0x3f:    /* Forward space file */
-               case 0x27:    /* Backspace block */
-               case 0x2f:    /* Backspace file */
-                    ctx->delay = FRAME_DELAY;
-                    r = tape_read_frame(ctx->tape[ctx->cur_unit], &ctx->data);
-                    if (r < 0) {
-                         /* Set up read error */
-                         ctx->status = SNS_UNITCHK|SNS_DEVEND;
-                    } else if (r == 0) {
-                         /* Terminate of record read */
-                         r = tape_finish_rec(ctx->tape[ctx->cur_unit]);
-                         /* End of record */
-                         if (tape_at_loadpt(ctx->tape[ctx->cur_unit])) {
-                             ctx->status = SNS_UNITCHK|SNS_DEVEND;
-                         } else {
-                             if (ctx->cmd & 0x8) {
-                                 if (ctx->cmd & 0x10) {
-                                    r = tape_read_forw(ctx->tape[ctx->cur_unit]);
-                                 } else {
-                                    r = tape_read_back(ctx->tape[ctx->cur_unit]);
-                                 }
-                              log_device("Tape start record %d\n", r);
-                                 /* Handle error */
-                                 if (r < 0) {
-                                     /* If space block, set unit exception */
-                                     ctx->status = SNS_UNITCHK|SNS_DEVEND;
-                                 } else if (r == 2) {
-                                     ctx->status = SNS_DEVEND;
-                                     ctx->delay *= 3;   /* Inter record delay */
-                                 }
-                             } else {
-                                 /* If space file, end */
-                                 ctx->status = SNS_DEVEND;
-                             }
-                          }
-                    }
-                    if (ctx->status & SNS_DEVEND) {
-                        ctx->state = STATE_END;
-                    }
-                    break;
-               }
-               break;
-        default:
-               break;
-        }
-    } else {
-        ctx->delay--;
-    }
-
-    if (ctx->rew_delay == 0) {
-        if (ctx->rew_flags != 0) {
-            log_device("Rewind delay %02x %02x\n", ctx->rew_flags, ctx->rdy_flags);
-            for ( i = 0; i < 6; i++) {
-                if (ctx->tape[i] == NULL || (ctx->rew_flags & (1 << i)) == 0)
-                   continue;
-                if (ctx->tape[i]->pos_frame <= (5 * 12 * 1600)) {
-                   if (ctx->delay == 0)
-                       ctx->delay = FRAME_DELAY;
-                   continue;
-                }
-                r = tape_rewind_frames(ctx->tape[i], REW_FRAME);
-                if (r == 0) {
-                    log_device("Rewind done %d\n", i);
-                    ctx->rew_flags &= ~(1 << i);
-                    if (ctx->run_flags & (1 << i)) {
-                        tape_detach(ctx->tape[i]);
-                        ctx->run_flags &= ~(1 << i);
-                    } else if (ctx->chain_flag) {
-                        ctx->state = STATE_END;
-                        ctx->status = SNS_DEVEND|SNS_CHNEND;
-                        ctx->cmd = 0;
-                    } else {
-                        if (ctx->cur_unit == i && ctx->state != STATE_IDLE) {
-                           ctx->status &= ~(SNS_CTLEND|SNS_UNITCHK);
-                           if (ctx->state == STATE_STACK) {
-                               ctx->state = STATE_END;
-                           }
-                        } else {
-                           ctx->rdy_flags |= 1 << i;
-                        }
-                    }
-                }
-            }
-            ctx->rew_delay = REWIND_DELAY;
-        }
-    } else {
-        ctx->rew_delay--;
-    }
-#endif
-
     switch (ctx->state) {
     case STATE_IDLE:
             /* Wait until Channels asks for us */
@@ -739,12 +626,14 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              /* If we are returning short busy keep value on bus */
              if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN)) {
                  *bus_in = 0x100 | SNS_SMS | SNS_BSY;
+                 log_device("tape selected busy\n");
                  break;
              }
 
-             if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_ADR_OUT|CHAN_STA_IN)) {
+             if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_ADR_OUT|CHAN_SRV_OUT|CHAN_STA_IN)) {
                  *tags &= ~(CHAN_STA_IN);      /* Clear Status in */
                  ctx->selected = 0;
+                 log_device("tape selected busy done\n");
                  break;
              }
 
@@ -752,6 +641,7 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              if (!ctx->selected && ctx->rdy_flags != 0) {
                  /* Put request in up */
                  ctx->state = STATE_RDY;
+                 log_device("tape ready units: %02x\n", ctx->rdy_flags);
              }
              break;
 
@@ -814,6 +704,7 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  ctx->cmd_done = 0;
                  ctx->data_end = 0;
                  ctx->data_rdy = 0;
+                 ctx->cc = 0;
                  ctx->rdy_flags &= ~(1 << ctx->cur_unit);
                  ctx->stat_unit = -1;
                  tape_select(ctx->tape[ctx->cur_unit]);
@@ -889,10 +780,35 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                         ctx->sense[2] = SENSE_2;
                         ctx->sense[3] = 0;
                         ctx->sense[4] = 0;
-                        if ((ctx->sense[1] & SENSE_7TRACK) != 0)
-                            ctx->mode7 = ctx->cmd;
-                        else
-                            ctx->mode9 = ctx->cmd;
+                        if ((ctx->sense[1] & SENSE_7TRACK) != 0) {
+                            switch ((ctx->cmd >> 3) & 07) {
+                            case 0:      /* NOP */
+                            case 1:      /* Diagnostics */
+                            case 3:
+                                 break;
+                            case 2:      /* Reset condition */
+                                 ctx->mode7 = MT_ODD | MT_CONV;
+                                 ctx->mode7 |= ctx->cmd & 0xc0;  /* Copy density */
+                                 break;
+                            case 4:
+                                 ctx->mode7 = ctx->cmd & 0xc0;  /* Copy density */
+                                 break;
+                            case 5:
+                                 ctx->mode7 = MT_TRANS;
+                                 ctx->mode7 |= ctx->cmd & 0xc0;  /* Copy density */
+                                 break;
+                            case 6:
+                                 ctx->mode7 = MT_ODD;
+                                 ctx->mode7 |= ctx->cmd & 0xc0;  /* Copy density */
+                                 break;
+                            case 7:
+                                 ctx->mode7 = MT_ODD | MT_TRANS;
+                                 ctx->mode7 |= ctx->cmd & 0xc0;  /* Copy density */
+                                 break;
+                            }
+                        } else {
+                            ctx->mode9 = ctx->cmd & 0xc0;  /* Copy density */
+                        }
                         ctx->cmd = 0;
                         ctx->cmd_done = 1;
                         ctx->data_end = 1;
@@ -1084,14 +1000,6 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                      break;
                  }
 
-#if 0
-                 if ((ctx->status & SNS_DEVEND) != 0) {
-                     ctx->state = STATE_END;
-                     log_device("tape device end\n");
-                     break;
-                 }
-#endif
-
                  /* If initial status has Channel end, go wait for device to finish */
                  if ((ctx->status & SNS_CHNEND) != 0) {
                      *tags &= ~(CHAN_SEL_OUT|CHAN_OPR_IN);  /* Clear operation in */
@@ -1111,13 +1019,6 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 
     case STATE_OPR:
              log_device("tape opr %d\n", ctx->selected);
-#if 0
-             /* Wait for Command out to drop */
-             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN) ||
-                 *tags == (CHAN_CMD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN)) {
-                 break;
-             }
-#endif
 
              /* If we are selected clear select in */
              if (ctx->selected)
@@ -1134,7 +1035,13 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 
              /* If data ready, try and get/send it */
              if (ctx->data_rdy) {
-                 ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
+                 /* If Write and 4th character, just send what we have */
+                 if ((ctx->cmd & 1) != 0 && !tape_9_track(ctx->tape[ctx->cur_unit]) &&
+                       (ctx->mode7 & MT_CONV) != 0 && ctx->cc == 3) {
+                     ctx->data_rdy = 0;
+                 } else {
+                     ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
+                 }
                  break;
              }
 
@@ -1153,14 +1060,6 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  }
                  break;
              }
-
-#if 0
-             /* If writing need a data byte ready before we get there */
-             if (ctx->sense[1] & SENSE_WRITE && ctx->data_rdy == 0 && ctx->data_end == 0) {
-                 ctx->state = STATE_DATA_I;
-                 break;
-             }
-#endif
 
              /* If we get select out with address out, reselection */
              if (!ctx->selected &&
@@ -1186,7 +1085,6 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                   ctx->data_end = 1;
                   ctx->state = STATE_DATA_END;          /* Return busy status */
  //                 ctx->selected = 0;
-//log_device("Halt i/o\n");
                   break;
              }
 
@@ -1344,14 +1242,6 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                   break;
               }
 
-#if 0
-              /* If another unit, remove status in */
-              if (ctx->selected && *tags == (CHAN_OPR_OUT|CHAN_STA_IN) ||
-                      *tags == (CHAN_OPR_OUT|CHAN_STA_IN)) {
-                     *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);  /* Clear select out and in */
-              }
-#endif
-
               /* Service out indicates status was excepted. If Suppress out, then command chaining */
               if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
                   *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
@@ -1450,57 +1340,77 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 
     case STATE_STACK:  /* Stacked status */
              /* Wait until Channels asks for us */
-             if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT)) &&
-                  (bus_out & 0xf8) == ctx->addr && (bus_out & 0x7) == ctx->stk_unit) {
-                  /* Device selected */
-                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                      ctx->sense[0] |= SENSE_BUSCHK;
-                  *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
-                  *tags |= CHAN_OPR_IN;
-                  ctx->state = STATE_STACK_SEL;
-                  ctx->selected = 1;
-                  log_device("Tape stack selected\n");
-                  break;
+             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN|CHAN_SUP_OUT)) {
+                  if ((bus_out & 0xf8) == ctx->addr && (bus_out & 0x7) == ctx->stk_unit) {
+                      /* Device selected */
+                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
+                          ctx->sense[0] |= SENSE_BUSCHK;
+                      *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
+                      *tags |= CHAN_OPR_IN;
+                      ctx->state = STATE_STACK_SEL;
+                      ctx->selected = 1;
+                      log_device("printer stack selected\n");
+                  } else if ((bus_out & 0xf8) == ctx->addr) {
+                      /* Device selected */
+                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
+                          ctx->sense[0] |= SENSE_BUSCHK;
+                      *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
+                      *tags |= CHAN_STA_IN;
+                      *bus_in = 0x100 | SNS_SMS | SNS_BSY;
+                      ctx->selected = 1;
+                      log_device("Tape stack selected other\n");
+                  } else {  /* Somebody else */
+                      if ((ctx->status & SNS_DEVEND) != 0) {
+                           *tags &= ~CHAN_REQ_IN;    /* Clear request in */
+                      }
+                  }
              }
 
-             /* If channel asks for another device of ours, reply with busy */
-             if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT)) &&
-                  (bus_out & 0xf8) == ctx->addr) {
-                  /* Device selected */
-                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                      ctx->sense[0] |= SENSE_BUSCHK;
-                  *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
-                  *tags |= CHAN_STA_IN;
-                  *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-                  ctx->selected = 1;
-                  log_device("Tape stack selected other\n");
-                  break;
+             /* When we get acknowlegment, go wait for it to go away */
+             if (ctx->selected && 
+                 (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
+                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_SUP_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN) ||
+                  *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN))) {
+                 *tags &= ~(CHAN_STA_IN|CHAN_SEL_OUT);
+                 ctx->selected = 0;
+                 log_device("tape busy release %02x done\n", ctx->status);
+                 break;
              }
 
-             /* If channel asks for another device of ours, reply with busy */
-             if (ctx->selected == 1 && (*tags == (CHAN_OPR_OUT|CHAN_STA_IN))) {
-                  /* CPU released bus */
-                  *tags &= ~(CHAN_STA_IN);
-                  ctx->selected = 0;
-                  log_device("Tape stack unselected\n");
-                  break;
+             /* If we have end status and suppress out no longer up, try and give channel our status */
+             if (*tags == (CHAN_OPR_OUT) && (ctx->status & SNS_DEVEND) != 0) {
+                 *tags |= CHAN_REQ_IN;
+             }
+
+             /* If request in and and select out, end we have end status, give channel our address */
+             if (*tags == (CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_REQ_IN) &&
+                         (ctx->status & SNS_DEVEND) != 0) {
+                 *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);      /* Clear select out and in */
+                 *tags |= CHAN_OPR_IN;
+                 ctx->state = STATE_STACK_SEL;
+                 ctx->selected = 1;
+                 log_device("reader stack selected\n");
              }
              break;
 
     case STATE_STACK_SEL:  /* Stacked status selected */
             /* Wait until address out drops to put our address on bus */
             *tags |= CHAN_OPR_IN;
+
             /* When address out drops put our address on bus in */
             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_SUP_OUT) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SUP_OUT) ||
                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SUP_OUT)) {
                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
                  *bus_in = (ctx->addr & 0xf8) | ctx->stk_unit;
                  *bus_in |= odd_parity[*bus_in];
-                 log_device("tape stacked address\n");
+                 log_device("tape stacked address %02x\n", *bus_in);
             }
 
             /* Wait for Command out to raise */
@@ -1514,6 +1424,7 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                       ctx->status |= SNS_BSY;
                   }
                  *tags &= ~(CHAN_ADR_IN);                 /* Clear address in */
+                 log_device("tape stacked drop address\n");
              }
              *tags &= ~(CHAN_SEL_OUT);             /* Clear select out and in */
              break;
@@ -1695,11 +1606,13 @@ log_device("Tape selected\n");
 
               /* See if another device got it. */
               if (ctx->selected == 0 && (*tags & (CHAN_OPR_IN|CHAN_STA_IN)) != 0) {
+log_device("Tape ready other device\n");
                   /* Drop request out until channel free again */
                   break;
               }
               /* Put request in up */
              if (ctx->selected == 0) {
+log_device("Tape request ready\n");
                  *tags |= CHAN_REQ_IN;
              }
              break;
