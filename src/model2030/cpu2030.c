@@ -1036,6 +1036,8 @@ cycle_2030()
                   strcat(dis_buffer, " ");
                   strcat(dis_buffer, cl_name[sal->CL]);
               }
+              if ((cpu_2030.FT & BIT7) != 0)
+                  strcat(dis_buffer, " SUP");
               strcat(dis_buffer, "\n");
               log_micro(dis_buffer);
            }
@@ -1518,7 +1520,9 @@ cycle_2030()
            case 0x06:    /* FI */
                   /* MPX Channel Bus-in */
                   cpu_2030.Abus = cpu_2030.FI;
-                  if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_STA_IN)) == (CHAN_ADR_OUT|CHAN_STA_IN)) {
+                  if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_STA_IN))
+                           == (CHAN_ADR_OUT|CHAN_STA_IN)) {
+                      cpu_2030.MPX_TAGS |= CHAN_SRV_OUT;
                       cpu_2030.MPX_TAGS &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                   }
                   allow_a_reg_chk = 1;
@@ -2415,6 +2419,11 @@ chan_scan:
             cpu_2030.MPX_TAGS &= ~CHAN_ADR_OUT;
         }
 
+//        /* Drop address out when we get status in */
+ //       if ((cpu_2030.MPX_TI & (CHAN_ADR_OUT|CHAN_STA_IN)) == (CHAN_ADR_OUT|CHAN_STA_IN)) {
+  //          cpu_2030.MPX_TAGS &= ~CHAN_ADR_OUT;
+   //     }
+
         /* If device responded drop select out */
         if ((cpu_2030.MPX_TAGS & CHAN_SEL_OUT) != 0 &&
                (cpu_2030.MPX_TI & (CHAN_OPR_IN|CHAN_ADR_IN)) == (CHAN_OPR_IN|CHAN_ADR_IN)) {
@@ -2677,7 +2686,8 @@ chan_scan:
                 log_selchn("SEL IRQ2 %d %d\n", sel_ros_req, h_backup & BIT5);
             } else {
                 cpu_2030.WX = cpu_2030.FWX;
-                log_selchn("SEL IRQ %d %d\n", sel_ros_req, h_backup & BIT5);
+                cpu_2030.STAT_REG = cpu_2030.MPX_STAT;
+                log_mpxchn("MPX IRQ %d %d\n", sel_ros_req, h_backup & BIT5);
             }
         }
         /* Update the priority latch */
