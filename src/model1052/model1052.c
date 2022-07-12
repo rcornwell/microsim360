@@ -182,6 +182,13 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  log_device("console selected\n");
                  break;
              }
+             /* If attention key pressed report to system */
+             if (ctx->attn_flg) {
+                log_device("console attention\n");
+                ctx->status |= SNS_ATTN;
+                ctx->state = STATE_REQ;
+                ctx->attn_flg = 0;
+             }
              break;
 
     case STATE_SEL:
@@ -370,6 +377,7 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                         model1052_func(ctx, &out_tags, in_tags, &t_request);
                         if (out_tags & BIT1) {
                             model1052_in(ctx, &ctx->data);
+                            log_console("Console Read %02x\n", ctx->data);
                             ctx->data_rdy = 1;
                         } else if (out_tags & BIT0) {
                             ctx->data_end = 1;
@@ -390,19 +398,21 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 
              /* If data end, tell CPU */
              if (ctx->data_end) {
+                 ctx->status |= SNS_CHNEND|SNS_DEVEND;
                  switch (ctx->cmd & 0xf) {
                  case 0: /* Test I/O */
                  case 3: /* Nop */
                  case 4:  /* Sense */
                  default:
-                        ctx->status |= SNS_CHNEND|SNS_DEVEND;
                         break;
                  case 9: /* Write ACR */
-                        in_tags = BIT5;
+                        in_tags = BIT7|BIT5;
                         model1052_func(ctx, &out_tags, in_tags, &t_request);
                         break;
 
                  case 1: /* Write */
+                        in_tags = BIT7;
+                        model1052_func(ctx, &out_tags, in_tags, &t_request);
                         break;
                  case 0xa: /* Read */
                         in_tags = BIT1|BIT3;
@@ -466,7 +476,7 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 
              /* If select out dropped, and no data, drop oper in */
              if (ctx->selected && (*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
-                                   *tags == (CHAN_OPR_OUT|CHAN_OPR_IN))) {
+                                   *tags == (CHAN_OPR_OUT|CHAN_OPR_IN)) && ctx->data_rdy && ctx->data_end) {
                 *tags &= ~(CHAN_OPR_IN);
                 ctx->selected = 0;
                 break;
@@ -501,7 +511,9 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags == (CHAN_OPR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
                   *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
                   ctx->selected = 1;
-                  if (ctx->data_end) {
+                  if ((ctx->status & SNS_ATTN) != 0) {
+                      ctx->state = STATE_END;
+                  } else if (ctx->data_end) {
                       ctx->state = (ctx->status & SNS_DEVEND) ? STATE_END : STATE_DATA_END;
                   } else {
                       ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
@@ -539,7 +551,7 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                        ctx->data_end = 1;
                    } else {
                        ctx->data = bus_out & 0xff; /* Grab data */
-                       model1052_out(ctx, (bus_out & 0xff));
+                       model1052_out(ctx, bus_out);
                    }
                    ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
                    break;
@@ -569,7 +581,7 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
               }
 
               *tags |= CHAN_OPR_IN|CHAN_SRV_IN;
-              *bus_in = ctx->data | odd_parity[ctx->data];
+              *bus_in = ctx->data;
               /* Wait for data to be accepted */
               if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_SRV_IN) ||
                   *tags == (CHAN_OPR_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_SRV_IN)) {
@@ -1040,10 +1052,13 @@ push_char(struct _1052_context *ctx, char in_char)
 {
     if (in_char == '\033') {
        ctx->attn_flg = 1;
+       log_console("Cons attn\n");
     } else if (ctx->in_flg) {
        if (in_char == '\03') {
            ctx->cancel_flg = 1;
+           log_console("Cons cancel\n");
        } else if (in_char == '\r') {
+           log_console("Cons eob\n");
            ctx->eob_flg = 1;
        } else {
            ctx->key_buf[ctx->in_ptr++] = in_char;
@@ -1112,6 +1127,7 @@ model1052_thrd(void *data)
         /* Send any data ready to send */
         if (ctx->out_flg) {
             send(ctx->cons, &ctx->out_buf, 1, 0);
+            log_console("Cons send char(%02x)\n", ctx->out_buf);
             ctx->out_flg = 0;
             if (ctx->out_buf == '\r')
                send(ctx->cons, "\n", 1, 0);
@@ -1171,7 +1187,7 @@ int
 model1052_create(struct _option *opt)
 {
     struct _device  *dev1052;
-    void            *ctx;
+    struct _1052_context *ctx;
     uint16_t         port = 3270;
     struct _option   opts;
 
@@ -1196,7 +1212,7 @@ model1052_create(struct _option *opt)
     }
     if ((dev1052 = calloc(1, sizeof(struct _device))) == NULL)
          return 0;
-    if ((ctx = model1052_init_ctx(port)) == NULL) {
+    if ((ctx = (struct _1052_context *)model1052_init_ctx(port)) == NULL) {
          free(dev1052);
          return 0;
     }
@@ -1211,6 +1227,9 @@ model1052_create(struct _option *opt)
     dev1052->rect[0].h = 0;
     dev1052->n_units = 1;
     dev1052->addr = opt->addr;
+    ctx->addr = opt->addr & 0xff;
+    ctx->chan = (opt->addr >> 8) & 0xf;
+    ctx->state = STATE_IDLE;
 
     if (opt->addr != 0)
        add_chan(dev1052, opt->addr);

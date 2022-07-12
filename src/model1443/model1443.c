@@ -314,7 +314,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                             ctx->sense = SENSE_CMDREJ;
                             break;
                         }
-                        add_event(unit, done_callback, 100 * print_line(ctx), NULL, 0);
+                        add_event(unit, done_callback, 1000 * print_line(ctx), NULL, 0);
                         ctx->status = (SNS_CHNEND);
                         ctx->data_end = 1;
                         break;
@@ -416,14 +416,6 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 
     case STATE_OPR:
               log_device("printer opr %d\n", ctx->selected);
-#if 0
-             /* Wait for Command out to drop */
-             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_CMD_OUT|CHAN_OPR_IN) ||
-                 *tags == (CHAN_CMD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN)) {
-                  log_device("Opr wait\n");
-                 break;
-             }
-#endif
 
              /* If we are selected clear select in */
              if (ctx->selected)
@@ -443,7 +435,7 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 }
 
                 if ((ctx->cmd & 07) == 1) { /* If write, print the line */
-                    add_event(unit, done_callback, 100 * print_line(ctx), NULL, 0);
+                    add_event(unit, done_callback, 1000 * print_line(ctx), NULL, 0);
                     ctx->status |= SNS_CHNEND;
                 }
 
@@ -573,19 +565,18 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                    } else {
                        ctx->data = bus_out; /* Grab data */
                        ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
-                       if (ctx->cnt == 4) {                /* Check if we got 4 bytes */
+                       ctx->buf[ctx->col] = ctx->data & 0xff;
+                       ctx->col++;
+                       ctx->cnt++;
+                       ctx->data_rdy = 1;
+                       if (ctx->cnt == 3) {                /* Check if we got 4 bytes */
                           ctx->cnt = 0;                    /* Allow other devices to grab bus */
                           if ((*tags & (CHAN_SEL_OUT)) == 0) {
                               *tags &= ~(CHAN_OPR_IN);     /* Clear operator in */
                               ctx->selected = 0;           /* Drop selected flag */
                           }
-                          ctx->data_rdy = 1;
-                       } else if (ctx->col < 120) {
-                          ctx->buf[ctx->col] = ctx->data & 0xff;
-                          ctx->col++;
-                          ctx->cnt++;
-                          ctx->data_rdy = 1;
-                       } else {
+                       } 
+                       if (ctx->col == 120) {
                           ctx->data_rdy = 0;
                           ctx->data_end = 1;
                        }
@@ -743,19 +734,43 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              break;
 
     case STATE_STACK:
-            /* Wait until Channels asks for us */
-            if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT)) &&
-                 (bus_out & 0xff) == ctx->addr) {
-                 /* Device selected */
-                 if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                     ctx->sense |= SENSE_BUSCHK;
-                 *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
+             /* Wait until Channels asks for us */
+             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
+                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN|CHAN_SUP_OUT)) {
+                  if ((bus_out & 0xff) == ctx->addr) {
+                      /* Device selected */
+                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
+                          ctx->sense |= SENSE_BUSCHK;
+                      *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
+                      *tags |= CHAN_OPR_IN;
+                      ctx->state = STATE_STACK_SEL;
+                      ctx->selected = 1;
+                      log_device("printer stack selected\n");
+                  } else {  /* Somebody else */
+                      if ((ctx->status & SNS_DEVEND) != 0) {
+                           *tags &= ~CHAN_REQ_IN;    /* Clear request in */
+                      }
+                  }
+             }
+
+             /* If we have end status and suppress out no longer up, try and give channel our status */
+             if (*tags == (CHAN_OPR_OUT) && (ctx->status & SNS_DEVEND) != 0) {
+                 *tags |= CHAN_REQ_IN;
+             }
+
+
+             /* If request in and and select out, end we have end status, give channel our address */
+             if (*tags == (CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_REQ_IN) && 
+                         (ctx->status & SNS_DEVEND) != 0) {
+                 *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);      /* Clear select out and in */
                  *tags |= CHAN_OPR_IN;
                  ctx->state = STATE_STACK_SEL;
                  ctx->selected = 1;
                  log_device("printer stack selected\n");
-            }
+             }
+
             break;
 
     case STATE_STACK_SEL:
@@ -764,6 +779,8 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
             /* When address out drops put our address on bus in */
             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_SUP_OUT) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SUP_OUT) ||
                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
                 *tags == (CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SUP_OUT)) {
                  *tags &= ~(CHAN_SEL_OUT);
@@ -830,26 +847,38 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              break;
 
     case STATE_WAIT:
-// log_device("wait %d %d\n", ctx->selected, ctx->delay);
              /* If we get select out with address out, reselection */
              if (!ctx->selected &&
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
-                (bus_out & 0xff) == ctx->addr) {
-                *tags &= ~(CHAN_SEL_OUT);
+                 (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
+                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_ADR_OUT)) &&
+                 (bus_out & 0xff) == ctx->addr) {
                 /* Device selected */
                 *tags |= CHAN_STA_IN;
+                *tags &= ~(CHAN_SEL_OUT);                 /* Clear select out and in */
                 *bus_in = SNS_BSY;
-                *bus_in |= odd_parity[*bus_in];
                 ctx->selected = 1;
-                log_device("printer wait select attempt\n");
+                log_device("wait select attempt\n");
              }
 
              /* If selected clear status in when select out drops */
-             if (ctx->selected && *tags == (CHAN_ADR_OUT|CHAN_OPR_OUT|CHAN_STA_IN)) {
+             if (ctx->selected) {
                 /* Device selected */
-                *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);
+                *tags &= ~(CHAN_SEL_OUT);          /* Clear status in */
+                log_device("wait selected\n");
+             }
+
+             /* If selected clear status in when select out drops */
+             if (ctx->selected && (*tags & CHAN_SRV_OUT) != 0) {
+                /* Device selected */
+                *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);          /* Clear status in */
+                log_device("wait status received\n");
+             }
+
+             /* Wait until Address out drops */
+             if (ctx->selected && (*tags == (CHAN_OPR_OUT) || *tags == (CHAN_OPR_OUT|CHAN_SUP_OUT))) {
+                /* Device selected */
                 ctx->selected = 0;
-                log_device("printer wait deselect\n");
+                log_device("wait deselect\n");
              }
 
              if (ctx->feed_done) {
@@ -876,7 +905,8 @@ print_line(struct _1443_context *ctx)
     int                 i;
     int                 l = (ctx->cmd >> 3) & 0x1f;
     int                 f = 1;
-    int                 r = 0;     /* Rows skipped */
+    int                 r = 0;          /* Rows skipped */
+    int                 time = 0;       /* Amount of time it took to print this line */
     uint16_t            mask;
     int                 ch9, ch12;
 
@@ -907,6 +937,7 @@ print_line(struct _1443_context *ctx)
         fwrite(&out, 1, i, ctx->file);
         log_device( " Printer: %s\n", out);
         memset(ctx->buf, 0x40, sizeof(ctx->buf));
+        time = 11;
     }
     fflush(ctx->file);
 
@@ -945,7 +976,8 @@ print_line(struct _1443_context *ctx)
         log_device( " Printer chan 12\n");
            ctx->status |= SNS_UNITEXP;
         }
-        return r;
+        time += 20 + (5 * r);
+        return time;
     }
 
     mask = 0x1000 >> (l & 0xf);  /* Mask which channel to stop at */
@@ -983,7 +1015,7 @@ print_line(struct _1443_context *ctx)
            }
         }
     }
-
+    time += 20 + (5 * l);
     return l;
 }
 
@@ -1033,7 +1065,7 @@ draw_model1443(struct _device *unit, void *rend)
     SDL_FreeSurface(text);
     SDL_QueryTexture(txt, &i, &j, &rect2.w, &rect2.h);
     rect2.x = rect.x+200;
-    rect2.y = 20;
+    rect2.y = y + 20;
     SDL_RenderCopy(render, txt, NULL, & rect2);
     SDL_DestroyTexture(txt);
     /* Draw the paper.  */
