@@ -195,10 +195,34 @@ uint8_t     MPX_LST;            /* Last word for MPX */
 uint32_t    B_REG[4];           /* Select channel B regiser */
 uint32_t    C_REG[4];           /* Select channel C regiser */
 uint32_t    IOSTAT;             /* I/O Status register */
-uint16_t    GR_REG[4];          /* Selector General register */
+
+/* GP Register.
+ *
+ *  Bit 0   Bitcount high.
+ *  Bit 1   Bitcount low.
+ *  Bit 2   Last count high.
+ *  Bit 3   Last count low.
+ *  Bit 4   1 more word.
+ *  Bit 5   2 more words.
+ *  Bit 6   3 more words.
+ */
+uint16_t    GP_REG[4];          /* Selector General register */
+/* OP Register.
+ *  Bit 0   UA Fetch
+ *  Bit 1   CCW1 Type
+ *  Bit 2   CCS2 Type
+ *  Bit 3   Unit Select
+ *  Bit 4   RD Store
+ *  Bit 5   WR Fetch
+ *  Bit 6   End UP
+ *  Bit 7   Compare.
+ *  Bit 8   Irpt.
+ */
+uint16_t    POS[4];             /* Channel position register */
 uint16_t    TAGS[4];            /* channel tags. */
 uint16_t    CHPOS[4];           /* Channel position register */
 uint16_t    CHCLK[4];           /* Channel position register */
+uint8_t     CCLK[4];            /* Channel clock register */
 
 } cpu_2050;
 

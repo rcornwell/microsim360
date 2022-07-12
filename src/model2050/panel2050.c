@@ -175,7 +175,7 @@ setup_fp2050(void *rend)
     int	     hx, wx;
     int      h2, w2;
     int      mark[40];
-    char     buffer[20];
+    char     buffer[40];
     Uint32   f;
     SDL_Renderer *render = (SDL_Renderer *)rend;
 
