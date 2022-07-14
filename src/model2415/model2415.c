@@ -36,7 +36,6 @@
 #include "device.h"
 #include "xlat.h"
 #include "tape.h"
-#include "model2415.h"
 
 #include "model2415.xpm"
 #include "tape_images.xpm"

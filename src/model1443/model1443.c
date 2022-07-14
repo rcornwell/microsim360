@@ -34,7 +34,6 @@
 #include "logger.h"
 #include "event.h"
 #include "xlat.h"
-#include "model1443.h"
 #include "model1443.xpm"
 
 /*

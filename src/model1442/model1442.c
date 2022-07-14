@@ -33,7 +33,6 @@
 #include "event.h"
 #include "panel.h"
 #include "card.h"
-#include "model1442.h"
 #include "model1442.xpm"
 #include "xlat.h"
 
