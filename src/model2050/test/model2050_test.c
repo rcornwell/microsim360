@@ -36,6 +36,7 @@
 
 #define FTEST(a, b)   CTEST(a, b)
 #define DTEST(a, b)   CTEST(a, b)
+#define MTEST(a, b)   CTEST(a, b)
 
 uint64_t         step_count;
 int              testcycles = 100;

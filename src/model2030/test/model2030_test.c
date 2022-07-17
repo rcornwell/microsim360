@@ -42,6 +42,7 @@ int              irq_mask = 0xe1;
 
 #define FTEST(a, b)   CTEST_SKIP(a, b)
 #define DTEST(a, b)   CTEST(a, b)
+#define MTEST(a, b)   CTEST_SKIP(a, b)
 
 /* Set ILC code */
 void
@@ -296,7 +297,6 @@ test_inst(int mask)
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
     } while (cpu_2030.WX != 0x100);
     log_trace("first\n");
     do {
@@ -304,7 +304,6 @@ test_inst(int mask)
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
     } while (cpu_2030.WX != 0x100);
     log_trace("second\n");
 }
@@ -326,7 +325,6 @@ test_inst2()
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
     } while (cpu_2030.WX != 0x100);
     log_trace("first\n");
     do {
@@ -334,7 +332,6 @@ test_inst2()
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
     } while (cpu_2030.WX != 0x100);
     log_trace("second\n");
     do {
@@ -342,7 +339,6 @@ test_inst2()
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
     } while (cpu_2030.WX != 0x100);
     log_trace("third\n");
 }
@@ -428,7 +424,6 @@ test_io_inst(int mask)
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
         if (cpu_2030.WX == 0x2E0 && cpu_2030.R_REG == 0x100)
             stop_flag = 1;
     } while (stop_flag == 0);
@@ -452,7 +447,6 @@ test_io_inst2()
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
     } while (cpu_2030.WX != 0x100);
     log_trace("first\n");
     do {
@@ -460,7 +454,6 @@ test_io_inst2()
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
     } while (cpu_2030.WX != 0x100);
     log_trace("second\n");
     do {
@@ -468,7 +461,6 @@ test_io_inst2()
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-        log_trace("WX = [%03X]\n", cpu_2030.WX);
     } while (cpu_2030.WX != 0x100);
     log_trace("third\n");
 }

@@ -1832,7 +1832,7 @@
   }
 
   /* Shift double right arithmatic */
-  CTEST(instruct, slda3) {
+  CTEST(instruct, slda) {
       /* From Princ Ops p143 */
       init_cpu();
       set_reg( 2, 0x007f0a72);
@@ -1840,6 +1840,46 @@
       set_mem(0x400, 0x8f2f001f); /* SLDA 2,1f(0) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x7f6e5d4c, get_reg(2));
+      ASSERT_EQUAL_X(0x00000000, get_reg(3));
+  }
+
+  CTEST(instruct, slda1) {
+      init_cpu();
+      set_reg( 2, 0xffffffff);
+      set_reg( 3, 0xffffe070);
+      set_mem(0x400, 0x8f2f0030); /* SLDA 2,30(0) */
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0xe0700000, get_reg(2));
+      ASSERT_EQUAL_X(0x00000000, get_reg(3));
+  }
+
+  CTEST(instruct, slda2) {
+      init_cpu();
+      set_reg( 2, 0xffffffff);
+      set_reg( 3, 0xc0506070);
+      set_mem(0x400, 0x8f2f0020); /* SLDA 2,20(0) */
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0xc0506070, get_reg(2));
+      ASSERT_EQUAL_X(0x00000000, get_reg(3));
+  }
+
+  CTEST(instruct, slda3) {
+      init_cpu();
+      set_reg( 2, 0xff902030);
+      set_reg( 3, 0x40506070);
+      set_mem(0x400, 0x8f2f0008); /* SLDA 2,8(0) */
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0x90203040, get_reg(2));
+      ASSERT_EQUAL_X(0x50607000, get_reg(3));
+  }
+
+  CTEST(instruct, slda4) {
+      init_cpu();
+      set_reg( 2, 0x00000000);
+      set_reg( 3, 0x000076f7);
+      set_mem(0x400, 0x8f2f0030); /* SLDA 2,30(0) */
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0x76f70000, get_reg(2));
       ASSERT_EQUAL_X(0x00000000, get_reg(3));
   }
 
@@ -4260,4 +4300,21 @@ struct _dec_case {
 //      ASSERT_EQUAL(CC2, CC_REG); /* Positive */
       ASSERT_EQUAL_X(0x12345678, get_reg(3));
  //     ASSERT_EQUAL(CC3, CC_REG);
+  }
+
+  MTEST(instruct, mvin) {
+      init_cpu();
+      log_trace("MVIN\n");
+      set_mem(0x200, 0xC1C2C3C4);
+      set_mem(0x204, 0xC5C6C7C8);
+      set_mem(0x208, 0xC9CACB00);
+      set_mem(0x300, 0xF1F2F3F4);
+      set_mem(0x304, 0xF5F6F7F8);
+      set_mem(0x308, 0xF9000000);
+      set_mem(0x400, 0xe8070200);  /* MVINV 200(7),300 */
+      set_mem(0x404, 0x03070000);
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0xF8F7F6F5, get_mem(0x200));
+      ASSERT_EQUAL_X(0xF4F3F2F1, get_mem(0x204));
+      ASSERT_EQUAL_X(0xC9CACB00, get_mem(0x208));
   }

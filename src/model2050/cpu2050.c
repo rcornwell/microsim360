@@ -1144,16 +1144,13 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
             if (timer_update) {   /* Timer update, give it priority */
                b_bit = 1;
                a_bit = 1;
-log_trace("Time Up\n");
             }
             if (cpu_2050.IBFULL && (cpu_2050.MASK & BIT0) != 0) {
                b_bit = 1;
-log_trace("Chan\n");
-}
+            }
             if ((cpu_2050.MASK & BIT7) != 0 && (INTR | timer_irq)) {
                a_bit = 1;
-log_trace("Ext %d t=%d\n", INTR, timer_irq);
-}
+            }
             break;
     case 59: /* CROS: Direct date hold sense branch  */
             break;
