@@ -32,7 +32,7 @@ set (${PROJECT_NAME}_VERSION_MINOR 0)
 
 option(RUN_TESTS "Run tests" ON)
 # Generate Doxygen documentation files
-option(BUILD_DOC "Build documenation" ON)
+option(BUILD_DOC "Build documenation" OFF)
 
 if (BUILD_DOC)
     find_package(Doxygen REQUIRED)
