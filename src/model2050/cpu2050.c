@@ -830,11 +830,9 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
         for (i = 0; i < 16; i++) {
             log_itrace_c(" GR%02d = %08x", i, cpu_2050.LS[0x30 + i]);
             if ((i & 0x3) == 0x3) {
-                 log_itrace("");
                  log_itrace_s(" ");
             }
         }
-        log_itrace("");
     }
 
     /* Disassemble micro instruction */

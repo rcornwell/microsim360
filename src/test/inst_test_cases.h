@@ -2975,7 +2975,7 @@
   /* Test ssm instruction */
   CTEST(instruct, ssm) {
       init_cpu();
-      MASK = 0xff;
+      set_mask(0xff);
       set_key(3);
       set_amwp(0x8); /* Privileged */
       set_cc(CC1);
@@ -2983,7 +2983,7 @@
       set_mem(0x110, 0xaabbccdd); /* Access byte 1 */
       set_mem(0x400, 0x80ee3100); /* "SSM 100(3); */
       test_inst(0xa);
-      ASSERT_EQUAL_X(0xbb & irq_mask, MASK);
+      ASSERT_EQUAL_X(0xBB, get_mask());
       ASSERT_EQUAL_X(3, get_key());
       ASSERT_EQUAL_X(0x8, get_amwp());
       ASSERT_EQUAL(CC1, CC_REG);
@@ -2996,7 +2996,7 @@
   CTEST(instruct, ssm_unpriv) {
       init_cpu();
       set_key(0);
-      MASK = 0xff;
+      set_mask(0xff);
       set_amwp(0x1); /* problem state */
       set_cc(CC1);
       set_mem(0x400, 0x80ee3100); /* SSM 100(3) */
@@ -3021,7 +3021,7 @@
       ASSERT_EQUAL(CC1, CC_REG);
       ASSERT_EQUAL_X(0xa, PM);
       ASSERT_EQUAL_X(0x003450, IAR);
-      ASSERT_EQUAL_X(0xE1 & irq_mask, MASK);
+      ASSERT_EQUAL_X(0xE1, get_mask());
       set_key(0);
   }
 
@@ -3030,7 +3030,7 @@
       init_cpu();
       set_key(0);
       set_amwp(1);
-      MASK = 0xE1;
+      set_mask(0xE1);
       set_cc(CC1);
       set_mem(0x60, 0xE1345678);
       set_mem(0x64, 0x9a003450);  /* Branch to 3450 */
@@ -3042,7 +3042,7 @@
       ASSERT_EQUAL(CC1, CC_REG);
       ASSERT_EQUAL_X(0xa, PM);
       ASSERT_EQUAL_X(0x003450, IAR);
-      ASSERT_EQUAL_X(0xE1 & irq_mask, MASK);
+      ASSERT_EQUAL_X(0xE1, get_mask());
       ASSERT_EQUAL_X(0xE1010012, get_mem(0x20)); /* Validate OPSW */
       ASSERT_EQUAL_X(0x54000402, get_mem(0x24));
       set_key(0);

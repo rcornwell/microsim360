@@ -38,11 +38,24 @@
 
 uint64_t         step_count;
 int              testcycles = 100;
-int              irq_mask = 0xe1;
 
 #define FTEST(a, b)   CTEST_SKIP(a, b)
 #define DTEST(a, b)   CTEST(a, b)
 #define MTEST(a, b)   CTEST_SKIP(a, b)
+
+/* Set MASK */
+void set_mask(uint8_t mask)
+{
+    MASK = mask;
+    cpu_2030.LS[0x7b8] = mask;
+    cpu_2030.LS[0x7b8] |= odd_parity[cpu_2030.LS[0x7b8]];
+}
+
+/* Get MASK */
+uint8_t get_mask()
+{
+    return cpu_2030.LS[0x7b8] & 0xff;
+}
 
 /* Set ILC code */
 void

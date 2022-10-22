@@ -49,7 +49,12 @@
 
 extern uint64_t         step_count;
 extern int              testcycles;
-extern int              irq_mask;
+
+/* Set MASK */
+void set_mask(uint8_t mask);
+
+/* Get MASK */
+uint8_t get_mask();
 
 /* Set AMWP */
 void set_amwp(int num);

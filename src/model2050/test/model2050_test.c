@@ -40,7 +40,18 @@
 
 uint64_t         step_count;
 int              testcycles = 100;
-int              irq_mask = 0xff;
+
+/* Set MASK */
+void set_mask(uint8_t mask)
+{
+    MASK = mask;
+}
+
+/* Get MASK */
+uint8_t get_mask()
+{
+    return MASK;
+}
 
 void
 set_amwp(int n) {
