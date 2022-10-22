@@ -114,18 +114,6 @@ static struct _labels sw_labels[] = {
 };
 
 
-uint32_t      ADR_CMP;
-uint32_t      INST_REP;
-uint32_t      ROS_CMP;
-uint32_t      ROS_REP;
-uint32_t      SAR_CMP;
-uint32_t      FORC_IND;
-uint32_t      FLT_MODE;
-uint32_t      CHN_MODE;
-uint8_t       SEL_SW;
-int           SEL_ENTER;
-
-
 static int switch_offset[33] = {
    /* 0  1   2   3   4   5   6   7   8   9 */
      60, 24, 23, 24, 23, 24, 23, 24, 47, 23,

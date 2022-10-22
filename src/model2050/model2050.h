@@ -102,7 +102,7 @@ uint8_t     MP[256];
 uint8_t     mem_state;           /* Storage cycle state */
 
 
-int         mem_max;             /* Maximum memory address - 1 */
+uint32_t    mem_max;             /* Maximum memory address - 1 */
 uint8_t     io_mode;             /* CPU or I/O mode of operation */
 uint32_t    ros_row1;            /* Current ROS data */
 uint32_t    ros_row2;

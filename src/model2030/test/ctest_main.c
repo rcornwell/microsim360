@@ -87,8 +87,6 @@ uint8_t  test_mode;
 uint8_t  clock_start_lch;
 uint8_t  load_mode;
 
-uint32_t *M;
-uint32_t mem_max;
 
 /* The following functions are referenced by the 2030 simulator, 
    but do not need to preform any function during unit test.
