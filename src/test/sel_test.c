@@ -110,7 +110,7 @@ CTEST2(sel_test, sio_read_burst) {
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_cc(CC0);
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -151,7 +151,7 @@ CTEST2(sel_test, sio2_read_noburst) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 0;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -192,7 +192,7 @@ CTEST2(sel_test, sio3_write) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -235,7 +235,7 @@ CTEST2(sel_test, sio4_write_burst) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -321,7 +321,7 @@ CTEST2(sel_test, short_read) {
 log_trace("Short read\n");
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -371,7 +371,7 @@ CTEST2(sel_test, short_read_sli) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -421,7 +421,7 @@ CTEST2(sel_test, short_write_burst) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -465,7 +465,7 @@ log_trace("CDA Test\n");
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -517,7 +517,7 @@ CTEST2(sel_test, cda_read2) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -569,7 +569,7 @@ CTEST2(sel_test, write_cda) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -621,7 +621,7 @@ CTEST2(sel_test, cda_read_skip) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -673,7 +673,7 @@ CTEST2(sel_test, read_back) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -717,7 +717,7 @@ CTEST2(sel_test, cmd_chain) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
 log_trace("CMD CHAIN\n");
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
@@ -763,7 +763,7 @@ CTEST2(sel_test, tic_error) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -800,7 +800,7 @@ CTEST2(sel_test, tic_tic) {
      }
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
 log_trace("TIC TIC\n");
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
@@ -856,7 +856,7 @@ CTEST2(sel_test, tic_test) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
 log_trace("TIC TEST\n");
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
@@ -909,7 +909,7 @@ CTEST2(sel_test, sms_test) {
      data->test_ctx.sms = 1;
      data->test_ctx.burst = 1;
 log_trace("SMS TEST\n");
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -965,7 +965,7 @@ CTEST2(sel_test, pci_test) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x40;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
 log_trace("PCI TEST\n");
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
@@ -1034,7 +1034,7 @@ CTEST2(sel_test, halt_io) {
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x40;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -1060,7 +1060,7 @@ log_trace("HIO 2\n");
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x80;
      data->test_ctx.burst = 1;
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -1118,7 +1118,7 @@ CTEST2(sel_test, tio_busy) {
      data->test_ctx.max_data = 0x80;
      data->test_ctx.burst = 1;
 log_trace("TIO Busy\n");
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -1167,7 +1167,7 @@ CTEST2(sel_test, read_prot) {
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -1212,7 +1212,7 @@ CTEST2(sel_test, write_prot) {
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
 log_trace("Prot\n");
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -1255,7 +1255,7 @@ CTEST2(sel_test, read_prot2) {
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);
@@ -1300,7 +1300,7 @@ CTEST2(sel_test, write_prot2) {
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
 log_trace("Prot\n");
-     MASK = 0x00;
+     set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
      set_mem(0x78, 0x00000000);

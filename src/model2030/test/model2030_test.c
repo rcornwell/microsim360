@@ -46,7 +46,7 @@ int              testcycles = 100;
 /* Set MASK */
 void set_mask(uint8_t mask)
 {
-    MASK = mask;
+    cpu_2030.MASK = mask;
     cpu_2030.LS[0x7b8] = mask;
     cpu_2030.LS[0x7b8] |= odd_parity[cpu_2030.LS[0x7b8]];
 }

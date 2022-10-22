@@ -35,8 +35,6 @@
 
 #define IAR   (((cpu_2030.I_REG & 0xff) << 8) | (cpu_2030.J_REG & 0xff))
 
-#define MASK   cpu_2030.MASK
-
 extern uint64_t         step_count;
 extern int              testcycles;
 

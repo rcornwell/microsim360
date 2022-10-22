@@ -33,8 +33,6 @@
 
 #define IAR  (cpu_2050.IA_REG)
 
-#define MASK cpu_2050.MASK
-
 #define PM            cpu_2050.PMASK
 
 #define set_ilc(n)    cpu_2050.ILC = n

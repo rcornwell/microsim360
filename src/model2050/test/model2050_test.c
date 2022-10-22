@@ -44,13 +44,13 @@ int              testcycles = 100;
 /* Set MASK */
 void set_mask(uint8_t mask)
 {
-    MASK = mask;
+    cpu_2050.MASK = mask;
 }
 
 /* Get MASK */
 uint8_t get_mask()
 {
-    return MASK;
+    return cpu_2050.MASK;
 }
 
 void
@@ -62,7 +62,7 @@ set_amwp(int n) {
 
 void
 set_key(int n) {
-    cpu_2050.LS[0x17] = (MASK << 24) | (n << 20);
+    cpu_2050.LS[0x17] = (cpu_2050.MASK << 24) | (n << 20);
     cpu_2050.KEY = n;
 }
 
