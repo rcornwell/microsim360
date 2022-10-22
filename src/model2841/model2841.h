@@ -170,6 +170,7 @@ struct _2841_context {
 };
 
 void   step_2841(void *data);
+void    model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 struct _device *model2841_init(void *render, uint16_t addr);
 #endif
 #endif
