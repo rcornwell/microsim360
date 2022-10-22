@@ -21,42 +21,41 @@
 
 # Program to convert ROS text into C data.
 set(CROS30 ${CMAKE_CURRENT_SOURCE_DIR}/ccros2030.txt)
-add_executable(cros2030 cros2030.c ../device/xlat.c)
-target_include_directories(cros2030 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-                                ${CMAKE_CURRENT_SOURCE_DIR}/..
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../device )
+add_executable(cros2030 cros2030.c)
+target_include_directories(cros2030 PRIVATE ${includes})
+target_include_directories(cros2030 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_custom_target(model2030_ros.h
        COMMAND cros2030 ${CROS30} model2030_ros.h
        COMMENT "Building model 2030 ROS data"
        DEPENDS cros2030 ${CROS30})
 
-set(model2030_src cpu2030.c model2030_ros.c)
-target_sources(${PROJECT_NAME} PUBLIC ${model2030_src} panel2030.c)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-add_dependencies(${PROJECT_NAME} model2030_ros.h)
+add_library(model2030lib)
+target_sources(model2030lib PRIVATE cpu2030.c model2030_ros.c)
+target_include_directories(model2030lib PRIVATE ${includes})
+target_include_directories(model2030lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+add_dependencies(model2030lib model2030_ros.h)
+
+target_sources(${PROJECT_NAME} PUBLIC panel2030.c)
+target_link_libraries(${PROJECT_NAME} PUBLIC model2030lib)
+
 
 if (RUN_TESTS)
 add_executable(inst2030_test test/ctest_main.c test/model2030_test.c
-           ../logger.c ../conf.c ../device/disassem.c ../device/xlat.c
-           ../device/device.c ../test/io_test.c ../test/sel_test.c
-           ../test/test_device.c ${model2030_src})
+           ../test/io_test.c ../test/sel_test.c ../test/test_device.c)
+target_link_libraries(inst2030_test model2030lib)
+target_link_libraries(inst2030_test devicelib)
+target_link_libraries(inst2030_test toplib)
 if (UNIX)
 target_link_libraries(inst2030_test m)
 endif()
-add_dependencies(inst2030_test model2030_ros.h)
 add_custom_command(TARGET inst2030_test
             COMMAND inst2030_test
             COMMENT "Test instructions for 2030"
             VERBATIM)
-target_include_directories(inst2030_test PRIVATE
-                                ${CMAKE_CURRENT_SOURCE_DIR}
-                                ${CMAKE_CURRENT_SOURCE_DIR}/test
-                                ${CMAKE_CURRENT_BINARY_DIR}
-                                ${CMAKE_CURRENT_SOURCE_DIR}/..
-                                ${CMAKE_CURRENT_BINARY_DIR}/..
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../test
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../device )
+target_include_directories(inst2030_test PRIVATE ${includes}
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}/test
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}/../test)
 add_test(NAME inst2030_test COMMAND inst2030_test )
 endif()
 

@@ -18,25 +18,26 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+add_library(devicelib card.c disassem.c device.c tape.c xlat.c dasd.c panel.c)
+target_include_directories(devicelib PUBLIC ${includes}
+                                            ${SDL2_INCLUDE_DIRS}
+                                            ${SDL2_IMAGE_INCLUDE_DIRS}
+                                            ${SDL2_TTF_INCLUDE_DIRS})
 
-target_sources(${PROJECT_NAME} PUBLIC card.c disassem.c device.c tape.c xlat.c dasd.c panel.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(${PROJECT_NAME} PUBLIC devicelib)
 
 if (RUN_TESTS)
-add_executable(device_test test/ctest_main.c
-                           test/card_test.c
-                           test/tape_test.c
-                           tape.c card.c xlat.c ../logger.c ../conf.c)
+add_executable(device_test)
+target_sources(device_test PUBLIC test/ctest_main.c test/card_test.c test/tape_test.c)
+target_link_libraries(device_test PUBLIC devicelib)
+target_link_libraries(device_test PUBLIC toplib)
+target_include_directories(device_test PUBLIC ${includes})
 add_custom_command(TARGET device_test
             COMMAND device_test
             COMMENT "Test device emulators"
             VERBATIM)
-target_include_directories(device_test PRIVATE
-                                ${CMAKE_CURRENT_SOURCE_DIR}/..
-                                ${CMAKE_CURRENT_BINARY_DIR}/..
-                                ${CMAKE_CURRENT_SOURCE_DIR}
-                                ${CMAKE_CURRENT_BINARY_DIR})
 add_test(NAME device_test COMMAND device_test )
 endif()
 

@@ -24,7 +24,10 @@
 #       COMMENT "Building font object"
 #       DEPENDS bin2c ${FONT_SOURCE_DIR}/SourceCodePro-Black.ttf)
 
-add_subdirectory(device)
+set(includes ${CMAKE_CURRENT_BINARY_DIR}
+             ${CMAKE_CURRENT_SOURCE_DIR}
+             ${CMAKE_CURRENT_SOURCE_DIR}/image
+             ${CMAKE_CURRENT_SOURCE_DIR}/device)
 add_subdirectory(model1052)
 add_subdirectory(model1442)
 add_subdirectory(model1443)
@@ -32,18 +35,21 @@ add_subdirectory(model2030)
 add_subdirectory(model2050)
 #add_subdirectory(model2065)
 add_subdirectory(model2415)
-#add_subdirectory(model2841)
-#add_subdirectory(model2844)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
-                                                  ${CMAKE_CURRENT_SOURCE_DIR}
-                                                  ${CMAKE_CURRENT_SOURCE_DIR}/image)
-target_sources(${PROJECT_NAME} PUBLIC main.c conf.c logger.c event.c layout.c)
+add_subdirectory(model2841)
+add_subdirectory(model2844)
+add_subdirectory(device)
+add_library(toplib conf.c logger.c event.c layout.c)
+target_include_directories(toplib PUBLIC ${includes})
+target_include_directories(${PROJECT_NAME} PUBLIC ${includes})
+target_sources(${PROJECT_NAME} PUBLIC main.c)
+target_link_libraries(${PROJECT_NAME} PUBLIC toplib)
 #add_dependencies(${PROJECT_NAME} font1.h)
 
 
 if (RUN_TESTS)
-add_executable(sim_test test/ctest_main.c test/event_test.c event.c logger.c conf.c)
+add_executable(sim_test test/ctest_main.c test/event_test.c)
 
+target_link_libraries(sim_test PUBLIC toplib)
 add_custom_command(TARGET sim_test
             COMMAND sim_test
             COMMENT "Test simulator function"

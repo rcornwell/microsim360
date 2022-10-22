@@ -21,40 +21,40 @@
 
 add_executable(cros2050 cros2050.c)
 target_include_directories(cros2050 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-                                ${CMAKE_CURRENT_SOURCE_DIR}/..
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../device )
+                                            ${includes})
 add_custom_target(model2050_ros.h
        COMMAND cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt model2050_ros.h
        COMMENT "Building model 2050 ROS data"
        DEPENDS cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt)
 
-set(model2050_src cpu2050.c model2050_ros.c)
-target_sources(${PROJECT_NAME} PUBLIC ${model2050_src} panel2050.c)
+add_library(model2050lib)
+target_sources(model2050lib PRIVATE cpu2050.c model2050_ros.c)
+target_include_directories(model2050lib PRIVATE ${includes})
+target_include_directories(model2050lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+add_dependencies(model2050lib model2050_ros.h)
+target_sources(${PROJECT_NAME} PUBLIC panel2050.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/images)
-add_dependencies(${PROJECT_NAME} model2050_ros.h)
+target_link_libraries(${PROJECT_NAME} PUBLIC model2050lib)
 
 if (RUN_TESTS)
 add_executable(inst2050_test test/ctest_main.c test/model2050_test.c
-           ../logger.c ../conf.c ../device/disassem.c ../device/xlat.c
-           ../device/device.c ../test/io_test.c ../test/test_device.c ${model2050_src})
+                             ../test/io_test.c ../test/test_device.c)
+target_link_libraries(inst2050_test model2050lib)
+target_link_libraries(inst2050_test devicelib)
+target_link_libraries(inst2050_test toplib)
 if (UNIX)
 target_link_libraries(inst2050_test m)
 endif()
-add_dependencies(inst2050_test model2050_ros.h)
 add_custom_command(TARGET inst2050_test
             COMMAND inst2050_test
             COMMENT "Test instructions for 2050"
             VERBATIM)
-target_include_directories(inst2050_test PRIVATE
-                                ${CMAKE_CURRENT_SOURCE_DIR}
-                                ${CMAKE_CURRENT_SOURCE_DIR}/test
-                                ${CMAKE_CURRENT_BINARY_DIR}
-                                ${CMAKE_CURRENT_SOURCE_DIR}/..
-                                ${CMAKE_CURRENT_BINARY_DIR}/..
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../test
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../device )
+target_include_directories(inst2050_test PRIVATE ${includes}
+                                                 ${CMAKE_CURRENT_BINARY_DIR}
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}/test
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}/../test)
 add_test(NAME inst2050_test COMMAND inst2050_test )
 endif()
 

@@ -19,5 +19,6 @@
 # SOFTWARE.
 
 
+set(includes ${includes} ${CMAKE_CURRENT_SOURCE_DIR} PARENT_SCOPE)
 target_sources(${PROJECT_NAME} PUBLIC model1052.c)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+#target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

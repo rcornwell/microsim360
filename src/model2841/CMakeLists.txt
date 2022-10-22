@@ -29,29 +29,30 @@ add_custom_target(model2841_ros.h
        COMMENT "Building model 2841 ROS data"
        DEPENDS cros2841 ${CROS2841})
 
-target_sources(${PROJECT_NAME} PUBLIC model2841.c model2841_ros.c)
+add_library(model2841lib)
+target_sources(model2841lib PRIVATE model2841.c model2841_ros.c)
+target_include_directories(model2841lib PRIVATE ${includes})
+target_include_directories(model2841lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+add_dependencies(model2841lib model2841_ros.h)
+
+target_sources(${PROJECT_NAME} PUBLIC panel2841.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-add_dependencies(${PROJECT_NAME} model2841_ros.h)
+target_link_libraries(${PROJECT_NAME} PUBLIC model2841lib)
 
 if (RUN_TESTS)
-add_executable(test2841_test test/ctest_main.c test/disk_test.c
-              ../event.c ../logger.c ../conf.c ../device/dasd.c 
-              ../device/xlat.c ../device/device.c model2841.c model2841_ros.c)
-target_link_libraries(test2841_test)
-add_dependencies(test2841_test model2841_ros.h)
+add_executable(test2841_test test/ctest_main.c test/disk_test.c)
+target_link_libraries(test2841_test model2841lib)
+target_link_libraries(test2841_test devicelib)
+target_link_libraries(test2841_test toplib)
+#add_dependencies(test2841_test model2841_ros.h)
 add_custom_command(TARGET test2841_test
             COMMAND test2841_test
             COMMENT "Test instructions for 2841"
             VERBATIM)
 target_include_directories(test2841_test PRIVATE
-                                ${SDL2_INCLUDE_DIRS}
+                                ${includes}
                                 ${CMAKE_CURRENT_SOURCE_DIR}
-                                ${CMAKE_CURRENT_BINARY_DIR}
-                                ${CMAKE_CURRENT_SOURCE_DIR}/..
-                                ${CMAKE_CURRENT_BINARY_DIR}/..
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../test
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../device )
+                                ${CMAKE_CURRENT_SOURCE_DIR}/../test)
 add_test(NAME test2841_test COMMAND test2841_test )
 endif()
 
