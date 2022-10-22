@@ -31,8 +31,28 @@ set (${PROJECT_NAME}_VERSION_MAJOR 0)
 set (${PROJECT_NAME}_VERSION_MINOR 0)
 
 option(RUN_TESTS "Run tests" ON)
+# Generate Doxygen documentation files
+option(BUILD_DOC "Build documenation" ON)
+
+if (BUILD_DOC)
+    find_package(Doxygen REQUIRED)
+    if (NOT DOXYGEN_FOUND)
+    message(WARNING "Doxygen not found, unable to generate documatation")
+    else()
+        set(DOXY_IN ${CMAKE_HOME_DIRECTORY}/doc/doxyfile.in)                      ## used in the doxyfile.in
+        set(DOXY_OUT ${CMAKE_HOME_DIRECTORY}/doc)    ## used in the doxyfile.in
+    configure_file(${DOXY_IN} ${DOXY_OUT} @ONLY)
+    add_custom_target(doxyDoc
+        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXY_IN}
+        WORKING_DIRECTORY ${CMAKE_HOME_DIRECTORY}/doc
+                COMMENT "Building user's documentation into doxyDoc build dir..."
+        )
+    endif()
+endif()
+
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package (Threads)
 
 if (WIN32)
@@ -53,7 +73,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_IMAGE_INCLUDE_DIRS})
 find_package (SDL2_ttf REQUIRED)
 target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_TTF_INCLUDE_DIRS})
 
-target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARIES} ${SDL2_IMAGE_LIBRARIES}
+target_link_libraries(${PROJECT_NAME} PUBLIC ${SDL2_LIBRARIES} ${SDL2_IMAGE_LIBRARIES}
                         ${SDL2_TTF_LIBRARIES})
 
 if (RUN_TESTS)
@@ -71,6 +91,19 @@ endif()
 set(FONT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fonts)
 
 add_subdirectory(src)
+
+find_program(CMAKE_C_CPPCHECK NAMES cppcheck)
+if (CMAKE_C_CPPCHECK)
+    list(
+         APPEND CMAKE_C_CPPCHECK
+             "--enable=warning"
+             "--enable=style"
+             "--enable=performance"
+             "--enable=portability"
+             "--enable=missingInclude"
+             "--inline-suppr"
+             "--std=c11")
+endif()
 
 if(UNIX)
     add_custom_target (distclean @echo cleaning for source distribution)
