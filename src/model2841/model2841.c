@@ -25,11 +25,6 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <SDL.h>
-#include <SDL_timer.h>
-#include <SDL_thread.h>
-#include <SDL_ttf.h>
-#include <SDL_image.h>
 #include "logger.h"
 #include "device.h"
 #include "xlat.h"
@@ -471,7 +466,7 @@ step_2841(void *data)
    case 0x0E:    /* IE */
           /* Drive interface register */
           ctx->Abus = 0;
-          if (ctx->UR_REG == 0x80)
+          if (ctx->UR_REG == 0x40)
               ctx->Abus = 0x1;
           break;
    case 0x0F:    /* IH */
@@ -492,7 +487,7 @@ step_2841(void *data)
    case 0x1D:    /* FS */
           /* Drive status register */
           ctx->Abus = 0;
-          if (ctx->UR_REG == 0x80) {
+          if (ctx->UR_REG == 0x40) {
               ctx->Abus = BIT0|BIT1|0x8;
           }
           break;
@@ -503,7 +498,7 @@ step_2841(void *data)
    case 0x1F:    /* IS */
           /* Drive interface register */
           ctx->Abus = 0;
-          if (ctx->UR_REG == 0x80)
+          if (ctx->UR_REG == 0x40)
               ctx->Abus = BIT2|BIT3;
           break;
    }
@@ -615,6 +610,8 @@ step_2841(void *data)
            ctx->FT &= ~ctx->Alu_out;
            if (sal->CN & 4)
                ctx->FT |= ctx->Alu_out;
+           if (ctx->disk[ctx->unit_num] == NULL)
+              break;
            dasd_settags(ctx->disk[ctx->unit_num], ctx->FT, ctx->FC);
 
            /* Check if enabling read/write gate */
@@ -628,6 +625,8 @@ step_2841(void *data)
            ctx->FC &= ~ctx->Alu_out;
            if (sal->CN & 4)
                ctx->FC |= ctx->Alu_out;
+           if (ctx->disk[ctx->unit_num] == NULL)
+              break;
            dasd_settags(ctx->disk[ctx->unit_num], ctx->FT, ctx->FC);
            break;
    case 15:  /* IG */
@@ -734,6 +733,7 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
            *tags &= ~(CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SRV_IN|CHAN_STA_IN);
         }
         ctx->selected = 0;
+        ctx->addressed = 0;
         ctx->WX = 0;
         return;
     }
@@ -741,25 +741,40 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     ctx->bus_out = bus_out & 0xff;
     ctx->tags = *tags;
 
-    if ((*tags & CHAN_ADR_OUT) != 0) {
-        if ((bus_out & 0xf0) == ctx->addr ||
-              ((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) == 0) {
-            ctx->addressed = 1;
-        } else {
-            ctx->addressed = 0;
-        }
-        log_trace("Address parity error\n");
-        ctx->ER_REG |= BIT1;
-    } else {
-        ctx->ER_REG &= ~BIT1;
-    }
-
     if ((ctx->IG_REG & BIT1) != 0) {
 log_trace("Drop Op in\n");
         ctx->opr_in = 0;
         ctx->selected = 0;
+        ctx->addressed = 0;
         ctx->IG_REG &= ~BIT1;
         *tags &= ~CHAN_OPR_IN;
+    }
+
+    if (ctx->IG_REG & BIT7) {
+        *tags |= CHAN_ADR_IN;
+       *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+        ctx->opr_in = 1;
+        ctx->tr_1 = 0;
+        ctx->addressed = 1;
+    } else {
+       *tags &= ~CHAN_ADR_IN;
+    }
+
+    if ((*tags & CHAN_ADR_OUT) != 0) {
+        if ((bus_out & 0xf0) == ctx->addr) {
+            ctx->addressed = 1;
+            ctx->ER_REG |= BIT1;
+            log_trace("Addressed\n");
+        } else {
+            ctx->addressed = 0;
+            log_trace("Not Addressed %03x\n", ctx->addr);
+        }
+        if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
+            ctx->ER_REG |= BIT2;
+            log_trace("Address parity error\n");
+        }
+    } else {
+        ctx->ER_REG &= ~BIT1;
     }
 
     if ((*tags & CHAN_SEL_OUT) != 0 && ctx->addressed) {
@@ -771,22 +786,41 @@ log_trace("Drop selected\n");
     }
 
     if (ctx->opr_in) {
-        *tags |= CHAN_OPR_IN;
+       *tags |= CHAN_OPR_IN;
     }
 
+#if 0
+    if ((*tags & CHAN_ADR_OUT) != 0) {
+        if ((bus_out & 0xf0) == ctx->addr ||
+              ((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) == 0) {
+            ctx->addressed = 1;
+            log_trace("Addressed\n");
+        } else {
+            ctx->addressed = 0;
+            log_trace("Not Addressed\n");
+        }
+        log_trace("Address parity error\n");
+        ctx->ER_REG |= BIT1;
+    } else {
+        ctx->ER_REG &= ~BIT1;
+    }
+#endif
     /* If request, enable request in */
-    if (ctx->selected == 0 && (ctx->IG_REG & BIT6) != 0) {
-       ctx->request = 1;
+    if (ctx->selected == 0) {
+       if ((ctx->IG_REG & BIT6) != 0) {
+           ctx->request = 1;
+       }
+
+       /* If Polling and attention pending, generate request in */
+       if ((ctx->IG_REG & BIT4) != 0 && ctx->SC_REG != 0) {
+           ctx->request = 1;
+       }
+
+       if (ctx->request) {
+           *tags |= CHAN_REQ_IN;
+       }
     }
 
-    /* If Polling and attention pending, generate request in */
-    if (ctx->selected == 0 && (ctx->IG_REG & BIT4) != 0 && ctx->SC_REG != 0) {
-       ctx->request = 1;
-    }
-
-    if (ctx->selected == 0 && ctx->request) {
-       *tags |= CHAN_REQ_IN;
-    }
 
     if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {
        *tags &= ~(CHAN_REQ_IN);
@@ -805,6 +839,7 @@ log_trace("Drop selected\n");
             *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
             ctx->tr_1 = 0;
             ctx->tr_2 = 0;
+            ctx->addressed = 1;
         }
 #if 0
         if ((*tags & (CHAN_OPR_IN)) == (CHAN_OPR_IN)) {
@@ -870,15 +905,6 @@ log_trace("Drop selct\n");
          }
 #endif
          *tags &= ~(CHAN_SEL_OUT);
-
-         if (ctx->IG_REG & BIT7) {
-             *tags |= CHAN_ADR_IN;
-            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
-             ctx->opr_in = 1;
-             ctx->tr_1 = 0;
-         } else {
-            *tags &= ~CHAN_ADR_IN;
-         }
 
          if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
              log_trace("Data parity error\n");

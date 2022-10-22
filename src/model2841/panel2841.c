@@ -1,5 +1,5 @@
 /*
- * microsim360 - Simulator test cases.
+ * microsim360 - Model 2841 microcode simulator.
  *
  * Copyright 2022, Richard Cornwell
  *
@@ -24,20 +24,9 @@
  */
 
 #include <stdio.h>
-
-#define CTEST_MAIN
-//#define CTEST_SEGFAULT
-#define CTEST_NO_COLORS
-
-#include "ctest.h"
+#include <stdint.h>
+#include <stdlib.h>
 #include "logger.h"
-
-int main(int argc, const char *argv[])
-{
-    int result;
-    log_level = 0x3fff;
-    log_init("disk_debug.log");
-    result = ctest_main(argc, argv);
-    return result;
-}
+#include "device.h"
+#include "model2841.h"
 
