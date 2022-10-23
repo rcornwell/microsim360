@@ -73,15 +73,16 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_IMAGE_INCLUDE_DIRS})
 find_package (SDL2_ttf REQUIRED)
 target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_TTF_INCLUDE_DIRS})
 
-target_link_libraries(${PROJECT_NAME} PUBLIC ${SDL2_LIBRARIES} ${SDL2_IMAGE_LIBRARIES}
-                        ${SDL2_TTF_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} PUBLIC ${SDL2_LIBRARIES}
+	                                     ${SDL2_IMAGE_LIBRARIES}
+                                             ${SDL2_TTF_LIBRARIES})
 
 if (RUN_TESTS)
    enable_testing()
 endif()
 
 if (WIN32)
-    target_link_libraries(${PROJECT_NAME} wsock32 ws2_32)
+    target_link_libraries(${PROJECT_NAME} PUBLIC wsock32 ws2_32)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
 else()
