@@ -114,7 +114,7 @@ uint8_t     MP[1024];
 uint32_t    LS[32];
 
 
-int         mem_max;             /* Maximum memory address - 1 */
+uint32_t    mem_max;             /* Maximum memory address - 1 */
 uint32_t    ros_row1;            /* Current ROS data */
 uint32_t    ros_row2;
 uint32_t    ros_row3;
@@ -124,11 +124,13 @@ uint64_t    paa;                 /* Parallel adder A input 8-63 */
 uint64_t    pab;                 /* Parallel adder B input 4-67 */
 uint64_t    padder;
 uint64_t    pal;                 /* Parallel adder Ouput Latches 4-67 */
+uint64_t    pcarries;            /* Parallel adder carries */
 
 uint8_t     sb;                  /* Serial adder B input */
 uint8_t     sba;                 /* Serial adder A final input */
 uint8_t     sbb;                 /* Serial adder B final input */
 uint8_t     sal;                 /* Serial adder output latches */
+uint8_t     scarries;            /* Serial adder carries */
 
 uint32_t    D_REG;               /* Data register */
 uint32_t    S_REG;               /* S register */
