@@ -1119,6 +1119,7 @@
       set_reg( 5, 0x12345678);     /* Comparand */
       set_reg( 2, 0x1000);         /* Branch target */
       set_mem(0x400, 0x86142200);  /* BXH 1, 4, 200(2) */
+      set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345679, get_reg(1));
       ASSERT_EQUAL_X(0x1200, IAR); /* Branch taken */
@@ -1132,6 +1133,7 @@
       set_reg( 5, 0x12345678);    /* Comparand */
       set_reg( 2, 0x1000);        /* Branch target */
       set_mem(0x400, 0x86142200); /* BXH 1, 4, 200(2) */
+      set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345677, get_reg(1));
       ASSERT_EQUAL_X(0x404, IAR); /* Branch not taken */
@@ -1144,6 +1146,7 @@
       set_reg( 3, 0x12345678);     /* Increment and comparand */
       set_reg( 2, 0x1000);         /* Branch target */
       set_mem(0x400, 0x86132200);  /* BXH 1, 3, 200(2) */
+      set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345679, get_reg(1));
       ASSERT_EQUAL_X(0x1200, IAR); /* Branch taken */
@@ -1156,6 +1159,7 @@
       set_reg( 3, 0x12345678);    /* Increment and comparand */
       set_reg( 2, 0x1000);        /* Branch target */
       set_mem(0x400, 0x86132200); /* BXH 1, 3, 200(2) */
+      set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345677, get_reg(1));
       ASSERT_EQUAL_X(0x404, IAR); /* Branch not taken */
@@ -1169,6 +1173,7 @@
       set_reg( 5, 0x12345678);    /* Comparand */
       set_reg( 2, 0x1000);        /* Branch target */
       set_mem(0x400, 0x87142200); /* BXLE 1, 4, 200(2) */
+      set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345679, get_reg(1));
       ASSERT_EQUAL_X(0x404, IAR); /* Branch not taken */
@@ -1182,6 +1187,7 @@
       set_reg( 5, 0x12345678);     /* Comparand */
       set_reg( 2, 0x1000);         /* Branch target */
       set_mem(0x400, 0x87142200);  /* BXLE 1, 4, 200(2) */
+      set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345677, get_reg(1));
       ASSERT_EQUAL_X(0x1200, IAR); /* Branch taken */
@@ -1523,6 +1529,7 @@
       set_reg(3, 0x300);
       set_mem(0x954, 0x12345678);
       set_mem(0x400, 0x54123454); /* N 1,454(2,3) */
+      set_mem(0x404, 0x00000000); /* Prevent fetch of next instruction */
       test_inst(0x0);
       ASSERT_EQUAL_X((0x11223344 & 0x12345678), get_reg(1));
       ASSERT_EQUAL(CC1, CC_REG); /* Not zero */
@@ -1536,6 +1543,7 @@
       set_reg(3, 0x300);
       set_mem(0x900, 0x12345678);
       set_mem(0x400, 0x55123400); /* CL 1,400(2,3) */
+      set_mem(0x404, 0x00000000); /* Prevent fetch of next instruction */
       test_inst(0x0);
       ASSERT_EQUAL(CC0, CC_REG);  /* Equal */
   }
@@ -1548,6 +1556,7 @@
       set_reg(3, 0x300);
       set_mem(0x954, 0x12345678);
       set_mem(0x400, 0x56123454); /* O 1,454(2,3) */
+      set_mem(0x404, 0x00000000); /* Prevent fetch of next instruction */
       test_inst(0x0);
       ASSERT_EQUAL_X((0x11223344 | 0x12345678), get_reg(1));
       ASSERT_EQUAL(CC1, CC_REG);  /* Not zero */
@@ -1561,6 +1570,7 @@
       set_reg(3, 0x300);
       set_mem(0x954, 0x12345678);
       set_mem(0x400, 0x57123454); /* X 1,454(2,3) */
+      set_mem(0x404, 0x00000000); /* Prevent fetch of next instruction */
       test_inst(0x0);
       ASSERT_EQUAL_X((0x11223344 ^ 0x12345678), get_reg(1));
       ASSERT_EQUAL(CC1, CC_REG);  /* Not zero */
@@ -1574,6 +1584,7 @@
       set_reg(3, 0x300);
       set_mem(0x954, 0x11223344);
       set_mem(0x400, 0x57123454); /* X 1,454(2,3) */
+      set_mem(0x404, 0x00000000); /* Prevent fetch of next instruction */
       test_inst(0x0);
       ASSERT_EQUAL_X(0, get_reg(1));
       ASSERT_EQUAL(CC0, CC_REG);  /* Zero */
