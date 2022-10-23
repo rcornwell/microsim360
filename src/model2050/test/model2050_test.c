@@ -44,6 +44,10 @@ int              testcycles = 100;
 /* Set MASK */
 void set_mask(uint8_t mask)
 {
+    /* Set backup MASK */
+    cpu_2050.LS[0x17] &= 0x00ffffff;
+    cpu_2050.LS[0x17] |= (mask << 24);
+    /* Set hardware MASK */
     cpu_2050.MASK = mask;
 }
 
@@ -55,8 +59,10 @@ uint8_t get_mask()
 
 void
 set_amwp(int n) {
+   /* Set backup AMWP flags */
    cpu_2050.LS[0x17] &= 0xfff0ffff;
    cpu_2050.LS[0x17] |= (n << 16);
+   /* Set hardware AMWP flags */
    cpu_2050.AMWP = n;
 }
 
