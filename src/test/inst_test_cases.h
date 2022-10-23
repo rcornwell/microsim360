@@ -1200,6 +1200,7 @@
       set_reg( 3, 0x12345678);    /* Increment and comparand */
       set_reg( 2, 0x1000);        /* Branch target */
       set_mem(0x400, 0x87132200); /* BXLE 1, 3, 200(2) */
+      set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345679, get_reg(1));
       ASSERT_EQUAL_X(0x404, IAR); /* Branch not taken */
@@ -1212,6 +1213,7 @@
       set_reg( 3, 0x12345678);     /* Increment and comparand */
       set_reg( 2, 0x1000);         /* Branch target */
       set_mem(0x400, 0x87132200);  /* BXLE 1, 3, 200(2) */
+      set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       log_trace("IAR = %08x\n", IAR);
       printf("IAR = %08x\n", IAR);
