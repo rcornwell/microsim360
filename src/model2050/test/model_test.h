@@ -25,13 +25,13 @@
 
 #include "model2050.h"
 
-#define CC_REG cpu_2050.CC
+#define CC_REG        cpu_2050.CC
 #define CC0    0x0
 #define CC1    0x1
 #define CC2    0x2
 #define CC3    0x3
 
-#define IAR  (cpu_2050.IA_REG)
+#define IAR           cpu_2050.IA_REG
 
 #define PM            cpu_2050.PMASK
 
@@ -43,7 +43,7 @@
 
 #define get_key()     cpu_2050.KEY
 
-#define set_cc(n)     CC_REG = n
+#define set_cc(n)     cpu_2050.CC = n
 
 extern uint64_t         step_count;
 extern int              testcycles;
