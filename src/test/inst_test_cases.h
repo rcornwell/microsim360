@@ -4018,9 +4018,11 @@ struct _dec_case {
       set_reg(2, 0x300);
       set_mem(0x404, 0x11223344);
       set_mem(0x400, 0x70012100);  /* STE 0,100(1,2) */
+      set_mem(0x500, 0xaabbccdd);
+      set_mem(0x505, 0x11223344);
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345678, get_mem(0x500));
-      ASSERT_EQUAL_X(0xaabbccdd, get_mem(0x504));
+      ASSERT_EQUAL_X(0x11223344, get_mem(0x504));
   }
 
   /* Load floating point */
@@ -4031,6 +4033,7 @@ struct _dec_case {
       set_reg(1, 0x100);
       set_reg(2, 0x300);
       set_mem(0x500, 0x11223344);
+      set_mem(0x505, 0x11223344);
       set_mem(0x400, 0x78012100);  /* LE 0,100(1,2) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x11223344, get_fpreg_s(0));
