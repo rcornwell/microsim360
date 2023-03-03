@@ -33,7 +33,6 @@
 #include "model2844.h"
 
 uint64_t   step_count = 0;
-struct _device *chan[6]; 
 
 uint16_t
 initial_select(struct _device *dev, uint16_t *tags, int cmd)

@@ -1011,7 +1011,7 @@
           set_mem(0x400, 0x42501100); /* "STC 5,100(0,1)"); */
           test_inst(0x0);
           shift = (3 - i) * 8;
-          desired = ((0xaabbccdd & ~(0xff << shift)) | (0x12 << shift));
+          desired = ((0xaabbccdd & ~(0xffu << shift)) | (0x12 << shift));
           ASSERT_EQUAL_X(desired, get_mem(0x100));
       }
   }
@@ -2426,13 +2426,16 @@
 
   /* translate */
   CTEST(instruct, tr) {
-      int   i;
+      unsigned int   i;
 
       /* Based on Princ Ops p147 */
       init_cpu();
       for (i = 0; i < 256; i += 4) {
           /* Table increments each char by 3. Don"t worry about wrapping. */
-          set_mem(0x1000 + i, (((i + 3) << 24) | ((i + 4) << 16) | ((i + 5) << 8) | (i + 6)));
+          set_mem(0x1000 + i, (((i + 3) << 24) |
+                               ((i + 4) << 16) |
+                               ((i + 5) << 8) |
+                               (i + 6)));
       }
       set_mem(0x2100, 0x12345678);
       set_mem(0x2104, 0xabcdef01);

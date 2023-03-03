@@ -73,7 +73,6 @@
 
 #include "logger.h"
 #include "device.h"
-//#include "panel.h"
 #include "conf.h"
 
 /*
@@ -231,7 +230,7 @@ get_string(struct _option *opt)
         quote = 1;
         line_ptr++;
     }
-    while (len < PATH_MAX) {
+    while (len < 1024) {
        if (*line_ptr == '"' && quote) {
            line_ptr++;
            if (*line_ptr == '"') {

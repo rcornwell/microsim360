@@ -34,7 +34,6 @@
 
 #include "ctest.h"
 
-struct _device *chan[6];         /* Channels */
 uint8_t load_mode;
 
 int SYS_RST;

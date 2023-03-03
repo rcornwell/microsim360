@@ -982,8 +982,10 @@ model2844_init(void *rend, uint16_t addr)
      if ((dev2844 = calloc(1, sizeof(struct _device))) == NULL)
          return NULL;
 
-     if ((disk = calloc(1, sizeof(struct _2844_context))) == NULL)
+     if ((disk = calloc(1, sizeof(struct _2844_context))) == NULL) {
+         free(dev2844);
          return NULL;
+     }
 
      dev2844->bus_func = &model2844_dev;
      dev2844->dev = (void *)disk;

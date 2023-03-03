@@ -968,7 +968,7 @@ tape_supply_image(struct _tape_buffer *tape, int *rotate)
     int index;
 
     pos = max_tape_length - tape->pos_frame;
-    for (index = top; index >= 0; index--) {
+    for (index = top; index > 0; index--) {
         if (pos >= tape_position[index].start && pos <= tape_position[index+1].start)
            break;
     }
@@ -1019,8 +1019,11 @@ tape_init()
     i = 0;
     xind = 0;
     yind = 1;
+    xpos = 0;
+    ypos = 75;
     step = 0;
     last = 0;
+    fpi = (int)(M_PI * 5.125f * 1600.0f);
 
     for(radius = 5.125f; length < (2400.0f * 12.0f); radius += 0.003f) {
         cir = M_PI * radius;

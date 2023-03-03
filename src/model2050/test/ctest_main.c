@@ -34,8 +34,6 @@
 #include "conf.h"
 #include "model2050.h"
 
-struct _device    *chan[6];              /* Channels */
-
 int SYS_RST;
 int ROAR_RST;
 int START;

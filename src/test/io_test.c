@@ -35,8 +35,6 @@
 #include "model_test.h"
 #include "test_device.h"
 
-struct _device *chan[6];
-
 CTEST_DATA(io_test) {
     struct _device dev;
     struct _test_context test_ctx;

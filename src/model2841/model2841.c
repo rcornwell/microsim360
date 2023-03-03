@@ -25,6 +25,11 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#include <stdlib.h>
 #include "logger.h"
 #include "device.h"
 #include "xlat.h"
@@ -1005,8 +1010,10 @@ model2841_init(void *rend, uint16_t addr)
      if ((dev2841 = (struct _device *)calloc(1, sizeof(struct _device))) == NULL)
          return NULL;
 
-     if ((disk = (struct _2841_context *)calloc(1, sizeof(struct _2841_context))) == NULL)
+     if ((disk = (struct _2841_context *)calloc(1, sizeof(struct _2841_context))) == NULL) {
+         free (dev2841);
          return NULL;
+     }
 
      dev2841->bus_func = &model2841_dev;
      dev2841->dev = (void *)disk;

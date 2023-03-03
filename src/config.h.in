@@ -3,3 +3,7 @@
 
 #cmakedefine HAVE_UNISTD_H
 
+#ifdef WIN32
+#define off_t long
+#define lseek _lseek
+#endif

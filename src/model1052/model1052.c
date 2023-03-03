@@ -34,7 +34,8 @@
 #define closesocket close
 #define SOCKET int
 #else
-#include <winsock.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #endif
 #include "logger.h"
 #include "device.h"

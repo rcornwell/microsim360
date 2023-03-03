@@ -37,7 +37,7 @@ struct _option {
     int       dash_num;
     int       slash_num;
     uint16_t  addr;
-    char      string[PATH_MAX];
+    char      string[1024];
 };
 
 #define HEAD_TYPE    0

@@ -33,7 +33,6 @@
 #include "model2841.h"
 
 uint64_t   step_count = 0;
-struct _device *chan[6]; 
 
 void
 print_track(struct _device *dev, int unit)

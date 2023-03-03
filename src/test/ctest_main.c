@@ -26,7 +26,9 @@
 #include <stdio.h>
 
 #define CTEST_MAIN
+#ifndef _WIN32
 #define CTEST_SEGFAULT
+#endif
 #define CTEST_NO_COLORS
 
 #include "ctest.h"

@@ -25,6 +25,7 @@
 
 #ifndef _TAPE_H_
 #define _TAPE_H_
+#include "config.h"
 #include <stdint.h>
 
 #define TYPE_TAP    0
