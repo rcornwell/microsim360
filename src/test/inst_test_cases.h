@@ -3611,6 +3611,7 @@ struct _dec_case {
                }
           }
           result[i] = '\0';
+printf("DEC %x %s , %s => %s\n", test->op, test->i1, test->i2, result);
           if (test->ex) {
               ASSERT_TRUE(trap_flag);
               ASSERT_EQUAL_X(test->ex, get_mem(0x28) & 0xffff);
@@ -3642,6 +3643,8 @@ struct _dec_case {
       set_mem(0x100, 0x12345678);
       set_mem(0x104, 0xaabbccdd);
       set_mem(0x400, 0x68000100);  /*  LD 0,100(0,0) */
+      set_fpreg_s(0, 0xffffffff);
+      set_fpreg_s(1, 0xffffffff);
       test_inst(0x0);
       ASSERT_EQUAL_X(0x12345678, get_fpreg_s(0));
       ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
@@ -3653,6 +3656,8 @@ struct _dec_case {
       set_mem(0x100, 0x44000000);
       set_mem(0x104, 0xaabbccdd);
       set_mem(0x400, 0x68000100);  /*  LD 0,100(0,0) */
+      set_fpreg_s(0, 0xffffffff);
+      set_fpreg_s(1, 0xffffffff);
       test_inst(0x0);
       ASSERT_EQUAL_X(0x44000000, get_fpreg_s(0)); /* Stays unnormalized */
       ASSERT_EQUAL_X(0xaabbccdd, get_fpreg_s(1));
