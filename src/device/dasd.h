@@ -140,6 +140,8 @@ struct _dasd_t
 
 void dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc);
 
+uint8_t dasd_gettags(struct _dasd_t *dasd);
+
 uint8_t dasd_cur_cyl(struct _dasd_t *dasd);
 
 int dasd_check_attn(struct _dasd_t *dasd);

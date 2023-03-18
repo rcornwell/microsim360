@@ -135,6 +135,9 @@
 #define DK_POS_END      10        /* Past end of data */
 #define DK_POS_UNK      11        /* Unknown position */
 
+char *disk_state[] = {
+      "Index", "HA", "GAP1", "CNT0", "GAP2", "AM",
+      "CNT1", "KEY", "GAP3", "DATA", "END", "?"};
 
 struct disk_t
 {
@@ -146,16 +149,17 @@ struct disk_t
     uint8_t             dev_type;     /* Device type code */
     uint8_t             g1;           /* Bytes in Gap 1*/
     uint8_t             g2;           /* Bytes in Gap 2*/
+    uint8_t             g4;           /* Gap between index and HA */
     uint8_t             sync;         /* Sync character */
     int                 rate;         /* Number of steps per disk byte */
 }
 
 disk_type[] =
 {
-       {"2303",  80,  10,  4984,  6,  0x03, 72, 36, 6, 13},   /*   4.00 M */
-       {"2311",  203, 10,  3717,  6,  0x11, 36, 36, 6, 13},   /*   7.32 M  156k/s 30 ms 145 full */
-       {"2302",  250, 46,  4984,  6,  0x02, 72, 36, 6, 13},   /*  57.32 M 50ms, 120ms/10, 180ms> 10 */
-       {"2314",  202, 20,  7294,  6,  0x14, 36, 18, 5, 13},   /*  29.17 M */
+       {"2303",  80,  10,  4984,  6,  0x03, 72, 36, 36, 6, 13},   /*   4.00 M */
+       {"2311",  203, 10,  3717,  6,  0x11, 36, 36, 36, 6, 13},   /*   7.32 M  156k/s 30 ms 145 full */
+       {"2302",  250, 46,  4984,  6,  0x02, 72, 36, 36, 6, 13},   /*  57.32 M 50ms, 120ms/10, 180ms> 10 */
+       {"2314",  202, 20,  7294,  6,  0x14, 36, 18, 73, 5, 13},   /*  29.17 M */
 
        {NULL, 0}
 };
@@ -219,6 +223,18 @@ static uint8_t gap3[] = {
  *                  FT0 & FT4
  */
 
+/* Flags value.
+ *
+ *  Bit 0            Write current.
+ *  Bit 1            Read.
+ *  Bit 2            AM search.
+ *  Bit 3            Head selected.
+ *  Bit 4
+ *  Bit 5            End of Cylinder.
+ *  Bit 6            Head set.
+ *  Bit 7            Seek in progress.
+ */
+
 static void
 seek_callback(struct _device *unit, void *arg, int iarg)
 {
@@ -237,6 +253,12 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
         return;
     log_disk("tags  %02x %02x head=%d\n", ft, fc, dasd->head);
     if (ft & BIT0) {    /* Handle control function */
+        dasd->flags = (dasd->flags & 0x3f) | (fc & 0xc0);
+        if (fc & BIT0) {
+            if (dasd->state == DK_POS_UNK) {
+                dasd_update(dasd);
+            }
+        }
         if (fc & BIT1) { /* Read gate */
             dasd->attn = 0;
             log_disk("Clear attn\n");
@@ -256,11 +278,12 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
             }
         }
         if (fc & BIT3) {  /* Head reset */
-            dasd->flags &= ~2;
+            dasd->flags &= ~0x16;
             log_disk("Head reset\n");
         }
         if (fc & BIT5) { /* Select head */
             log_disk("Select head %d\n", dasd->head);
+            dasd->flags |= 0x10;
         }
         if (fc & BIT6) {  /* Recalibrate */
             log_disk("Recalibrate %d\n", dasd->head);
@@ -270,6 +293,15 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
             dasd->flags |= 1;
             add_event((struct _device *)dasd, seek_callback, 50,  NULL, 0);
         }
+        if (fc & BIT7) {  /* Head advance */
+            if (ft & BIT4) {
+               dasd->head++;
+               if (dasd->head >= disk_type[dasd->type].heads) {
+                   dasd->flags |= 4;
+                   dasd->head = 0;
+               }
+            }
+         }
     }
     if (ft & BIT1) {    /* Set cylinder */
         dasd->ncyl = fc;
@@ -293,6 +325,39 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
         dasd->diff = fc;
         log_disk("set diff  %02x\n", fc);
     }
+}
+
+uint8_t
+dasd_gettags(struct _dasd_t *dasd)
+{
+    uint8_t   res = 0;
+    /* Check if drive online */
+    if (dasd->file_name == NULL) {
+        return res;
+    }
+    res |= BIT1;
+    /* Check if head invalid */
+    if ((dasd->flags & 4) != 0) {
+        res |= BIT5;
+    }
+    /* On 2844 check for write current */
+    if (disk_type[dasd->type].dev_type == 0x14) {
+        if ((dasd->flags & BIT0) != 0) {
+            res |= BIT3;
+        }
+        /* Check if drive ready */
+        if ((dasd->flags & 1) != 0) {
+            res |= BIT0;
+        }
+    } else {
+        /* Check if drive ready */
+        if ((dasd->flags & 1) == 0) {
+            res |= BIT0;
+        }
+        res |= BIT4;
+    }
+log_disk("FS = %02x\n", res);
+    return res;
 }
 
 uint8_t
@@ -353,10 +418,10 @@ log_disk("Update position %d\n", dasd->cpos);
     for (pos = 0; pos < dasd->cpos; pos ++) {
          rec = &dasd->cbuf[rpos + dasd->tstart];
          da = &dasd->cbuf[tpos + dasd->tstart];
-log_disk("State=%d %d t=%d r=%d\n", state, count, tpos, rpos);
+log_disk("State=%s %d t=%d r=%d\n", disk_state[state], count, tpos, rpos);
          switch(state) {
          case DK_POS_INDEX:             /* At Index Mark */
-              if (count > disk_type[type].g1) {
+              if (count > disk_type[type].g4) {
                   dasd->tstart = dasd->tsize * (dasd->head);
                   tpos = rpos = 0;
                   count = -1;
@@ -571,6 +636,7 @@ log_disk("Disk step %d %d %d c=%d h=%d %s\n", dasd->step, dasd->cpos, dasd->tsiz
     dasd->step = 0;
 
     if (dasd->cpos >= (disk_type[type].bpt + 1)) {
+        dasd->state = DK_POS_INDEX;
         dasd->cpos = -1;
         *ix = 1;
     }
@@ -597,7 +663,7 @@ dasd_read_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
         dasd->step++;
         return 0;
     }
-log_disk("Disk read %d %d %d\n", dasd->state, count, dasd->cpos);
+log_disk("Disk read %s %d %d\n", disk_state[dasd->state], count, dasd->cpos);
     dasd->step = 0;
     *am = 0;
     pos = ((dasd->tsize * disk_type[type].heads) * dasd->cyl) + sizeof(struct dasd_header);
@@ -622,7 +688,7 @@ log_disk("Disk read %d %d %d\n", dasd->state, count, dasd->cpos);
         }
         dasd->tstart = (dasd->tsize * dasd->head);
     }
-    log_info("state %02x %d\n", dasd->state, dasd->tpos);
+    log_info("state %s %d\n", disk_state[dasd->state], dasd->tpos);
 
     if (dasd->cpos >= (disk_type[type].bpt + 1)) {
         log_info("state end %d\n", dasd->tpos);
@@ -645,7 +711,7 @@ log_disk("Disk read %d %d %d\n", dasd->state, count, dasd->cpos);
     switch(dasd->state) {
     case DK_POS_INDEX:             /* At Index Mark */
 log_disk("Gap0=%02x %d\n", *data, count);
-         if (count == disk_type[type].g1) {
+         if (count == disk_type[type].g4) {
              dasd->tstart = dasd->tsize * (dasd->head);
              dasd->tpos = dasd->rpos = 0;
              dasd->count = 0;
@@ -890,6 +956,11 @@ log_disk("End %d %d\n", dasd->cpos, dasd->tpos);
          dasd->dlen = 0;
          break;
     }
+    if (dasd->cpos >= (disk_type[type].bpt + 1)) {
+        dasd->cpos = -1;
+        dasd->state = DK_POS_INDEX;             /* At Index Mark */
+        *ix = 1;
+    }
     if (dasd->am_search)
         return 0;
     return 1;
@@ -932,7 +1003,7 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
         }
         dasd->tstart = (dasd->tsize * dasd->head);
     }
-    log_info("state %02x %d\n", dasd->state, dasd->tpos);
+    log_info("state %s %d\n", disk_state[dasd->state], dasd->cpos);
 
     if (dasd->tpos >= dasd->tsize) {
         log_info("state end %d\n", dasd->tpos);
@@ -958,7 +1029,18 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
              dasd->count = disk_type[type].g1 - 1;
 log_disk("All ones\n");
          }
-         if (*data == 0xe && dasd->count >= disk_type[type].g1) {
+         if (disk_type[dasd->type].dev_type == 0x14) {
+             /* If sync start writing HA */
+             if (*data == 0xd) {
+                 dasd->tpos = dasd->rpos = 0;
+                 dasd->count = 0;
+                 dasd->state = DK_POS_HA;
+                 dasd->ck_sum[0] = 0xff;
+                 dasd->ck_sum[1] = 0xff;
+                 break;
+              }
+         }
+         if (*data == 0xe && dasd->count >= disk_type[type].g4) {
 log_disk("Sync\n");
 //             dasd->tstart = dasd->tsize * (dasd->head);
              dasd->tpos = dasd->rpos = 0;
@@ -1062,8 +1144,19 @@ log_disk("CNT0 %02x %02x %02x %02x %02x %02x %02x %02x\n", rec[0], rec[1], rec[2
          if (*data == 0) {
              dasd->count = 0;
          }
+log_disk("AM %d\n", *am);
+         if (*am != 0) {
+             for (i = 0; i < 8; i++)
+                 rec[i] = 0xff;
+         }
          if (*data == 0xff) {
              dasd->count = disk_type[type].g1 - 1;
+log_disk("Data 0xff %d\n", dasd->ck_sum[0]);
+             dasd->ck_sum[0]++;
+             if (dasd->ck_sum[0] > (dasd->count + 10)) {
+                 for (i = 0; i < 8; i++)
+                    rec[i] = 0xff;
+             }
          }
          if (*data == 0xe && dasd->count >= disk_type[type].g1) {
 log_disk("Sync am\n");
@@ -1129,7 +1222,7 @@ log_disk("Sync 2\n");
          break;
 
     case DK_POS_KEY:               /* In Key area */
-         if (dasd->count < dasd->klen) {
+         if (dasd->count <= dasd->klen) {
              dasd->tpos++;
              *da = *data;
              dasd->ck_sum[dasd->count & 1] ^= *da;
@@ -1156,13 +1249,17 @@ log_disk("Sync 3\n");
          break;
 
     case DK_POS_DATA:              /* In Data area */
-         if (dasd->count < dasd->dlen) {
+         if (dasd->count <= dasd->dlen) {
              dasd->tpos++;
              *da = *data;
+log_disk("Write data %d : %02x\n", dasd->count, *data);
              dasd->ck_sum[dasd->count & 1] ^= *da;
          } else if (dasd->count == (dasd->dlen + 2)) {
              dasd->state = DK_POS_AM;
+             dasd->rpos = dasd->tpos;
+log_disk("Write checksum %d : %02x\n", dasd->count, *data);
              dasd->count = 0;
+             dasd->ck_sum[0] = 0;
          }
          break;
 
@@ -1172,6 +1269,11 @@ log_disk("Sync 3\n");
          dasd->klen = 0;
          dasd->dlen = 0;
          break;
+    }
+    if (dasd->cpos >= (disk_type[type].bpt + 1)) {
+        dasd->cpos = -1;
+        dasd->state = DK_POS_INDEX;             /* At Index Mark */
+        *ix = 1;
     }
     return 1;
 }
