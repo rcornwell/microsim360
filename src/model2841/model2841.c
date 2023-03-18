@@ -115,6 +115,7 @@ step_2841(void *data)
                 }
             } else if ((ctx->FC & 0x80) != 0) {
                 data = ctx->DR_REG;
+                am = ctx->FC & 0x01;
                 if (dasd_write_byte(ctx->disk[i], &data, &am, &ix)) {
                     log_disk("Disk write %d %02x\n", i, data);
                     ctx->ST_REG |= BIT4;
@@ -298,11 +299,11 @@ step_2841(void *data)
               nextWX |= 0x2;
            break;
    case 10: /* COMMO */
-           if ((ctx->tags & CHAN_CMD_OUT) != 0)
+           if ((ctx->tags & CHAN_CMD_OUT) != 0 || (ctx->ER_REG & BIT7) != 0)
               nextWX |= 0x2;
            break;
    case 11: /* SUPPO */
-           if ((ctx->tags & CHAN_SUP_OUT) != 0)
+           if ((ctx->tags & CHAN_SUP_OUT) != 0) // && (ctx->IG_REG & BIT5) != 0)
               nextWX |= 0x2;
            break;
    case 12: /* Unused */
@@ -345,7 +346,7 @@ step_2841(void *data)
               nextWX |= 0x1;
            break;
    case 6: /* A>X */
-           nextWX = (nextWX & 0xf00) | (ctx->Abus);
+//           nextWX = (nextWX & 0xf00) | (ctx->Abus);
            break;
    case 7: /*  File */
 //           if (ctx->disk[ctx->unit_num] != NULL)
@@ -492,22 +493,36 @@ step_2841(void *data)
    case 0x1D:    /* FS */
           /* Drive status register */
           ctx->Abus = 0;
-          if (ctx->UR_REG == 0x40) {
-              ctx->Abus = BIT0|BIT1|0x8;
-          }
+          if (ctx->disk[ctx->unit_num] == NULL)
+              break;
+          ctx->Abus = dasd_gettags(ctx->disk[ctx->unit_num]);
+//          if (ctx->UR_REG == 0x40) {
+ //             ctx->Abus = BIT0|BIT1|0x8;
+  //        }
           break;
    case 0x1E:    /* OA */
+          if (ctx->disk[ctx->unit_num] == NULL)
+              break;
           /* Drive old address register */
           ctx->Abus = dasd_cur_cyl(ctx->disk[ctx->unit_num]);
           break;
    case 0x1F:    /* IS */
           /* Drive interface register */
           ctx->Abus = 0;
-          if (ctx->UR_REG == 0x40)
+          if (ctx->disk[ctx->unit_num] == NULL)
+              break;
+          ctx->Abus = dasd_gettags(ctx->disk[ctx->unit_num]);
+          ctx->Abus ^= BIT5|BIT7|BIT2;
+          if (ctx->Abus == (BIT0|BIT1|BIT2|BIT5|BIT7))
               ctx->Abus = BIT2|BIT3;
+          else
+              ctx->Abus = 0;
           break;
    }
 
+   if (sal->CL == 6) {
+       ctx->WX = (nextWX & 0xf00) | (ctx->Abus);
+   }
 
    /* Do Alu operation */
    carries = 0;
@@ -746,6 +761,16 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     ctx->bus_out = bus_out & 0xff;
     ctx->tags = *tags;
 
+    /* Check if requesting device */
+//    if ((*tags & (CHAN_OPR_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_SEL_OUT)) == 
+//                 (CHAN_OPR_OUT|CHAN_SEL_OUT) && 
+      if ((ctx->IG_REG & BIT3) != 0) {
+        ctx->request = 1;
+//        *tags |= CHAN_REQ_IN;
+//        ctx->selected = 1;
+    }
+
+log_trace("IG_REG=%02x\n", ctx->IG_REG);
     if ((ctx->IG_REG & BIT1) != 0) {
 log_trace("Drop Op in\n");
         ctx->opr_in = 0;
@@ -753,6 +778,7 @@ log_trace("Drop Op in\n");
         ctx->addressed = 0;
         ctx->IG_REG &= ~BIT1;
         *tags &= ~CHAN_OPR_IN;
+        ctx->ER_REG &= ~BIT7;
     }
 
     if (ctx->IG_REG & BIT7) {
@@ -767,9 +793,17 @@ log_trace("Drop Op in\n");
 
     if ((*tags & CHAN_ADR_OUT) != 0) {
         if ((bus_out & 0xf0) == ctx->addr) {
-            ctx->addressed = 1;
-            ctx->ER_REG |= BIT1;
-            log_trace("Addressed\n");
+            /* Respond with busy if status in still raised */
+            if ((ctx->IG_REG & BIT5) != 0) {
+                *bus_in = 0x100 | SNS_SMS | SNS_BSY;
+                *tags |= CHAN_STA_IN;
+                log_trace("Unit busy\n");
+                ctx->ER_REG |= BIT3|BIT7;
+            } else {
+                ctx->addressed = 1;
+                ctx->ER_REG |= BIT1;
+                log_trace("Addressed\n");
+            }
         } else {
             ctx->addressed = 0;
             log_trace("Not Addressed %03x\n", ctx->addr);
@@ -824,10 +858,15 @@ log_trace("Drop selected\n");
        if (ctx->request) {
            *tags |= CHAN_REQ_IN;
        }
+
+       if ((ctx->IG_REG & BIT5) != 0 && 
+          (*tags & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN|CHAN_SRV_OUT)) {
+          *tags &= ~CHAN_STA_IN;
+       }
     }
 
 
-    if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {
+    if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SUP_OUT|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {
        *tags &= ~(CHAN_REQ_IN);
        ctx->request = 0;
        ctx->selected = 1;
@@ -981,9 +1020,14 @@ log_trace("Raise srv_in\n");
          if ((ctx->IG_REG & BIT5) != 0) {
              *tags |= CHAN_STA_IN;
              *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+             ctx->ER_REG &= ~BIT3;
          } else {
              *tags &= ~CHAN_STA_IN;
          }
+
+//         if ((*tags & (CHAN_ADR_OUT|CHAN_OPR_IN)) == (CHAN_ADR_OUT|CHAN_OPR_IN)) {
+ //            ctx->ER_REG |= BIT7;
+  //       }
 
 #if 0
          if (ctx->tr_2) {

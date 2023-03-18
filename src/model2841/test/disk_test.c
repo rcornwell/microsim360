@@ -35,6 +35,28 @@
 uint64_t   step_count = 0;
 
 void
+print_bin(struct _device *dev, int unit)
+{
+    struct _2841_context *ctx = (struct _2841_context *)dev->dev;
+    struct _dasd_t *dasd = ctx->disk[unit];
+    int             pos;
+    uint8_t         *rec;
+    uint8_t         *da;
+    int             dlen;
+    int             klen;
+    int             i;
+    int             end = 0;
+
+    pos = (dasd->tsize * dasd->head);
+    rec = &dasd->cbuf[pos];
+    log_trace("HA %02x %02x %02x %02x %02x\n", rec[0], rec[1], rec[2], rec[3], rec[4]);
+    rec = &rec[5];
+    log_trace("RECa c=%02x%02x h=%02x%02x r=%02x\n", rec[0], rec[1], rec[2], rec[3], rec[4]);
+    rec = &rec[7];
+    log_trace("RECb c=%02x%02x h=%02x%02x r=%02x\n", rec[0], rec[1], rec[2], rec[3], rec[4]);
+}
+
+void
 print_track(struct _device *dev, int unit)
 {
     struct _2841_context *ctx = (struct _2841_context *)dev->dev;
@@ -54,6 +76,7 @@ print_track(struct _device *dev, int unit)
     rec = &rec[5];
     for (i = 0; !end; i++) {
          if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
+            log_trace("End\n");
             break;
          } else {
             klen = rec[5];
@@ -76,6 +99,7 @@ initial_select(struct _device *dev, uint16_t *tags, int cmd)
     int         sts = 0;
 
     *tags |= CHAN_OPR_OUT;
+    log_trace("Initial select\n");
     for (i = 0; i < 200; i++) {
         step_2841((struct _2841_context *)dev->dev);
         step_2841((struct _2841_context *)dev->dev);
@@ -103,6 +127,45 @@ initial_select(struct _device *dev, uint16_t *tags, int cmd)
            log_trace("Drop command out\n");
            bus_out = 0x100;
            *tags &= ~CHAN_CMD_OUT;
+        }
+        if ((*tags & (CHAN_STA_IN|CHAN_ADR_OUT)) == (CHAN_STA_IN|CHAN_ADR_OUT)) {
+           log_trace("Unit busy %02x\n", bus_in);
+           status = bus_in;
+           bus_out = 0x100;
+           sts = 0;
+           *tags &= ~(CHAN_ADR_OUT);
+           *tags |= CHAN_SRV_OUT;
+           for (i = 0; i < 500; i++) {
+               step_2841((struct _2841_context *)dev->dev);
+               step_2841((struct _2841_context *)dev->dev);
+               advance();
+               step_count++;
+               dev->bus_func(dev, tags, bus_out, &bus_in);
+               if ((*tags & (CHAN_STA_IN)) == 0 && !sts) {
+                   *tags &= ~(CHAN_SRV_OUT);
+                   *tags |= (CHAN_SEL_OUT);
+               }
+               if ((*tags & (CHAN_OPR_IN|CHAN_ADR_IN)) ==
+                            (CHAN_OPR_IN|CHAN_ADR_IN) &&
+                    bus_in == 0x91) {
+                   *tags |= (CHAN_CMD_OUT);
+                    bus_out = (cmd & 0xff) | odd_parity[cmd & 0xff];
+               }
+               if ((*tags & (CHAN_ADR_IN|CHAN_CMD_OUT)) == CHAN_CMD_OUT) {
+                  log_trace("Drop command out\n");
+                  bus_out = 0x100;
+                  *tags &= ~CHAN_CMD_OUT;
+               }
+               if ((*tags & (CHAN_STA_IN)) != 0 && bus_in == 0x20) {
+                   *tags |= (CHAN_SRV_OUT);
+                   sts = 1;
+               }
+               if ((*tags & (CHAN_STA_IN)) == 0 && sts) {
+                   *tags &= ~(CHAN_SRV_OUT);
+                   *tags |= (CHAN_SEL_OUT);
+               }
+           }
+           break;
         }
         if ((*tags & (CHAN_STA_IN)) != 0) {
            log_trace("Status in %02x\n", bus_in);
@@ -221,6 +284,7 @@ write_data(struct _device *dev, uint16_t *tags, uint8_t *data, int *num, int cc)
                *tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                sel = 0;
            }
+           /* Check data chaining end */
            if (sta_in && cc == 1 && (status & 0x4) != 0) {
                break;
            }
@@ -617,6 +681,7 @@ CTEST2(disk_test, write) {
     static uint8_t  wha[] = { 0, 0, 10, 0, 4};
     static uint8_t  wr0[] = { 0, 10, 0, 4, 0, 0, 0, 8, 1, 2, 3, 4, 5, 6, 7, 8};
     uint8_t         wrk[512];
+    uint8_t         sense[6];
     uint16_t        tags;
     uint16_t        bus_out;
     uint16_t        bus_in;
@@ -701,6 +766,30 @@ CTEST2(disk_test, write) {
     status = write_data(data->dev, &tags, &wr0[0], &num, 1);
     ASSERT_EQUAL_X(0x10c, status);
     print_track(data->dev, 1);
+#if 0
+    do {
+       status = initial_select(data->dev, &tags, 0x4);
+    } while (status == 0x150);
+//    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, 
+            sense[0], sense[1], sense[2], sense[3], sense[4], sense[5]);
+    ASSERT_EQUAL_X(0x0, sense[0]);
+    ASSERT_EQUAL_X(0x0, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0xc8, sense[3]);
+    ASSERT_EQUAL_X(0x0, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+    status = initial_select(data->dev, &tags, 0x16);
+    if (status != 0x100) goto sense;
+    num = 16;
+    log_trace("Start read R0\n");
+    status = read_data(data->dev, &tags, &wrk[0], &num, 0);
+    ASSERT_EQUAL_X(0x10c, status);
+#endif
+//    goto sense;
 #if 0
     ASSERT_EQUAL_X(0x100, status);
     sel = 1;
@@ -797,10 +886,33 @@ CTEST2(disk_test, write) {
         }
 #endif
     }
+    sta_in = 0;
+    byte = 0;
+    for (i = 0; i < 512; i++)
+        wrk[i] = 0;
+    wrk[1] = 1;
+    wrk[3] = 4;
+    wrk[4] = 5;
+    wrk[7] = 128;
+    for (i = 0; i < 128; i++)
+        wrk[8+i] = i;
+    status = initial_select(data->dev, &tags, 0x1d);
+    if (status != 0x100) goto sense;
+    num = 128 + 8;
+    status = write_data(data->dev, &tags, &wrk[0], &num, 0);
+    ASSERT_EQUAL_X(0x10c, status);
     print_track(data->dev, 1);
 sense:
-    status = initial_select(data->dev, &tags, 0x4);
-    ASSERT_EQUAL_X(0x100, status);
+    do {
+       status = initial_select(data->dev, &tags, 0x4);
+    } while (status == 0x150 || status == 0x130);
+//    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    return;
+#if 0
     sel = 1;
     sta_in = 0;
     byte = 0;
@@ -839,5 +951,6 @@ sense:
            break;
         }
     }
+#endif
 }
 
