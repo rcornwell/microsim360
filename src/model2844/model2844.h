@@ -198,7 +198,7 @@ struct _2844_context {
 
 };
 
-void step_2844(struct _2844_context *ctx);
+void step_2844(void *data);
 struct _device *model2844_init(void *render, uint16_t addr);
 #endif
 #endif
