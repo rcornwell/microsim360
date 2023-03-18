@@ -96,74 +96,73 @@ extern struct ROS_2050 {
 
 extern struct CPU_2050 {
 int         count;
-uint32_t    LS[64];
-uint32_t    BUMP[1024];          /* Bump storage */
-uint8_t     MP[256];
-uint8_t     mem_state;           /* Storage cycle state */
+uint32_t    LS[64];             /* Local storage */
+uint32_t    BUMP[1024];         /* Bump storage */
+uint8_t     MP[256];            /* Storage protection flags */
+uint8_t     mem_state;          /* Storage cycle state */
 
 
-uint32_t    mem_max;             /* Maximum memory address - 1 */
-uint8_t     io_mode;             /* CPU or I/O mode of operation */
-uint32_t    ros_row1;            /* Current ROS data */
+uint32_t    mem_max;            /* Maximum memory address - 1 */
+uint8_t     io_mode;            /* CPU or I/O mode of operation */
+uint32_t    ros_row1;           /* Current ROS data */
 uint32_t    ros_row2;
 uint32_t    ros_row3;
 uint32_t    ros_row4;
 
-uint32_t    right_bus;           /* Right alu input bus */
-uint32_t    left_bus;            /* Left alu input bus */
-uint32_t    alu_out;             /* Alu output bus */
-uint32_t    aob_latch;           /* AOB output latch */
+uint32_t    right_bus;          /* Right alu input bus */
+uint32_t    left_bus;           /* Left alu input bus */
+uint32_t    alu_out;            /* Alu output bus */
+uint32_t    aob_latch;          /* AOB output latch */
 
-uint8_t     u_bus;               /* Mover u input */
-uint8_t     v_bus;               /* Mover v input */
-uint8_t     w_bus;               /* Mover w output */
+uint8_t     u_bus;              /* Mover u input */
+uint8_t     v_bus;              /* Mover v input */
+uint8_t     w_bus;              /* Mover w output */
 
-uint8_t     mvfnc;               /* Mover function register */
-uint8_t     io_mvfnc;            /* Mover I/O function register */
+uint8_t     mvfnc;              /* Mover function register */
+uint8_t     io_mvfnc;           /* Mover I/O function register */
 
-uint32_t    R_REG;               /* Right register */
-uint32_t    L_REG;               /* Left register */
-uint32_t    H_REG;               /* H register */
-uint32_t    M_REG;               /* M instruction register */
-uint32_t    IA_REG;              /* Instruction pointer register */
-uint32_t    SAR_REG;             /* Memory address register */
-uint32_t    SA_REG;              /* Buffered memory address */
-uint32_t    SDR_REG;             /* Memory data register */
-uint8_t     F_REG;               /* F shift output register */
-uint8_t     MD_REG;              /* 4 bit register */
-uint8_t     MB_REG;              /* Memory byte selector */
-uint8_t     LB_REG;              /* Memory byte selector */
-uint8_t     ED_REG;              /* Exponent difference register */
-uint8_t     G_REG;               /* G1 and G2 counter registers */
-uint8_t     J_REG;               /* J register */
-uint8_t     Q_REG;               /* Q register */
-uint8_t     S_REG;               /* S status bits */
-uint8_t     BS_REG;              /* Byte mask regiser */
-uint8_t     BI_REG;              /* Byte mask in I/O mode */
-uint8_t     IO_REG;              /* IO register. */
-uint8_t     ED_STAT;             /* Edit status bits */
-uint8_t     LSGNS;               /* Left sign flag */
-uint8_t     RSGNS;               /* Right sign flag */
-uint8_t     SYLS1;               /* One sylabal opcode */
-uint8_t     MASK;                /* Interrupt mask register */
-uint8_t     REFETCH;             /* Refetch flag */
-uint8_t     LSA;                 /* Local storage address */
-uint8_t     CH;                  /* Current channel select */
-uint8_t     KEY;                 /* Storage key */
-uint8_t     AMWP;                /* Flags */
-uint8_t     CC;                  /* CC register */
-uint8_t     ILC;                 /* ILC register */
-uint8_t     PMASK;               /* Program Mask */
-uint16_t    FN;                  /* LSA Function address */
-uint8_t     OPPANEL;             /* Front panel switch state */
-uint8_t     IVA;                 /* Invalid address flag */
-uint32_t    DKEYS;               /* Front panel data keys */
-uint32_t    AKEYS;               /* Front panel address keys */
+uint32_t    R_REG;              /* Right register */
+uint32_t    L_REG;              /* Left register */
+uint32_t    H_REG;              /* H register */
+uint32_t    M_REG;              /* M instruction register */
+uint32_t    IA_REG;             /* Instruction pointer register */
+uint32_t    SAR_REG;            /* Memory address register */
+uint32_t    SA_REG;             /* Buffered memory address */
+uint32_t    SDR_REG;            /* Memory data register */
+uint8_t     F_REG;              /* F shift output register */
+uint8_t     MD_REG;             /* 4 bit register */
+uint8_t     MB_REG;             /* Memory byte selector */
+uint8_t     LB_REG;             /* Memory byte selector */
+uint8_t     ED_REG;             /* Exponent difference register */
+uint8_t     G_REG;              /* G1 and G2 counter registers */
+uint8_t     J_REG;              /* J register */
+uint8_t     Q_REG;              /* Q register */
+uint8_t     S_REG;              /* S status bits */
+uint8_t     BS_REG;             /* Byte mask regiser */
+uint8_t     BI_REG;             /* Byte mask in I/O mode */
+uint8_t     IO_REG;             /* IO register. */
+uint8_t     ED_STAT;            /* Edit status bits */
+uint8_t     LSGNS;              /* Left sign flag */
+uint8_t     RSGNS;              /* Right sign flag */
+uint8_t     SYLS1;              /* One sylabal opcode */
+uint8_t     MASK;               /* Interrupt mask register */
+uint8_t     REFETCH;            /* Refetch flag */
+uint8_t     LSA;                /* Local storage address */
+uint8_t     KEY;                /* Storage key */
+uint8_t     AMWP;               /* Flags */
+uint8_t     CC;                 /* CC register */
+uint8_t     ILC;                /* ILC register */
+uint8_t     PMASK;              /* Program Mask */
+uint16_t    FN;                 /* LSA Function address */
+uint8_t     OPPANEL;            /* Front panel switch state */
+uint8_t     IVA;                /* Invalid address flag */
+uint32_t    DKEYS;              /* Front panel data keys */
+uint32_t    AKEYS;              /* Front panel address keys */
 
-int         AUX_REG;             /* Auxliary register */
-uint8_t     CAR;                 /* Output carry status */
-uint8_t     G1NEG;               /* G1 negative */
-uint8_t     G2NEG;               /* G2 negative */
+int         AUX_REG;            /* Auxliary register */
+uint8_t     CAR;                /* Output carry status */
+uint8_t     G1NEG;              /* G1 negative */
+uint8_t     G2NEG;              /* G2 negative */
 
 uint8_t     init_mem;           /* Initial memory cycle */
 uint8_t     init_bump_mem;      /* Initial bump memory cycle */
@@ -176,25 +175,24 @@ uint16_t    PROAR;              /* Previous ROAR address. */
 uint16_t    NROAR;              /* Next ROAR address. */
 uint8_t     break_in;           /* Break in cycle requested */
 uint8_t     break_out;          /* In break out cycle */
-uint16_t    ROUTINE;            /* Current breaking routine */
 uint8_t     first_cycle;        /* First cycle of breakout */
 uint8_t     last_cycle;         /* Last cycle of breakout */
-uint8_t     polling;            /* Polling state */
 uint8_t     CHCTL;              /* Channel control register */
 
+uint8_t     CH;                 /* Current channel select */
 uint8_t     BRC;                /* Branch control register */
 uint16_t    BFR1;               /* MPX buffer 1 */
 uint16_t    BFR2;               /* MPX buffer 1 */
-uint16_t    BUS_IN;             /* MPX bus in */
-uint16_t    BUS_OUT;            /* MPX bus out */
+uint16_t    BUS_IN[4];          /* Channel bus in */
+uint16_t    BUS_OUT[4];         /* Channel bus out */
 uint16_t    MPX_TAGS;           /* MPX tags */
 uint16_t    MPX_TI;             /* MPX tags in */
 uint8_t     IBFULL;             /* IB full */
+uint8_t     polling[4];         /* Polling state */
 uint8_t     MPX_PCI;            /* MPX PCI request */
 uint8_t     MPX_LST;            /* Last word for MPX */
-uint32_t    B_REG[4];           /* Select channel B regiser */
-uint32_t    C_REG[4];           /* Select channel C regiser */
-uint32_t    IOSTAT;             /* I/O Status register */
+uint16_t    ROUTINE[4];         /* Current breaking routine */
+uint32_t    IOSTAT[4];          /* I/O Status register */
 
 /* GP Register.
  *
@@ -207,7 +205,9 @@ uint32_t    IOSTAT;             /* I/O Status register */
  *  Bit 6   3 more words.
  */
 uint16_t    GP_REG[4];          /* Selector General register */
-/* OP Register.
+uint8_t     OP_REG[4];          /* Selector Operator register */
+uint8_t     FLAGS_REG[4];       /* Selector Flags register */
+/* CHPOS Register.
  *  Bit 0   UA Fetch
  *  Bit 1   CCW1 Type
  *  Bit 2   CCS2 Type
@@ -218,11 +218,19 @@ uint16_t    GP_REG[4];          /* Selector General register */
  *  Bit 7   Compare.
  *  Bit 8   Irpt.
  */
-uint16_t    POS[4];             /* Channel position register */
-uint16_t    TAGS[4];            /* channel tags. */
+uint8_t     inst_latch;
+uint8_t     D1[4];              /* Channel flag D1 */
+uint8_t     D2[4];              /* Channel flag D2 */
+uint8_t     C1[4];              /* Channel flag C1 */
+uint32_t    B_REG[4];           /* Select channel B regiser */
+uint32_t    C_REG[4];           /* Select channel C regiser */
+uint8_t     B_FULL[4];          /* B register full */
+uint8_t     C_FULL[4];          /* C register full */
+uint16_t    TAGS[4];            /* Channel tags. */
+uint16_t    TAGS_IN[4];         /* Channel tags in. */
 uint16_t    CHPOS[4];           /* Channel position register */
-uint16_t    CHCLK[4];           /* Channel position register */
-uint8_t     CCLK[4];            /* Channel clock register */
+uint16_t    CHREQ[4];           /* Channel position request register */
+uint16_t    CHCLK[4];           /* Channel clock register */
 
 } cpu_2050;
 

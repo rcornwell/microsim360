@@ -325,8 +325,8 @@ test_io_inst(int mask)
     trap_flag = 0;
     cpu_2050.ROAR = 0x190;
     cpu_2050.REFETCH = 1;
-    cpu_2050.polling = 1;
-    cpu_2050.ROUTINE = 0;
+    cpu_2050.polling[3] = 1;
+    cpu_2050.ROUTINE[3] = 0;
     cpu_2050.mem_state = 0;
     log_trace("Test IO\n");
     do {
@@ -352,8 +352,8 @@ test_io_inst2()
     cpu_2050.PMASK = 0;
     cpu_2050.ROAR = 0x190;
     cpu_2050.REFETCH = 1;
-    cpu_2050.polling = 1;
-    cpu_2050.ROUTINE = 0;
+    cpu_2050.polling[3] = 1;
+    cpu_2050.ROUTINE[3] = 0;
     cpu_2050.mem_state = 0;
     trap_flag = 0;
     count = 0;

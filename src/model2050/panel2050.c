@@ -213,11 +213,16 @@ setup_fp2050(void *rend)
     SET_INDICATOR8(&roller[0].disp[0].ind[9], NULL, 3, 0);     /* Instruction reply 2 */
     SET_INDICATOR8(&roller[0].disp[0].ind[10], NULL, 3, 0);    /* Instruction reply 3 */
     SET_INDICATOR8(&roller[0].disp[0].ind[11], NULL, 3, 0);    /* Reply, BCHI */
-    SET_INDICATOR8(&roller[0].disp[0].ind[12], NULL, 3, 0);    /* Interrupt pending */
+    SET_INDICATOR8(&roller[0].disp[0].ind[12], &cpu_2050.IBFULL, 3, 0); /* Interrupt pending */
     SET_INDICATOR8(&roller[0].disp[0].ind[13], NULL, 3, 0);    /* Reply to BCHI */
     SET_INDICATOR8(&roller[0].disp[0].ind[15], NULL, 3, 0);    /* Time out */
     SET_INDICATOR8(&roller[0].disp[0].ind[16], NULL, 3, 0);    /* Time out check */
     SET_INDICATOR8(&roller[0].disp[0].ind[17], &cpu_2050.CHCTL, 1, 0);    /* Foul */
+    SET_INDICATOR8(&roller[0].disp[1].ind[0], &cpu_2050.CHCTL, 0, 0);
+    SET_INDICATOR8(&roller[0].disp[1].ind[1], &cpu_2050.CHCTL, 2, 0);
+    SET_INDICATOR8(&roller[0].disp[1].ind[2], &cpu_2050.break_in, 3, 0);
+    SET_INDICATOR8(&roller[0].disp[1].ind[3], &cpu_2050.io_mode, 0, 0);
+    SET_INDICATOR8(&roller[0].disp[1].ind[5], &cpu_2050.first_cycle, 0, 0);
     roller[1].rollers = roll;
     roller[1].pos.x = 150;
     roller[1].pos.y = 200;
