@@ -35,7 +35,7 @@ char *bus_tags[] = {
     "SLO", "ADO", "CMD", "SRO", "SUP", "HLD", "OPO", NULL,
     "OPI", "ADI", "STI", "SVI", "RQI", NULL, NULL, NULL };
 
-struct _disk *disk;              /* Disk controllers */
+struct _disk *disk = NULL;       /* Disk controllers */
 struct _device *chan[6];         /* Channels */
 uint32_t      *M;
 uint32_t      mem_max;
