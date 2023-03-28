@@ -133,6 +133,8 @@ void del_chan(struct _device *dev, uint16_t addr);
 
 void add_disk(void (*fnc)(void *), void *drive);
 
+void del_disk(void *drive);
+
 void step_disk();
 
 extern char *title;

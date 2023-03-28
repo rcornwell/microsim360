@@ -147,6 +147,28 @@ add_disk(void (*fnc)(void *data), void *drive)
 }
 
 /*
+ * Delete a disk from list of drives to run.
+ */
+void
+del_disk(void *drive)
+{
+    struct _disk   *d, *p = NULL;
+
+    for (d = disk; d != NULL; d = d->next) {
+        if (d->disk == drive) {
+            if (p == NULL) {
+               disk = d->next;
+            } else {
+               p->next = d->next;
+            }
+            free(d);
+            return;
+        }
+        p = d;
+    }
+}
+
+/*
  * Step over disk controllers and run there step routine.
  */
 void
