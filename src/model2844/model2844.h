@@ -54,6 +54,7 @@ extern struct ROS_2844 {
 #include "dasd.h"
 
 struct _2844_context {
+    int         created;
     int         addr;               /* Device address */
     int         chan;               /* Channel address */
     int         selected;           /* Device currently selected */
@@ -74,6 +75,7 @@ struct _2844_context {
     int         steering;           /* Steering latch */
     int         tags;               /* Last bus output tags */
     int         index;              /* Index sensed */
+    int         burst_odd;          /* Odd burst value */
 
     uint8_t     Abus;               /* Holds the input to the A side of ALU. */
     uint8_t     Bbus;               /* Holds the input to the B side of ALU. */
@@ -162,9 +164,9 @@ struct _2844_context {
  * Bit 1            Set Cylinder
  * Bit 2            Set Head and Sign
  * Bit 3            Set difference
- * Bit 4            Head advance.
+ * Bit 4            Head advance.     Enable Burst.
  * Bit 5            unused.
- * Bit 6            unused.
+ * Bit 6            Set Even burst.
  * Bit 7            2311 select.
  */
    uint8_t         FT;                 /* File tag register */

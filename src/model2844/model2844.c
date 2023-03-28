@@ -102,26 +102,44 @@ step_2844(void *data)
    ctx->SC_REG = 0;
    for (i = 0; i < 8; i++) {
         uint8_t    ix;
-        ix = 0;
         if (ctx->disk[i] == NULL)
             continue;
         if ((ctx->UR_REG & 0xf) == i && (ctx->FT & 0x81) == 0x81 && (ctx->FC & 0x04) != 0) {
             uint8_t   data, am;
+            ix = 0;
             if ((ctx->FC & 0x40) != 0) {
                 if (dasd_read_byte(ctx->disk[i], &data, &am, &ix)) {
                     log_disk("Disk read %d %02x\n", i, data);
                     ctx->ST_REG |= BIT4;
                     ctx->DR_REG = data;
+                    if (am == 0 && (ctx->FT & 0x08) != 0) {
+                        if (ctx->burst_odd) {
+                            ctx->BX_REG ^= data;
+                        } else {
+                            ctx->CX_REG ^= data;
+                        }
+                        ctx->burst_odd = !ctx->burst_odd;
+                    }
                 }
             } else if ((ctx->FC & 0x80) != 0) {
                 data = ctx->DR_REG;
                 if (dasd_write_byte(ctx->disk[i], &data, &am, &ix)) {
                     log_disk("Disk write %d %02x\n", i, data);
                     ctx->ST_REG |= BIT4;
+                    if (am == 0 && (ctx->FT & 0x08) != 0) {
+                        if (ctx->burst_odd) {
+                            ctx->BX_REG ^= data;
+                        } else {
+                            ctx->CX_REG ^= data;
+                        }
+                        ctx->burst_odd = !ctx->burst_odd;
+                    }
                 }
             } else {
                 dasd_step(ctx->disk[i], &ix);
             }
+            if (ix)
+                ctx->index = 1;
         } else {
            /* If not selected, just keep in sync */
           log_disk("Disk stepper %d\n", i);
@@ -134,8 +152,6 @@ step_2844(void *data)
             if (ctx->selected == 0)
                 ctx->request = 1;
         }
-        if (ix)
-            ctx->index = 1;
    }
 
 
@@ -143,7 +159,7 @@ step_2844(void *data)
 
    /* Disassemble micro instruction */
    if (log_level & LOG_MICRO) {
-       sprintf(buffer, "%s %03X: %02X %s(%x) ", sal->NOTE, nextWX, sal->CN, ca_name[sal->CA], sal->CC);
+       sprintf(buffer, "%d:%s %03X: %02X %s ", ctx->created, sal->NOTE, nextWX, sal->CN, ca_name[sal->CA]);
 
        switch (sal->CC) {
        case 0:
@@ -622,15 +638,8 @@ step_2844(void *data)
            ctx->FT &= ~ctx->Alu_out;
            if (sal->CN & 4)
                ctx->FT |= ctx->Alu_out;
+           ctx->burst_odd = (ctx->FT & 2) != 0;
            dasd_settags(ctx->disk[ctx->unit_num], ctx->FT, ctx->FC);
-
-#if 0
-           /* Check if enabling read/write gate */
-           if (ctx->FT == 0x81 && (ctx->FC & 0xc0) != 0) {
-              /* Adjust our position */
-               dasd_update(ctx->disk[ctx->unit_num]);
-           }
-#endif
            break;
    case 14:  /* FC */
            /* Drive FC register */
@@ -641,6 +650,10 @@ step_2844(void *data)
            break;
    case 15:  /* IG */
            ctx->IG_REG = ctx->Alu_out;
+           if ((ctx->IG_REG & BIT0) != 0 && (ctx->srv_in == 0 || ctx->tr_1)) {
+               ctx->svc_req = 1;
+log_trace("Raise svc request %d\n", ctx->svc_req);
+           }
            break;
    case 0x10:    /* Nop */
            break;
@@ -1015,6 +1028,7 @@ log_trace("Clear Service in\n");
     }
 }
 
+static int created = 0;
 struct _device *
 model2844_init(void *rend, uint16_t addr)
 {
@@ -1022,20 +1036,20 @@ model2844_init(void *rend, uint16_t addr)
  //    SDL_Renderer *render = (SDL_Renderer *)rend;
      int    i;
      struct _device *dev2844;
-     struct _2844_context *disk;
+     struct _2844_context *ctx;
 
      if ((dev2844 = (struct _device *)calloc(1,
                                           sizeof(struct _device))) == NULL)
          return NULL;
 
-     if ((disk = (struct _2844_context *)calloc(1,
+     if ((ctx = (struct _2844_context *)calloc(1,
                                        sizeof(struct _2844_context))) == NULL) {
          free(dev2844);
          return NULL;
      }
 
      dev2844->bus_func = &model2844_dev;
-     dev2844->dev = (void *)disk;
+     dev2844->dev = (void *)ctx;
      dev2844->draw_model = (void *)NULL;
      dev2844->create_ctrl = (void *)NULL;
      dev2844->rect[0].x = 0;
@@ -1044,11 +1058,13 @@ model2844_init(void *rend, uint16_t addr)
      dev2844->rect[0].h = 142;
      dev2844->n_units = 1;
      dev2844->addr = addr;
-     disk->addr = addr;
+     ctx->created = ++created;
+     ctx->addr = addr;
+     ctx->WX = 0;
      for (i = 0; i < 8; i++)
-         disk->disk[i] = NULL;
+         ctx->disk[i] = NULL;
      add_chan(dev2844, addr);
-     add_disk(&step_2844, (void *)disk);
+     add_disk(&step_2844, (void *)ctx);
      return dev2844;
 }
 

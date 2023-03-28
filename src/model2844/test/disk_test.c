@@ -63,7 +63,6 @@ print_track(struct _device *dev, int unit)
     struct _dasd_t *dasd = ctx->disk[unit];
     int             pos;
     uint8_t         *rec;
-    uint8_t         *da;
     int             dlen;
     int             klen;
     int             i;
@@ -77,7 +76,7 @@ print_track(struct _device *dev, int unit)
     for (i = 0; !end; i++) {
          if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
             log_trace("End\n");
-            break;
+            end = 1;
          } else {
             klen = rec[5];
             dlen = (rec[6] << 8) | rec[7];
@@ -203,7 +202,7 @@ read_data(struct _device *dev, uint16_t *tags, uint8_t *data, int *num, int cc)
 
     bus_out = 0x100;
     log_trace("Read data\n");
-    for (i = 0; i < 30000; i++) {
+    for (i = 0; i < 120000; i++) {
         step_disk();
         step_disk();
         step_count++;
@@ -334,7 +333,7 @@ wait_dev(struct _device *dev, uint16_t *tags, int cc)
     } else {
         sel = 0;
     }
-    for (i = 0; i < 30000; i++) {
+    for (i = 0; i < 70000; i++) {
         step_disk();
         step_disk();
         step_count++;
@@ -388,14 +387,11 @@ CTEST_DATA(disk_test) {
 
 CTEST_SETUP(disk_test) {
     struct _2844_context *ctx;
+    disk = NULL;
     data->dev = model2844_init(NULL, 0x90);
     ctx = (struct _2844_context *)(data->dev->dev);
-    ctx->addr = data->dev->addr;
-    ctx->disk[0] = NULL;
     ctx->disk[1] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
-    ctx->disk[7] = NULL;
     dasd_attach(ctx->disk[1], "test.ckd", 3, 1);
-    ((struct _2844_context *)(data->dev->dev))->WX = 0;
 }
 
 CTEST_TEARDOWN(disk_test) {
@@ -409,13 +405,13 @@ CTEST_TEARDOWN(disk_test) {
                free(ctx->disk[i]);
            }
        }
-       del_chan(data->dev, data->dev->addr);
-       free(disk);
        free(data->dev->dev);
-       disk = NULL;
+       del_disk((void*)ctx);
     }
-    if (data->dev)
+    if (data->dev) {
+       del_chan(data->dev, data->dev->addr);
        free(data->dev);
+    }
 }
 
 CTEST2(disk_test, reset) {
@@ -437,7 +433,6 @@ CTEST2(disk_test, test_io) {
     int         i;
     int         sel = 0;
 
-//    ((struct _2844_context *)(data->dev->dev))->WX = 0;
     tags = CHAN_OPR_OUT;
     for (i = 0; i < 200; i++) {
         step_disk();
@@ -484,7 +479,6 @@ CTEST2(disk_test, nop) {
     uint16_t    tags = 0;
     uint16_t    status;
 
-//    ((struct _2844_context *)(data->dev->dev))->WX = 0;
     status = initial_select(data->dev, &tags, 0x3);
     ASSERT_EQUAL_X(0x10c, status);
 }
@@ -492,13 +486,10 @@ CTEST2(disk_test, nop) {
 /* Try to send Set file mask to controller */
 CTEST2(disk_test, sense) {
     uint16_t    tags = 0;
-    uint16_t    bus_out;
-    uint16_t    bus_in;
     uint16_t    status;
     uint8_t     sense[6];
     int         num;
 
-//    ((struct _2844_context *)(data->dev->dev))->WX = 0;
     status = initial_select(data->dev, &tags, 0x4);
     ASSERT_EQUAL_X(0x100, status);
     num = 6;
@@ -516,56 +507,39 @@ CTEST2(disk_test, sense) {
 
 /* Try to send Set file mask to controller */
 CTEST2(disk_test, setmask) {
-    uint16_t    tags;
-    uint16_t    bus_out;
-    uint16_t    bus_in;
-    int i;
-    int         sel = 0;
+    uint16_t    tags = 0;
+    uint8_t     mask;
+    uint8_t     sense[6];
+    uint16_t    status;
+    int         num;
 
-//    ((struct _2844_context *)(data->dev->dev))->WX = 0;
-    tags = CHAN_OPR_OUT;
-    for (i = 0; i < 10000; i++) {
-        step_disk();
-        step_disk();
-        step_count++;
-        if (i == 30) {
-           tags |= CHAN_ADR_OUT;
-           bus_out = 0x91;
-        }
-        if (i == 31)
-           sel = 1;
-        if (sel)
-           tags |= CHAN_SEL_OUT|CHAN_HLD_OUT;
-        data->dev->bus_func(data->dev, &tags, bus_out, &bus_in);
-        if ((tags & CHAN_ADR_IN) != 0) {
-           log_trace("Got address in\n");
-           ASSERT_EQUAL_X(0x91, bus_in);
-           tags &= ~CHAN_ADR_OUT;
-           bus_out = 0x01f;
-           tags |= CHAN_CMD_OUT;
-        }
-        if ((tags & (CHAN_ADR_IN|CHAN_CMD_OUT)) == CHAN_CMD_OUT) {
-           log_trace("Drop command out\n");
-           bus_out = 0x100;
-           tags &= ~CHAN_CMD_OUT;
-        }
-        if ((tags & (CHAN_STA_IN)) != 0) {
-           log_trace("Status in\n");
-//           ASSERT_EQUAL_X(0x100, bus_in);   /* Device end and channel end */
-           bus_out = 0x100;
-           tags |= CHAN_SRV_OUT;
-        }
-        if ((tags & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
-           log_trace("Status in drop\n");
-           bus_out = 0x100;
-           tags &= ~(CHAN_SRV_OUT|CHAN_HLD_OUT);
-        }
-        if ((tags & (CHAN_SRV_IN)) != 0) {
-           log_trace("Service in\n");
-           bus_out = 0x1c0;
-           tags |= (CHAN_SRV_OUT);
-        }
-    }
+    mask = 0xc0;
+    status = initial_select(data->dev, &tags, 0x1f);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 1;
+    status = write_data(data->dev, &tags, &mask, &num, 0);
+    ASSERT_EQUAL_X(0x10c, status);
+    log_trace("Set Mask %02x %d\n", status, num);
+    mask = 0xf0;
+    status = initial_select(data->dev, &tags, 0x1f);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 1;
+    status = write_data(data->dev, &tags, &mask, &num, 0);
+    log_trace("Set Mask %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x0e, status);
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    ASSERT_EQUAL_X(0x80, sense[0]);
+    ASSERT_EQUAL_X(0x00, sense[1]);
+    ASSERT_EQUAL_X(0x00, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x00, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
 }
 
 
@@ -575,12 +549,9 @@ CTEST2(disk_test, seek) {
     static uint8_t  cmd[] = { 0, 0, 0, 0x10, 0, 5 };
     uint8_t     sense[6];
     uint16_t    tags = 0;
-    uint16_t    bus_out;
-    uint16_t    bus_in;
     uint16_t    status;
     int         num;
 
- //   ((struct _2844_context *)(data->dev->dev))->WX = 0;
     status = initial_select(data->dev, &tags, 0x7);
     ASSERT_EQUAL_X(0x100, status);
     num = 6;
@@ -600,18 +571,11 @@ CTEST2(disk_test, seek) {
 /* Try to send Restore to controller */
 CTEST2(disk_test, restore) {
     struct _2844_context *ctx = (struct _2844_context *)(data->dev->dev);
-    static uint8_t  cmd[] = { 0 };
     uint8_t     sense[6];
     uint16_t    tags = 0;
-    uint16_t    bus_out;
-    uint16_t    bus_in;
     uint16_t    status;
     int         num;
-    int         sel = 0;
-    int         byte = 0;
-    int         sta_in = 0;
 
-//    ((struct _2844_context *)(data->dev->dev))->WX = 0;
     ctx->disk[1]->cyl = 10;
     ctx->disk[1]->head = 8;
     status = initial_select(data->dev, &tags, 0x13);
@@ -621,8 +585,95 @@ CTEST2(disk_test, restore) {
     status = wait_dev(data->dev, &tags, 0);
     log_trace("Wait done %02x\n", status);
     ASSERT_EQUAL_X(0x10c, status);
-//    status = wait_dev(data->dev, &tags, 0);
     log_trace("Wait2 done %02x\n", status);
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    ASSERT_EQUAL(0, ctx->disk[1]->head);
+    ASSERT_EQUAL(0, ctx->disk[1]->cyl);
+    ASSERT_EQUAL_X(0x0, sense[0]);
+    ASSERT_EQUAL_X(0x0, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+}
+
+/* Try to read HA */
+CTEST2(disk_test, readHA) {
+    struct _2844_context *ctx = (struct _2844_context *)(data->dev->dev);
+    static uint8_t  cmd[] = { 0, 0, 0, 0, 0, 0 };
+    uint8_t     sense[6];
+    uint8_t     ha[5];
+    uint16_t    tags = 0;
+    uint16_t    status;
+    int         num;
+
+    ctx->disk[1]->cyl = 0;
+    ctx->disk[1]->head = 0;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    log_trace("Wait2 done %02x\n", status);
+    status = initial_select(data->dev, &tags, 0x1a);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 5;
+    status = read_data(data->dev, &tags, &ha[0], &num, 0);
+    printf("HA %02x %d -> %02x %02x %02x %02x %02x\n", status, num, ha[0], ha[1],
+            ha[2], ha[3], ha[4]);
+    ASSERT_EQUAL_X(0x10c, status);
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    ASSERT_EQUAL(0, ctx->disk[1]->head);
+    ASSERT_EQUAL(0, ctx->disk[1]->cyl);
+    ASSERT_EQUAL_X(0x0, sense[0]);
+    ASSERT_EQUAL_X(0x0, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+}
+
+/* Try to read R0 */
+CTEST2(disk_test, readR0) {
+    struct _2844_context *ctx = (struct _2844_context *)(data->dev->dev);
+    static uint8_t  cmd[] = { 0, 0, 0, 0, 0, 0 };
+    uint8_t     sense[6];
+    uint8_t     R0[16];
+    uint16_t    tags = 0;
+    uint16_t    status;
+    int         num;
+    int         i;
+
+    ctx->disk[1]->cyl = 0;
+    ctx->disk[1]->head = 0;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    log_trace("Wait2 done %02x\n", status);
+    status = initial_select(data->dev, &tags, 0x16);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 16;
+    status = read_data(data->dev, &tags, &R0[0], &num, 0);
+    printf("R0 %02x %d ->", status, num);
+    for (i = 0; i < num; i++) {
+        printf(" %02x", R0[i]);
+    }
+    printf("\n");
+    ASSERT_EQUAL_X(0x10c, status);
     status = initial_select(data->dev, &tags, 0x4);
     ASSERT_EQUAL_X(0x100, status);
     num = 6;
@@ -645,8 +696,6 @@ CTEST2(disk_test, read_ipl) {
                               0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x01,
                               0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
     uint16_t    tags;
-    uint16_t    bus_out;
-    uint16_t    bus_in;
     uint16_t    status;
     uint8_t     sense[6];
     int         num;
@@ -654,9 +703,7 @@ CTEST2(disk_test, read_ipl) {
     uint8_t     res[256];
 
     log_trace("Read IPL\n");
-    bus_out = 0x100;
     tags = 0;
-//    ctx->WX = 0;
     ctx->disk[1]->cpos = 7000;
     status = initial_select(data->dev, &tags, 0x02);
     ASSERT_EQUAL_X(0x100, status);
@@ -687,27 +734,20 @@ CTEST2(disk_test, read_ipl) {
 }
 
 /* Try to write to controller */
-CTEST2(disk_test, write) {
+CTEST2(disk_test, writeHA) {
     struct _2844_context *ctx = (struct _2844_context *)(data->dev->dev);
     static uint8_t  cmd[] = { 0, 0, 0, 10, 0, 4 };
     static uint8_t  mask[] = { 0xc0 };
-//    static uint8_t  wha[] = { 0, 0, 10, 0, 4};
+    static uint8_t  mask1[] = { 0x00 };
     static uint8_t  wha[] = { 0, 1, 2, 3, 4};
-    static uint8_t  wr0[] = { 0, 10, 0, 4, 0, 0, 0, 8, 1, 2, 3, 4, 5, 6, 7, 8};
-    uint8_t         wrk[512];
+    uint8_t         ha[5];
+    uint8_t         R0[16];
     uint8_t         sense[6];
     uint16_t        tags;
-    uint16_t        bus_out;
-    uint16_t        bus_in;
     uint16_t        status;
-    int             i, j;
     int             num;
-    int             sel = 0;
-    int             byte = 0;
-    int             sta_in = 0;
 
     tags = 0;
-//    ((struct _2844_context *)(data->dev->dev))->WX = 0;
     ctx->disk[1]->cpos = 7000;
     status = initial_select(data->dev, &tags, 0x7);
     ASSERT_EQUAL_X(0x100, status);
@@ -716,15 +756,11 @@ CTEST2(disk_test, write) {
     log_trace("Seek %02x %d\n", status, num);
     ASSERT_EQUAL_X(0x4, status);
     log_trace("Seek complete\n");
-    sta_in = 0;
-    byte = 0;
     status = initial_select(data->dev, &tags, 0x1f);
     ASSERT_EQUAL_X(0x100, status);
     num = 1;
     status = write_data(data->dev, &tags, &mask[0], &num, 1);
     ASSERT_EQUAL_X(0x10c, status);
-    sta_in = 0;
-    byte = 0;
     log_trace("Start write HA\n");
     status = initial_select(data->dev, &tags, 0x19);
     if (status != 0x100) goto sense;
@@ -733,46 +769,310 @@ CTEST2(disk_test, write) {
     status = write_data(data->dev, &tags, &wha[0], &num, 1);
     print_track(data->dev, 1);
     if (status != 0x10c) goto sense;
-#if 0
-    sel = 1;
-    for (i = 0; i < 50000; i++) {
-        step_2844((struct _2844_context *)data->dev->dev);
-        step_2844((struct _2844_context *)data->dev->dev);
-        step_count++;
-        advance();
-        if (sel)
-           tags |= CHAN_SEL_OUT|CHAN_HLD_OUT;
-        data->dev->bus_func(data->dev, &tags, bus_out, &bus_in);
-        if ((tags & (CHAN_STA_IN)) != 0) {
-           log_trace("Status in\n");
-           ASSERT_EQUAL_X(0x10c, bus_in);   /* Device end and channel end */
-           bus_out = 0x100;
-           tags |= CHAN_SRV_OUT|CHAN_SUP_OUT;
-           sta_in = 1;
-        }
-        if ((tags & (CHAN_STA_IN|CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
-           log_trace("Service in drop\n");
-           bus_out = 0x100;
-           tags &= ~(CHAN_SRV_OUT);
-           if (sta_in) {
-               tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
-               sel = 0;
-           }
-        }
-        if ((tags & (CHAN_SRV_OUT|CHAN_SRV_IN)) == (CHAN_SRV_IN)) {
-           log_trace("Service in %03x %02x\n", bus_in, byte);
-           bus_out = wha[byte] | odd_parity[wha[byte]];
-           byte++;
-           tags |= (CHAN_SRV_OUT);
-        }
-        if ((tags & (CHAN_OPR_IN)) == 0) {
-           log_trace("Oper in drop\n");
-           break;
-        }
+    status = initial_select(data->dev, &tags, 0x3);
+    log_trace("HA Done %x\n", status);
+    ASSERT_EQUAL_X(0x100, status);
+    status = wait_dev(data->dev, &tags, 0);
+    ASSERT_EQUAL_X(0x10c, status);
+sense:
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    print_track(data->dev, 1);
+    ASSERT_EQUAL_X(0x0, sense[0]);
+    ASSERT_EQUAL_X(0x0, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+    /* Try to read back in HA just written */
+    ctx->disk[1]->cyl = 0;
+    ctx->disk[1]->head = 0;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    log_trace("Wait2 done %02x\n", status);
+    status = initial_select(data->dev, &tags, 0x1a);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 5;
+    status = read_data(data->dev, &tags, &ha[0], &num, 0);
+    printf("HA %02x %d -> %02x %02x %02x %02x %02x\n", status, num, ha[0], ha[1],
+            ha[2], ha[3], ha[4]);
+    ASSERT_EQUAL_X(0x10c, status);
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense1 %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    ASSERT_EQUAL(4, ctx->disk[1]->head);
+    ASSERT_EQUAL(10, ctx->disk[1]->cyl);
+    ASSERT_EQUAL_X(0x0, sense[0]);
+    ASSERT_EQUAL_X(0x0, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+    ASSERT_EQUAL_X(0x0, ha[0]);
+    ASSERT_EQUAL_X(0x1, ha[1]);
+    ASSERT_EQUAL_X(0x2, ha[2]);
+    ASSERT_EQUAL_X(0x3, ha[3]);
+    ASSERT_EQUAL_X(0x4, ha[4]);
+    /* Try to read R0, should fail */
+    ctx->disk[1]->cyl = 0;
+    ctx->disk[1]->head = 0;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    log_trace("Wait2 done %02x\n", status);
+    status = initial_select(data->dev, &tags, 0x16);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 16;
+    status = read_data(data->dev, &tags, &R0[0], &num, 0);
+    ASSERT_EQUAL_X(0x0e, status);
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    printf("Sense2 %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    ASSERT_EQUAL_X(0x0, sense[0]);
+    ASSERT_EQUAL_X(0xa, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+    print_track(data->dev, 1);
+    /* Try to write HA when mask does not permit it */
+    tags = 0;
+    ctx->disk[1]->cpos = 7000;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    status = initial_select(data->dev, &tags, 0x1f);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 1;
+    status = write_data(data->dev, &tags, &mask1[0], &num, 1);
+    ASSERT_EQUAL_X(0x10c, status);
+    log_trace("Start write fail HA\n");
+    status = initial_select(data->dev, &tags, 0x19);
+    printf("Start done %02x\n", status);
+    if (status != 0x100) goto sense2;
+    num = 5;
+    log_trace("Start write HA data\n");
+    status = write_data(data->dev, &tags, &wha[0], &num, 1);
+    printf("Start done %02x\n", status);
+    status = initial_select(data->dev, &tags, 0x3);
+    log_trace("HA Done %x\n", status);
+    ASSERT_EQUAL_X(0x100, status);
+    status = wait_dev(data->dev, &tags, 0);
+    ASSERT_EQUAL_X(0x10c, status);
+sense2:
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense3 %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    ASSERT_EQUAL_X(0x80, sense[0]);
+    ASSERT_EQUAL_X(0x04, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+    print_track(data->dev, 1);
+    return;
+}
+
+/* Try to write R0 record */
+CTEST2(disk_test, writeR0) {
+    struct _2844_context *ctx = (struct _2844_context *)(data->dev->dev);
+    static uint8_t  cmd[] = { 0, 0, 0, 10, 0, 4 };
+    static uint8_t  mask[] = { 0xc0 };
+    static uint8_t  wr0[] = { 0, 10, 0, 4, 0, 0, 0, 8, 1, 2, 3, 4, 5, 6, 7, 8};
+    uint8_t         wrk[100];
+    uint8_t         sense[6];
+    uint16_t        tags;
+    uint16_t        status;
+    int             num, i;
+
+    tags = 0;
+    ctx->disk[1]->cpos = 7000;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    /* Set file mask */
+    status = initial_select(data->dev, &tags, 0x1f);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 1;
+    status = write_data(data->dev, &tags, &mask[0], &num, 1);
+    ASSERT_EQUAL_X(0x10c, status);
+    /* Search Home address */
+    status = initial_select(data->dev, &tags, 0x39);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 4;
+    status = write_data(data->dev, &tags, &cmd[2], &num, 1);
+    ASSERT_EQUAL_X(0x4c, status);
+    /* Write R0 */
+    status = initial_select(data->dev, &tags, 0x15);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 16;
+    log_trace("Start write R0\n");
+    status = write_data(data->dev, &tags, &wr0[0], &num, 1);
+    ASSERT_EQUAL_X(0x10c, status);
+    status = initial_select(data->dev, &tags, 0x3);
+    log_trace("HA Done %x\n", status);
+    ASSERT_EQUAL_X(0x100, status);
+    status = wait_dev(data->dev, &tags, 0);
+    ASSERT_EQUAL_X(0x10c, status);
+    print_track(data->dev, 1);
+sense:
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    print_track(data->dev, 1);
+    /* Try to read R0, should succeed */
+    ctx->disk[1]->cyl = 0;
+    ctx->disk[1]->head = 0;
+    ctx->disk[1]->cpos = 7000;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    log_trace("Wait2 done %02x\n", status);
+    status = initial_select(data->dev, &tags, 0x16);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 16;
+    status = read_data(data->dev, &tags, &wrk[0], &num, 0);
+    ASSERT_EQUAL_X(0x10c, status);
+    printf("R0 %02x %d ->", status, num);
+    for (i = 0; i < num; i++) {
+        printf(" %02x", wrk[i]);
+        ASSERT_EQUAL_X(wr0[i], wrk[i]);
     }
-#endif
-    sta_in = 0;
-    byte = 0;
+    printf("\n");
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sense %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    printf("Sense2 %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    ASSERT_EQUAL_X(0x0, sense[0]);
+    ASSERT_EQUAL_X(0x0, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+    print_track(data->dev, 1);
+    /* Try out of sequence write R0 */
+    tags = 0;
+    ctx->disk[1]->cpos = 7000;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    /* Set file mask */
+    status = initial_select(data->dev, &tags, 0x1f);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 1;
+    status = write_data(data->dev, &tags, &mask[0], &num, 1);
+    ASSERT_EQUAL_X(0x10c, status);
+    /* Write R0 */
+    status = initial_select(data->dev, &tags, 0x15);
+    ASSERT_EQUAL_X(0x02, status);
+    status = initial_select(data->dev, &tags, 0x4);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = read_data(data->dev, &tags, &sense[0], &num, 0);
+    printf("Sensef %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
+            sense[2], sense[3], sense[4], sense[5]);
+    ASSERT_EQUAL_X(0x80, sense[0]);
+    ASSERT_EQUAL_X(0x10, sense[1]);
+    ASSERT_EQUAL_X(0x0, sense[2]);
+    ASSERT_EQUAL_X(0x40, sense[3]);
+    ASSERT_EQUAL_X(0x01, sense[4]);
+    ASSERT_EQUAL_X(0x0, sense[5]);
+    ASSERT_EQUAL_X(0x10c, status);
+    print_track(data->dev, 1);
+    return;
+}
+
+
+/* Try to write track */
+CTEST2(disk_test, writeTrack) {
+    struct _2844_context *ctx = (struct _2844_context *)(data->dev->dev);
+    static uint8_t  cmd[] = { 0, 0, 0, 10, 0, 4 };
+    static uint8_t  mask[] = { 0xc0 };
+    static uint8_t  wha[] = { 0, 0, 10, 0, 4};
+    static uint8_t  wr0[] = { 0, 10, 0, 4, 0, 0, 0, 8, 1, 2, 3, 4, 5, 6, 7, 8};
+    uint8_t         wrk[512];
+    uint8_t         sense[6];
+    uint16_t        tags;
+    uint16_t        bus_out = 0x100;
+    uint16_t        bus_in;
+    uint16_t        status;
+    int             i, j;
+    int             num;
+
+    tags = 0;
+    ctx->disk[1]->cpos = 7000;
+    status = initial_select(data->dev, &tags, 0x7);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 6;
+    status = write_data(data->dev, &tags, &cmd[0], &num, 1);
+    log_trace("Seek %02x %d\n", status, num);
+    ASSERT_EQUAL_X(0x4, status);
+    log_trace("Seek complete\n");
+    status = initial_select(data->dev, &tags, 0x1f);
+    ASSERT_EQUAL_X(0x100, status);
+    num = 1;
+    status = write_data(data->dev, &tags, &mask[0], &num, 1);
+    ASSERT_EQUAL_X(0x10c, status);
+    log_trace("Start write HA\n");
+    status = initial_select(data->dev, &tags, 0x19);
+    if (status != 0x100) goto sense;
+    num = 5;
+    log_trace("Start write HA data\n");
+    status = write_data(data->dev, &tags, &wha[0], &num, 1);
+    print_track(data->dev, 1);
+    if (status != 0x10c) goto sense;
     status = initial_select(data->dev, &tags, 0x15);
     if (status != 0x100) goto sense;
     num = 16;
@@ -781,37 +1081,44 @@ CTEST2(disk_test, write) {
     ASSERT_EQUAL_X(0x10c, status);
     print_track(data->dev, 1);
     for (j = 1; j < 5; j++) {
-        sta_in = 0;
-        byte = 0;
         for (i = 0; i < 512; i++)
             wrk[i] = 0;
-        wrk[1] = 1;
+        wrk[1] = 10;
         wrk[3] = 4;
         wrk[4] = j;
+        wrk[5] = 8;
         wrk[7] = 128;
+        for (i = 0; i < 8; i++)
+            wrk[8+i] = 0xf0 + i;
         for (i = 0; i < 128; i++)
-            wrk[8+i] = i;
+            wrk[16+i] = i;
         status = initial_select(data->dev, &tags, 0x1d);
         if (status != 0x100) goto sense;
-        num = 128 + 8;
+        num = 128 + 8 + 8;
         status = write_data(data->dev, &tags, &wrk[0], &num, 1);
         ASSERT_EQUAL_X(0x10c, status);
         print_track(data->dev, 1);
     }
-    sta_in = 0;
-    byte = 0;
     for (i = 0; i < 512; i++)
         wrk[i] = 0;
-    wrk[1] = 1;
+    wrk[1] = 10;
     wrk[3] = 4;
     wrk[4] = 5;
+    wrk[5] = 8;
     wrk[7] = 128;
+    for (i = 0; i < 8; i++)
+        wrk[8+i] = 0xf0 + i;
     for (i = 0; i < 128; i++)
-        wrk[8+i] = i;
+        wrk[16+i] = i;
     status = initial_select(data->dev, &tags, 0x1d);
     if (status != 0x100) goto sense;
-    num = 128 + 8;
-    status = write_data(data->dev, &tags, &wrk[0], &num, 0);
+    num = 128 + 8 + 8;
+    status = write_data(data->dev, &tags, &wrk[0], &num, 1);
+    ASSERT_EQUAL_X(0x10c, status);
+    status = initial_select(data->dev, &tags, 0x3);
+    log_trace("HA Done %x\n", status);
+    ASSERT_EQUAL_X(0x100, status);
+    status = wait_dev(data->dev, &tags, 0);
     ASSERT_EQUAL_X(0x10c, status);
     print_track(data->dev, 1);
 sense:
@@ -830,17 +1137,18 @@ sense:
                log_trace("start Selout\n");
                }
                if ((tags & (CHAN_OPR_IN|CHAN_ADR_IN)) == (CHAN_OPR_IN|CHAN_ADR_IN)) {
-                  bus_in = 0x100;
+                  bus_out = 0x100;
                   tags |= CHAN_CMD_OUT;
                  log_trace("Command out\n");
                }
                if ((tags & (CHAN_OPR_IN|CHAN_ADR_IN|CHAN_CMD_OUT)) == (CHAN_OPR_IN|CHAN_CMD_OUT)) {
-                  bus_in = 0x100;
+                  bus_out = 0x100;
                   tags &= ~CHAN_CMD_OUT;
                  log_trace("Command out drop\n");
                }
                if ((tags & (CHAN_OPR_IN|CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_OPR_IN|CHAN_STA_IN)) {
                   tags |= CHAN_SRV_OUT;
+                  status = bus_in;
                   log_trace("Status accepted\n");
                }
                if ((tags & (CHAN_OPR_IN|CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_OPR_IN|CHAN_SRV_OUT)) {
@@ -855,52 +1163,11 @@ sense:
            }
        }
     } while (status == 0x150 || status == 0x130);
-//    ASSERT_EQUAL_X(0x100, status);
     num = 6;
     status = read_data(data->dev, &tags, &sense[0], &num, 0);
     printf("Sense %02x %d -> %02x %02x %02x %02x %02x %02x\n", status, num, sense[0], sense[1],
             sense[2], sense[3], sense[4], sense[5]);
     print_track(data->dev, 1);
     return;
-#if 0
-    sel = 1;
-    sta_in = 0;
-    byte = 0;
-    for (i = 0; i < 500; i++) {
-        step_2844((struct _2844_context *)data->dev->dev);
-        step_2844((struct _2844_context *)data->dev->dev);
-        step_count++;
-        advance();
-        if (sel)
-           tags |= CHAN_SEL_OUT|CHAN_HLD_OUT;
-        data->dev->bus_func(data->dev, &tags, bus_out, &bus_in);
-        if ((tags & (CHAN_STA_IN)) != 0) {
-           log_trace("Status in\n");
-           ASSERT_EQUAL_X(0x10c, bus_in);   /* Device end and channel end */
-           bus_out = 0x100;
-           tags |= CHAN_SRV_OUT;
-           sta_in = 1;
-        }
-        if ((tags & (CHAN_STA_IN|CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
-           log_trace("Service in drop\n");
-           bus_out = 0x100;
-           tags &= ~(CHAN_SRV_OUT);
-           if (sta_in) {
-               tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
-               sel = 0;
-           }
-        }
-        if ((tags & (CHAN_SRV_OUT|CHAN_SRV_IN)) == (CHAN_SRV_IN)) {
-           log_trace("Service in %03x %02x\n", bus_in, byte);
-           bus_out = byte | odd_parity[byte];
-           byte++;
-           tags |= (CHAN_SRV_OUT);
-        }
-        if ((tags & (CHAN_OPR_IN)) == 0) {
-           log_trace("Oper in drop\n");
-           break;
-        }
-    }
-#endif
 }
 
