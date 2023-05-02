@@ -165,6 +165,7 @@ struct _2841_context {
  * Bit 7            Selected seek incomp
  */
     int              unit_num;          /* Selected unit number */
+    struct _dasd_t  *cur_disk;          /* Pointer to current selected disk */
     struct _dasd_t  *disk[8];           /* Disk drives */
 
 };

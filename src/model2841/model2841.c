@@ -102,11 +102,11 @@ step_2841(void *data)
    ctx->SC_REG = 0;
    for (i = 0; i < 8; i++) {
         uint8_t    ix;
-        ix = 0;
         if (ctx->disk[i] == NULL)
             continue;
         if ((ctx->UR_REG & (0x80 >> i)) != 0 && (ctx->FT & 0x81) == 0x81 && (ctx->FC & 0x04) != 0) {
             uint8_t   data, am;
+            ix = 0;
             if ((ctx->FC & 0x40) != 0) {
                 if (dasd_read_byte(ctx->disk[i], &data, &am, &ix)) {
                     log_disk("Disk read %d %02x\n", i, data);
@@ -123,6 +123,9 @@ step_2841(void *data)
             } else {
                 dasd_step(ctx->disk[i], &ix);
             }
+            /* Update index if index detected */
+            if ((ctx->ST_REG & BIT1) != 0 && ix)
+                ctx->index = 1;
         } else {
            /* If not selected, just keep in sync */
           log_disk("Disk stepper %d\n", i);
@@ -133,8 +136,6 @@ step_2841(void *data)
             ctx->SC_REG |= 0x80 >> i;
           log_disk("Disk attn %d\n", i);
         }
-        if ((ctx->ST_REG & BIT1) != 0 && ix)
-            ctx->index = 1;
    }
 
    sal = &ros_2841[ctx->WX];
@@ -287,9 +288,17 @@ step_2841(void *data)
               nextWX |= 0x2;
            break;
    case 7:  /* FILE */  /* 01 for 2311 */
-//           if (ctx->disk[ctx->unit_num] != NULL)
- //              nextWX |= (ctx->disk[ctx->unit_num]->type & 0x2);
-   //           nextWX |= 0x2;
+           if (ctx->cur_disk == NULL)
+               break;
+           switch (ctx->cur_disk->type) {
+           case 0: /* 2303 */
+           default: /* Unknown */
+                   nextWX |= 0x2;
+                   break;
+           case 1: /* 2311 */
+           case 2: /* 2302 */
+                   break;
+           }
            break;
    case 8:  /* CK>W */
            nextWX = (nextWX & 0xff) | ((sal->CK & 0xf) << 8);
@@ -346,12 +355,19 @@ step_2841(void *data)
               nextWX |= 0x1;
            break;
    case 6: /* A>X */
-//           nextWX = (nextWX & 0xf00) | (ctx->Abus);
            break;
    case 7: /*  File */
-//           if (ctx->disk[ctx->unit_num] != NULL)
- //              nextWX |= (ctx->disk[ctx->unit_num]->type & 0x1);
-             nextWX |= 1;
+           if (ctx->cur_disk == NULL)
+                break;
+           switch (ctx->cur_disk->type) {
+           case 0: /* 2303 */
+           case 2: /* 2302 */
+                   break;
+           case 1: /* 2311 */
+           default: /* Unknown */
+                   nextWX |= 0x1;
+                   break;
+           }
            break;
    case 8: /* SERVO */
            if ((ctx->tags & CHAN_SRV_OUT) != 0)
@@ -472,8 +488,24 @@ step_2841(void *data)
    case 0x0E:    /* IE */
           /* Drive interface register */
           ctx->Abus = 0;
-          if (ctx->UR_REG == 0x40)
-              ctx->Abus = 0x1;
+          if (ctx->cur_disk == NULL)
+              break;
+          switch (ctx->cur_disk->type) {
+          case 0: /* 2303 */
+                  if (ctx->FT & BIT6)
+                      ctx->Abus = BIT6|BIT3;
+                  break;
+          case 1: /* 2311 */
+                  if (ctx->FT & BIT7)
+                      ctx->Abus = BIT7;
+                  break;
+          case 2: /* 2302 */
+                  if (ctx->FT & BIT5)
+                      ctx->Abus = BIT5;
+                  break;
+          default: /* Invalid type */
+                  break;
+          }
           break;
    case 0x0F:    /* IH */
           ctx->Abus = ctx->bus_out;
@@ -493,35 +525,29 @@ step_2841(void *data)
    case 0x1D:    /* FS */
           /* Drive status register */
           ctx->Abus = 0;
-          if (ctx->disk[ctx->unit_num] == NULL)
+          if (ctx->cur_disk == NULL)
               break;
-          ctx->Abus = dasd_gettags(ctx->disk[ctx->unit_num]);
-//          if (ctx->UR_REG == 0x40) {
- //             ctx->Abus = BIT0|BIT1|0x8;
-  //        }
+          ctx->Abus = dasd_gettags(ctx->cur_disk);
           break;
    case 0x1E:    /* OA */
-          if (ctx->disk[ctx->unit_num] == NULL)
+          if (ctx->cur_disk == NULL)
               break;
           /* Drive old address register */
-          ctx->Abus = dasd_cur_cyl(ctx->disk[ctx->unit_num]);
+          ctx->Abus = dasd_cur_cyl(ctx->cur_disk);
           break;
    case 0x1F:    /* IS */
           /* Drive interface register */
           ctx->Abus = 0;
-          if (ctx->disk[ctx->unit_num] == NULL)
+          if (ctx->cur_disk == NULL)
               break;
-          ctx->Abus = dasd_gettags(ctx->disk[ctx->unit_num]);
-          ctx->Abus ^= BIT5|BIT7|BIT2;
-          if (ctx->Abus == (BIT0|BIT1|BIT2|BIT5|BIT7))
+          ctx->Abus = dasd_gettags(ctx->cur_disk);
+          if ((ctx->Abus & (BIT0|BIT1)) == (BIT0|BIT1))
               ctx->Abus = BIT2|BIT3;
-          else
-              ctx->Abus = 0;
           break;
    }
 
    if (sal->CL == 6) {
-       ctx->WX = (nextWX & 0xf00) | (ctx->Abus);
+       nextWX = (nextWX & 0xf00) | (ctx->Abus);
    }
 
    /* Do Alu operation */
@@ -612,9 +638,11 @@ step_2841(void *data)
            break;
    case 10: /* UR */
            ctx->UR_REG = ctx->Alu_out;
+           ctx->cur_disk = NULL;
            for (i = 0; i < 8; i++) {
                if ((ctx->UR_REG & (0x80 >> i)) != 0) {
                    ctx->unit_num = i;
+                   ctx->cur_disk = ctx->disk[i];
                    break;
                }
            }
@@ -630,14 +658,14 @@ step_2841(void *data)
            ctx->FT &= ~ctx->Alu_out;
            if (sal->CN & 4)
                ctx->FT |= ctx->Alu_out;
-           if (ctx->disk[ctx->unit_num] == NULL)
+           if (ctx->cur_disk == NULL)
               break;
-           dasd_settags(ctx->disk[ctx->unit_num], ctx->FT, ctx->FC);
+           dasd_settags(ctx->cur_disk, ctx->FT, ctx->FC);
 
            /* Check if enabling read/write gate */
            if (ctx->FT == 0x81 && (ctx->FC & 0xc0) != 0) {
               /* Adjust our position */
-               dasd_update(ctx->disk[ctx->unit_num]);
+               dasd_update(ctx->cur_disk);
            }
            break;
    case 14:  /* FC */
@@ -645,12 +673,16 @@ step_2841(void *data)
            ctx->FC &= ~ctx->Alu_out;
            if (sal->CN & 4)
                ctx->FC |= ctx->Alu_out;
-           if (ctx->disk[ctx->unit_num] == NULL)
+           if (ctx->cur_disk == NULL)
               break;
-           dasd_settags(ctx->disk[ctx->unit_num], ctx->FT, ctx->FC);
+           dasd_settags(ctx->cur_disk, ctx->FT, ctx->FC);
            break;
    case 15:  /* IG */
            ctx->IG_REG = ctx->Alu_out;
+           if ((ctx->IG_REG & BIT0) != 0 && ctx->srv_in == 0) {
+               ctx->svc_req = 1;
+               log_trace("Raise svc request %d\n", ctx->svc_req);
+           }
            break;
    }
 
@@ -771,16 +803,6 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     }
 
 log_trace("IG_REG=%02x\n", ctx->IG_REG);
-    if ((ctx->IG_REG & BIT1) != 0) {
-log_trace("Drop Op in\n");
-        ctx->opr_in = 0;
-        ctx->selected = 0;
-        ctx->addressed = 0;
-        ctx->IG_REG &= ~BIT1;
-        *tags &= ~CHAN_OPR_IN;
-        ctx->ER_REG &= ~BIT7;
-    }
-
     if (ctx->IG_REG & BIT7) {
         *tags |= CHAN_ADR_IN;
        *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
@@ -816,6 +838,16 @@ log_trace("Drop Op in\n");
         ctx->ER_REG &= ~BIT1;
     }
 
+    if ((ctx->IG_REG & BIT1) != 0) {
+log_trace("Drop Op in\n");
+        ctx->opr_in = 0;
+        ctx->selected = 0;
+        ctx->addressed = 0;
+        ctx->IG_REG &= ~BIT1;
+        *tags &= ~CHAN_OPR_IN;
+        ctx->ER_REG &= ~BIT7;
+    }
+
     if ((*tags & CHAN_SEL_OUT) != 0 && ctx->addressed) {
         ctx->selected = 1;
 log_trace("Set selected\n");
@@ -828,22 +860,6 @@ log_trace("Drop selected\n");
        *tags |= CHAN_OPR_IN;
     }
 
-#if 0
-    if ((*tags & CHAN_ADR_OUT) != 0) {
-        if ((bus_out & 0xf0) == ctx->addr ||
-              ((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) == 0) {
-            ctx->addressed = 1;
-            log_trace("Addressed\n");
-        } else {
-            ctx->addressed = 0;
-            log_trace("Not Addressed\n");
-        }
-        log_trace("Address parity error\n");
-        ctx->ER_REG |= BIT1;
-    } else {
-        ctx->ER_REG &= ~BIT1;
-    }
-#endif
     /* If request, enable request in */
     if (ctx->selected == 0) {
        if ((ctx->IG_REG & BIT6) != 0) {
@@ -950,6 +966,15 @@ log_trace("Drop selct\n");
 #endif
          *tags &= ~(CHAN_SEL_OUT);
 
+         if (ctx->IG_REG & BIT7) {
+             *tags |= CHAN_ADR_IN;
+            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+             ctx->opr_in = 1;
+             ctx->tr_1 = 0;
+         } else {
+             *tags &= ~CHAN_ADR_IN;
+         }
+
          if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
              log_trace("Data parity error\n");
              ctx->ER_REG |= BIT2;
@@ -1049,18 +1074,18 @@ model2841_init(void *rend, uint16_t addr)
  //    SDL_Renderer *render = (SDL_Renderer *)rend;
      int     i;
      struct _device *dev2841;
-     struct _2841_context *disk;
+     struct _2841_context *ctx;
 
      if ((dev2841 = (struct _device *)calloc(1, sizeof(struct _device))) == NULL)
          return NULL;
 
-     if ((disk = (struct _2841_context *)calloc(1, sizeof(struct _2841_context))) == NULL) {
+     if ((ctx = (struct _2841_context *)calloc(1, sizeof(struct _2841_context))) == NULL) {
          free (dev2841);
          return NULL;
      }
 
      dev2841->bus_func = &model2841_dev;
-     dev2841->dev = (void *)disk;
+     dev2841->dev = (void *)ctx;
      dev2841->draw_model = (void *)NULL;
      dev2841->create_ctrl = (void *)NULL;
      dev2841->rect[0].x = 0;
@@ -1069,10 +1094,12 @@ model2841_init(void *rend, uint16_t addr)
      dev2841->rect[0].h = 142;
      dev2841->n_units = 1;
      dev2841->addr = addr;
+     ctx->addr = addr;
+     ctx->WX = 0;
      for (i = 0; i < 8; i++)
-         disk->disk[i] = NULL;
+         ctx->disk[i] = NULL;
      add_chan(dev2841, addr);
-     add_disk(&step_2841, (void *)disk);
+     add_disk(&step_2841, (void *)ctx);
      return dev2841;
 }
 
