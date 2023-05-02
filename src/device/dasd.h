@@ -132,6 +132,19 @@ struct _dasd_t
      int                step;        /* Byte step count */
 };
 
+
+/* Header block */
+struct dasd_header
+{
+       char     devid[8];      /* device header. */
+       uint32_t heads;         /* number of heads per cylinder */
+       uint32_t tracksize;     /* size of track */
+       uint8_t  devtype;       /* Hex code of last two digits of device type. */
+       uint8_t  fileseq;       /* always 0. */
+       uint16_t highcyl;       /* highest cylinder. */
+       uint8_t  resv[492];     /* pad to 512 byte block */
+};
+
 /**
  *
  *  Update the disk state to the current state and count.

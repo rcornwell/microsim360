@@ -154,6 +154,11 @@ del_disk(void *drive)
 {
     struct _disk   *d, *p = NULL;
 
+    if (disk == drive) {
+       disk = disk->next;
+       return;
+    }
+
     for (d = disk; d != NULL; d = d->next) {
         if (d->disk == drive) {
             if (p == NULL) {

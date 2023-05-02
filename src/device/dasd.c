@@ -164,19 +164,6 @@ disk_type[] =
        {NULL, 0}
 };
 
-
-/* Header block */
-struct dasd_header
-{
-       char     devid[8];      /* device header. */
-       uint32_t heads;         /* number of heads per cylinder */
-       uint32_t tracksize;     /* size of track */
-       uint8_t  devtype;       /* Hex code of last two digits of device type. */
-       uint8_t  fileseq;       /* always 0. */
-       uint16_t highcyl;       /* highest cylinder. */
-       uint8_t  resv[492];     /* pad to 512 byte block */
-};
-
 #if 0
 /* Gap is: */
 static uint8_t  gap0[] = {
@@ -219,7 +206,7 @@ static uint8_t gap3[] = {
  * Bit 4            Erase Gate      track 8         head 8      diff 8
  * Bit 5            Select head     track 4         head 4      diff 4
  * Bit 6            Return 000      track 2         head 2      diff 2
- * Bit 7            Head adance     track 1         head 1      diff 1
+ * Bit 7            Head advance    track 1         head 1      diff 1
  *                  FT0 & FT4
  */
 
@@ -229,7 +216,7 @@ static uint8_t gap3[] = {
  *  Bit 1            Read.
  *  Bit 2            AM search.
  *  Bit 3            Head selected.
- *  Bit 4
+ *  Bit 4            2844 head advance.
  *  Bit 5            End of Cylinder.
  *  Bit 6            Head set.
  *  Bit 7            Seek in progress.
@@ -251,7 +238,7 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
 {
     if ((ft & BIT7) == 0)
         return;
-    log_disk("tags  %02x %02x head=%d\n", ft, fc, dasd->head);
+    log_disk("tags  %02x %02x head=%d flags=%02x\n", ft, fc, dasd->head, dasd->flags);
     if (ft & BIT0) {    /* Handle control function */
         if (fc & BIT0) {
             if (dasd->state == DK_POS_UNK) {
@@ -264,21 +251,19 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
             if ((fc & BIT5) != 0 && dasd->state == DK_POS_UNK) {
                 dasd_update(dasd);
             }
-            if ((dasd->flags & BIT1) == 0) {
-                dasd->am_search = 0;
-                if (disk_type[dasd->type].dev_type == 0x14) {
-                    /* Check if turning on read gate */
-                    if ((dasd->flags & BIT1) == 0) {
-                        dasd->am_search = 1;
-                        log_disk("Set am search\n");
-                    }
-                } else {
-                    if ((fc & (BIT5|BIT7)) == (BIT5|BIT7)) {
-                        dasd->am_search = 1;
-                        log_disk("Set am search\n");
-                    }
+            if (disk_type[dasd->type].dev_type == 0x14) {
+                /* Check if turning on read gate */
+                if ((dasd->flags & BIT1) == 0) {
+                    dasd->am_search = 1;
+                    log_disk("Set am search\n");
                 }
-             }
+            } else {
+                dasd->am_search = 0;
+                if ((fc & (BIT5|BIT7)) == (BIT5|BIT7)) {
+                    dasd->am_search = 1;
+                    log_disk("Set am search\n");
+                }
+            }
         }
         if (fc & BIT2) { /* Start seek */
             log_disk("Start seek to %02x, diff = %d, dir=%d\n",
@@ -289,7 +274,7 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
             }
         }
         if (fc & BIT3) {  /* Head reset */
-            dasd->flags &= ~0x16;
+            dasd->flags &= 0xF9;
             log_disk("Head reset\n");
         }
         if (fc & BIT5) { /* Select head */
@@ -302,15 +287,31 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
             dasd->diff = 0;
             dasd->head = 0;
             dasd->flags |= 1;
+            dasd->tstart = (dasd->tsize * dasd->head);
             add_event((struct _device *)dasd, seek_callback, 50,  NULL, 0);
         }
-        if (fc & BIT7) {  /* Head advance */
+        if (disk_type[dasd->type].dev_type != 0x14) { /* Head advance */
             if (ft & BIT4) {
                dasd->head++;
+               log_disk("Head Advance %d\n", dasd->head);
                if (dasd->head >= disk_type[dasd->type].heads) {
                    dasd->flags |= 4;
                    dasd->head = 0;
                }
+               dasd->tstart = (dasd->tsize * dasd->head);
+            }
+        } else if (fc & BIT7) {
+            if (dasd->flags & 0x8) {
+                dasd->flags &= ~0x8;
+            } else {
+                dasd->head++;
+                log_disk("Head Advance %d\n", dasd->head);
+                if (dasd->head >= disk_type[dasd->type].heads) {
+                    dasd->flags |= 4;
+                    dasd->head = 0;
+                }
+                dasd->flags |= 0x8;
+                dasd->tstart = (dasd->tsize * dasd->head);
             }
         }
         /* Update read and write gate */
@@ -332,6 +333,7 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
                dasd->dir = (fc & BIT0) != 0;
             }
         }
+        dasd->tstart = (dasd->tsize * dasd->head);
         log_disk("set diff %d head %x\n", dasd->dir, dasd->head);
     }
     if (ft & BIT3) {    /* Set Difference */
@@ -367,7 +369,7 @@ dasd_gettags(struct _dasd_t *dasd)
         if ((dasd->flags & 1) == 0) {
             res |= BIT0;
         }
-        res |= BIT4;
+//        res |= BIT4;
     }
 log_disk("FS = %02x\n", res);
     return res;
@@ -545,6 +547,12 @@ log_disk("CNT0 Check=%02x %02x %02x %d %d\n", dasd->ck_sum[0], dasd->ck_sum[1], 
          case DK_POS_AM:                /* Beginning of record */
               if (count < (disk_type[type].g2))
                   break;
+              rec = &dasd->cbuf[rpos + dasd->tstart];
+              if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
+                 state = DK_POS_END;
+                 count = -1;
+                 break;
+              }
               count = -1;
               state = DK_POS_CNT1;
 log_disk("AM %d\n", count);
@@ -669,7 +677,7 @@ dasd_step(struct _dasd_t *dasd, uint8_t *ix)
 {
     int                 type = dasd->type;
 
-log_disk("Disk step %d %d %d c=%d h=%d %s\n", dasd->step, dasd->cpos, dasd->tsize, dasd->cyl, dasd->head, dasd->file_name);
+log_disk("Disk step %d %d %d c=%d h=%d %s\n", dasd->step, dasd->cpos, disk_type[type].bpt, dasd->cyl, dasd->head, dasd->file_name);
     *ix = 0;
     if (dasd->step < disk_type[type].rate) {
         dasd->step++;
@@ -731,8 +739,8 @@ log_disk("Disk read %s %d %d\n", disk_state[dasd->state], count, dasd->cpos);
         }
         dasd->tstart = (dasd->tsize * dasd->head);
     }
-    log_info("state %s %d ams=%d\n", disk_state[dasd->state], dasd->tpos,
-                  dasd->am_search);
+    log_info("state %s %d ams=%d h=%d\n", disk_state[dasd->state], dasd->tpos,
+                  dasd->am_search, dasd->head);
 
     if (dasd->cpos >= (disk_type[type].bpt + 1)) {
         log_info("state end %d\n", dasd->tpos);
@@ -770,6 +778,9 @@ log_disk("Gap0=%02x %d\n", *data, count);
                  dasd->am_search = 0;
              }
          } else {
+             if (count < 3) {
+                 *ix = 1;
+             }
              return 0;
          }
          break;
@@ -1096,10 +1107,15 @@ log_disk("End %d %d\n", dasd->cpos, dasd->tpos);
          dasd->count = 0;
          dasd->klen = 0;
          dasd->dlen = 0;
-         break;
+         if (dasd->cpos >= (disk_type[type].bpt + 1)) {
+             dasd->cpos = 0;
+             dasd->state = DK_POS_INDEX;             /* At Index Mark */
+             *ix = 1;
+         }
+         return 0;
     }
     if (dasd->cpos >= (disk_type[type].bpt + 1)) {
-        dasd->cpos = -1;
+        dasd->cpos = 0;
         dasd->state = DK_POS_INDEX;             /* At Index Mark */
         *ix = 1;
     }
@@ -1247,7 +1263,7 @@ log_disk("Overrun\n");
                   rec[i] = 0xff;
          }
          if (disk_type[type].dev_type != 0x14) {
-             if (*data == 0xe && dasd->count >= disk_type[type].g1) {
+             if (*data == 0xe /*&& dasd->count >= disk_type[type].g1*/) {
 log_disk("Sync 1\n");
  //            dasd->tstart = dasd->tsize * (dasd->head);
                  dasd->tpos = dasd->rpos = 5;
@@ -1402,7 +1418,7 @@ log_disk("Sync am\n");
              dasd->count--;
          }
          if (disk_type[type].dev_type != 0x14) {
-             if (*data == 0xe && dasd->count >= disk_type[type].g1) {
+             if (*data == 0xe /*&& dasd->count >= disk_type[type].g1*/) {
 log_disk("Sync 2\n");
  //            dasd->tstart = dasd->tsize * (dasd->head);
                  dasd->count = 0;
@@ -1454,7 +1470,7 @@ log_disk("Overrun\n");
                   rec[i] = 0xff;
          }
          if (disk_type[type].dev_type != 0x14) {
-             if (*data == 0xe && dasd->count >= disk_type[type].g1) {
+             if (*data == 0xe /*&& dasd->count >= disk_type[type].g1*/) {
 log_disk("Sync 3\n");
  //            dasd->tstart = dasd->tsize * (dasd->head);
                  dasd->count = 0;
