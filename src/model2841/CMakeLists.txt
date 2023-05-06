@@ -35,8 +35,8 @@ target_include_directories(model2841lib PRIVATE ${includes})
 target_include_directories(model2841lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(model2841lib model2841_ros.h)
 
-target_sources(${PROJECT_NAME} PUBLIC panel2841.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_sources(${PROJECT_NAME} PUBLIC panel2841.c)
 target_link_libraries(${PROJECT_NAME} PUBLIC model2841lib)
 
 if (RUN_TESTS)

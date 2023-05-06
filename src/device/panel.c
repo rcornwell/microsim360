@@ -1617,6 +1617,8 @@ int process(void *data) {
        (*step_cpu)();
 //       cycle_2030();
 //       step_2050();
+       step_disk();
+       step_disk();
        advance();
     }
     return 0;

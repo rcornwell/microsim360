@@ -50,6 +50,7 @@ extern struct ROS_2841 {
 
 #ifndef CROS2841
 #include <stdint.h>
+#include "conf.h"
 #include "device.h"
 #include "dasd.h"
 
@@ -173,5 +174,14 @@ struct _2841_context {
 void   step_2841(void *data);
 void    model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 struct _device *model2841_init(void *render, uint16_t addr);
+
+/* Panel display functions */
+void   model2311_draw(struct _device *unit, void *rend);
+struct _popup *model2311_control(struct _device *unit, int hd, int wd, int u);
+
+
+int     model2841_create(struct _option *opt);
+int     model2311_create(struct _option *opt);
+int     model2302_create(struct _option *opt);
 #endif
 #endif

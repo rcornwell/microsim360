@@ -101,12 +101,18 @@
 
 #include <stdint.h>
 
+#ifndef _DASD_H_
+#define _DASD_H_
+
 struct _dasd_t
 {
      char              *file_name;   /* File name */
+     char               vol_label[9]; /* Volume label */
+     int                fmt;         /* Format on attach */
      int                fd;          /* File pointer for image */
      int                type;        /* Type of disk */
      int                head;        /* Current head */
+     int                status;      /* Status of drive */
      uint8_t            tags;        /* Current file tags */
      uint8_t            diff;        /* Difference register */
      uint8_t            dir;         /* Direction */
@@ -132,6 +138,10 @@ struct _dasd_t
      int                step;        /* Byte step count */
 };
 
+/* Status bits */
+#define ONLINE     BIT0
+#define FAULT      BIT1
+#define READY      BIT2
 
 /* Header block */
 struct dasd_header
@@ -150,6 +160,10 @@ struct dasd_header
  *  Update the disk state to the current state and count.
  *  Used when swithing to a new drive.
  */
+
+int dasd_settype(struct _dasd_t *dasd, char *type);
+
+void dasd_setvolid(struct _dasd_t *dasd, char *volid);
 
 void dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc);
 
@@ -171,7 +185,8 @@ int dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *i
 
 int dasd_format(struct _dasd_t * dasd, int flag);
 
-int dasd_attach(struct _dasd_t *dasd, char *file_name, int type, int init);
+int dasd_attach(struct _dasd_t *dasd, char *file_name, int init);
 
 void dasd_detach(struct _dasd_t *dasd);
 
+#endif

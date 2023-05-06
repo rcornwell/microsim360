@@ -83,6 +83,7 @@ print_track(struct _device *dev, int unit)
          if ((rec[0] & rec[1] & rec[2] & rec[3]) == 0xff) {
             log_trace("End\n");
             end = 1;
+            klen = dlen = 0;
          } else {
             klen = rec[5];
             dlen = (rec[6] << 8) | rec[7];
@@ -104,6 +105,8 @@ initial_select(struct _device *dev, uint16_t *tags, int cmd)
     int         sts = 0;
 
     *tags |= CHAN_OPR_OUT;
+    status = 0x100;
+    bus_out = 0x100;
     log_trace("Initial select\n");
     for (i = 0; i < 200; i++) {
         step_disk();
@@ -397,7 +400,8 @@ CTEST_SETUP(disk_test) {
     data->dev = model2844_init(NULL, 0x90);
     ctx = (struct _2844_context *)(data->dev->dev);
     ctx->disk[1] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
-    dasd_attach(ctx->disk[1], "test.ckd", 3, 1);
+    dasd_settype(ctx->disk[1], "2314");
+    dasd_attach(ctx->disk[1], "test.ckd", 1);
 }
 
 CTEST_TEARDOWN(disk_test) {
@@ -441,6 +445,7 @@ CTEST2(disk_test, test_io) {
     int         sel = 0;
 
     tags = CHAN_OPR_OUT;
+    bus_out = 0x100;
     for (i = 0; i < 200; i++) {
         step_disk();
         step_disk();
@@ -961,7 +966,7 @@ CTEST2(disk_test, writeR0) {
     status = wait_dev(data->dev, &tags, 0);
     ASSERT_EQUAL_X(0x10c, status);
     print_track(data->dev, 1);
-sense:
+    /* Grab sense info and make sure all is correct. */
     status = initial_select(data->dev, &tags, 0x4);
     ASSERT_EQUAL_X(0x100, status);
     num = 6;
@@ -1198,7 +1203,8 @@ CTEST_SETUP(disk_data) {
     ctx = (struct _2844_context *)(data->dev->dev);
     ctx->disk[1] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
     dasd = ctx->disk[1];
-    dasd_attach(ctx->disk[1], "test.ckd", 3, 1);
+    dasd_settype(ctx->disk[1], "2314");
+    dasd_attach(ctx->disk[1], "test.ckd", 1);
     (void)lseek(dasd->fd, sizeof(struct dasd_header), SEEK_SET);
     cyl = dasd->cyl = 10;
     dasd->head = 0;

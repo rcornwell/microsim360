@@ -111,6 +111,7 @@
 #include "event.h"
 #include "logger.h"
 #include "dasd.h"
+#include "xlat.h"
 
 
 #define BIT0    0x80
@@ -163,6 +164,37 @@ disk_type[] =
 
        {NULL, 0}
 };
+
+int
+dasd_settype(struct _dasd_t *dasd, char *type)
+{
+    int  i;
+
+    for (i = 0; disk_type[i].name != NULL; i++) {
+        if (strcmp(disk_type[i].name, type) == 0) {
+           dasd->type = i;
+           return 1;
+        }
+    }
+    dasd->type = -1;
+    return 0;
+}
+
+void
+dasd_setvolid(struct _dasd_t *dasd, char *volid)
+{
+     int  i;
+
+     for (i = 0; i < 8; i++) {
+         if (volid[i] == '\0')
+             break;
+         dasd->vol_label[i] = volid[i];
+     }
+     for (;i < 8; i++) {
+         dasd->vol_label[i] = ' ';
+     }
+     dasd->vol_label[i] = '\0';
+}
 
 #if 0
 /* Gap is: */
@@ -231,6 +263,7 @@ seek_callback(struct _device *unit, void *arg, int iarg)
     dasd->diff = 0;
     dasd->flags &= ~1;
     dasd->cyl = dasd->ncyl;
+    dasd->status |= READY;
 }
 
 void
@@ -271,6 +304,7 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
             if (dasd->diff != 0) {
                 add_event((struct _device *)dasd, seek_callback, 50,  NULL, 0);
                 dasd->flags |= 1;
+                dasd->status &= ~READY;
             }
         }
         if (fc & BIT3) {  /* Head reset */
@@ -287,6 +321,7 @@ dasd_settags(struct _dasd_t *dasd, uint8_t ft, uint8_t fc)
             dasd->diff = 0;
             dasd->head = 0;
             dasd->flags |= 1;
+            dasd->status &= ~READY;
             dasd->tstart = (dasd->tsize * dasd->head);
             add_event((struct _device *)dasd, seek_callback, 50,  NULL, 0);
         }
@@ -361,15 +396,14 @@ dasd_gettags(struct _dasd_t *dasd)
             res |= BIT3;
         }
         /* Check if drive ready */
-        if ((dasd->flags & 1) != 0) {
+        if ((dasd->status & READY) == 0) {
             res |= BIT0;
         }
     } else {
         /* Check if drive ready */
-        if ((dasd->flags & 1) == 0) {
+        if ((dasd->status & READY) != 0) {
             res |= BIT0;
         }
-//        res |= BIT4;
     }
 log_disk("FS = %02x\n", res);
     return res;
@@ -1832,8 +1866,13 @@ dasd_format(struct _dasd_t * dasd, int flag) {
                 dasd->cbuf[pos++] = 4;              /* keylen */
                 dasd->cbuf[pos++] = 0;              /* dlen */
                 dasd->cbuf[pos++] = 80;             /*  */
-                for (p = 0; p < sizeof (volrec); p++)
-                    dasd->cbuf[pos++] = volrec[p];
+                for (p = 0; p < sizeof (volrec); p++) {
+                    if (p >= 8 && p <= 16 && dasd->vol_label[p - 8] != 0) {
+                        dasd->cbuf[pos++] = ascii_to_ebcdic[(int)dasd->vol_label[p - 8]];
+                    } else {
+                        dasd->cbuf[pos++] = volrec[p];
+                    }
+                }
             } else {
                 dasd->cbuf[pos++] = 0;              /* keylen */
                 dasd->cbuf[pos++] = 0;              /* dlen */
@@ -1851,18 +1890,11 @@ dasd_format(struct _dasd_t * dasd, int flag) {
         }
         memset(dasd->cbuf, 0, tsize);
     }
-    (void)lseek(dasd->fd, sizeof(struct dasd_header), SEEK_SET);
-    r = read(dasd->fd, dasd->cbuf, tsize);
-    if (r != tsize) {
-        log_error("Disk read on %s %d\n", dasd->file_name, r);
-    }
-    dasd->cpos = sizeof(struct dasd_header);
-    dasd->cyl = 0;
     return 0;
 }
 
 int
-dasd_attach(struct _dasd_t *dasd, char *file_name, int type, int init)
+dasd_attach(struct _dasd_t *dasd, char *file_name, int init)
 {
     int                 i;
     struct dasd_header  hdr;
@@ -1870,9 +1902,10 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int type, int init)
     off_t               isize;
     size_t              dsize;
     int                 r;
+    uint8_t             *rec;
+    int                 pos;
 
-    dasd->type = type;
-    log_info("Attach %s %d\n", file_name, type);
+    log_info("Attach %s %d\n", file_name, dasd->type);
     if ((dasd->fd = open(file_name, O_RDWR, 0660)) < 0) {
         if (init) {
            if ((dasd->fd = open(file_name, O_RDWR|O_CREAT, 0660)) < 0) {
@@ -1882,14 +1915,13 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int type, int init)
     }
     dasd->file_name = strdup(file_name);
 
-    log_info("File %s %d\n", file_name, type);
+    log_info("File %s %d\n", file_name, dasd->type);
     if (read(dasd->fd, &hdr, sizeof(struct dasd_header)) !=
           sizeof(struct dasd_header) || strncmp(&hdr.devid[0], "CKD_P370", 8) != 0 || init) {
         if (dasd_format(dasd, init)) {
             dasd_detach(dasd);
             return -1;
         }
-        return 1;
     }
 
     isize = lseek(dasd->fd, 0, SEEK_END);
@@ -1916,6 +1948,7 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int type, int init)
         dasd_detach(dasd);
         return -1;
     }
+    /* Read in first cylinder */
     tsize = hdr.tracksize * hdr.heads;
     dasd->tsize = hdr.tracksize;
     (void)lseek(dasd->fd, sizeof(struct dasd_header), SEEK_SET);
@@ -1924,7 +1957,30 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int type, int init)
         log_error("Disk read on %s %d\n", dasd->file_name, r);
     }
     dasd->fpos = sizeof(struct dasd_header);
+    dasd->status = ONLINE|READY;
     dasd->cyl = 0;
+    /* Load in volume ID, from record 3 */
+    pos = 5;
+    rec = &dasd->cbuf[pos];
+    pos += 8 + rec[5] + ((rec[6] << 8) | rec[7]);  /* Skip record 0 */
+    rec = &dasd->cbuf[pos];
+    pos += 8 + rec[5] + ((rec[6] << 8) | rec[7]);  /* Skip record 1 */
+    rec = &dasd->cbuf[pos];
+    pos += 8 + rec[5] + ((rec[6] << 8) | rec[7]);  /* Skip record 2 */
+    rec = &dasd->cbuf[pos];                        /* Now points to record 3 */
+    /* Check if correct length */
+    if (rec[5] != 4 || rec[6] != 0 || rec[7] != 80)
+        return 1;
+
+    /* VOL1 Key and VOL1 label */
+    for (i = 0; i < 8; i++) {
+        if (rec[8 + i] != volrec[i])
+            return 1;
+    }
+    for (i = 0; i < 8; i++) {
+        dasd->vol_label[i] = ebcdic_to_ascii[rec[16 + i]];
+    }
+    dasd->vol_label[8] = '\0';   /* Make it a string */
     return 1;
 }
 
@@ -1945,6 +2001,7 @@ dasd_detach(struct _dasd_t *dasd)
     dasd->cbuf = NULL;
     free(dasd->file_name);
     dasd->file_name = NULL;
+    dasd->status = 0;
 }
 
 

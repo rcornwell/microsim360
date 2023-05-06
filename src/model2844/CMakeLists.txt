@@ -29,17 +29,23 @@ add_custom_target(model2844_ros.h
        COMMENT "Building model 2844 ROS data"
        DEPENDS cros2844 ${CROS2844})
 
-target_sources(${PROJECT_NAME} PUBLIC model2844.c model2844_ros.c)
+add_library(model2844lib)
+target_sources(model2844lib PRIVATE model2844.c model2844_ros.c)
+target_include_directories(model2844lib PRIVATE ${includes})
+target_include_directories(model2844lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+add_dependencies(model2844lib model2844_ros.h)
+
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-add_dependencies(${PROJECT_NAME} model2844_ros.h)
+target_sources(${PROJECT_NAME} PUBLIC panel2844.c)
+target_link_libraries(${PROJECT_NAME} PUBLIC model2844lib)
 
 if (RUN_TESTS)
-add_executable(test2844_test test/ctest_main.c test/disk_test.c ../event.c
-               ../logger.c ../conf.c ../device/dasd.c ../device/xlat.c
-               ../device/device.c model2844.c model2844_ros.c)
-target_link_libraries(test2844_test)
-add_dependencies(test2844_test model2844_ros.h)
+add_executable(test2844_test test/ctest_main.c test/disk_test.c)
+target_link_libraries(test2844_test model2844lib)
+target_link_libraries(test2844_test devicelib)
+target_link_libraries(test2844_test toplib)
+#add_dependencies(test2844_test model2844_ros.h)
 add_custom_command(TARGET test2844_test
             COMMAND test2844_test
             COMMENT "Test instructions for 2844"

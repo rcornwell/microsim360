@@ -30,6 +30,7 @@
 #define CTEST_NO_COLORS
 
 #include "ctest.h"
+#include "device.h"
 #include "logger.h"
 
 int main(int argc, const char *argv[])
@@ -40,3 +41,16 @@ int main(int argc, const char *argv[])
     result = ctest_main(argc, argv);
     return result;
 }
+
+/* Panel display functions */
+void
+model2314_draw(struct _device *unit, void *rend)
+{
+}
+
+struct _popup *
+model2314_control(struct _device *unit, int hd, int wd, int u)
+{
+     return NULL;
+}
+

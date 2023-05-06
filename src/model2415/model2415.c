@@ -1914,7 +1914,7 @@ static char *density_type[] = { "1600", "800", NULL };
 static char *tracks[] = { "9 track", "7 track", NULL };
 static char *ring_mode[] = { "Ring", "No Ring", NULL };
 static char *reel_color[] = { "Clear", "Red", "Blue" };
-static char *label_mode[] = { "No", "Yes" };
+static char *label_mode[] = { "No", "Yes", NULL };
 
 //static SDL_Renderer *render;
 struct _popup *

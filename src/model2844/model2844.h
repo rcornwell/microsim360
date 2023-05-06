@@ -202,5 +202,15 @@ struct _2844_context {
 
 void step_2844(void *data);
 struct _device *model2844_init(void *render, uint16_t addr);
+
+
+/* Panel display functions */
+void   model2314_draw(struct _device *unit, void *rend);
+struct _popup *model2314_control(struct _device *unit, int hd, int wd, int u);
+
+
+int     model2844_create(struct _option *opt);
+int     model2314_create(struct _option *opt);
+
 #endif
 #endif

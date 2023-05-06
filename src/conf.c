@@ -368,7 +368,7 @@ load_config(char *name)
        fprintf(stderr, "line=%s", line_buffer);
        fnd = 0;
        if (get_model(&opt)) {
-           for (devlist = dev_list(); devlist->magic == DEV_LIST_MAGIC; devlist++) {
+           for (devlist = dev_list(); devlist->magic == DEV_LIST_MAGIC && fnd == 0; devlist++) {
                if (strcmp(opt.opt, devlist->name) == 0) {
                    fnd = 1;
                    switch(devlist->type) {

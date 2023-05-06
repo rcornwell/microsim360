@@ -30,6 +30,7 @@
 #define CTEST_NO_COLORS
 
 #include "ctest.h"
+#include "device.h"
 #include "logger.h"
 
 int main(int argc, const char *argv[])
@@ -39,5 +40,17 @@ int main(int argc, const char *argv[])
     log_init("disk_debug.log");
     result = ctest_main(argc, argv);
     return result;
+}
+
+/* Panel display functions */
+void
+model2311_draw(struct _device *unit, void *rend)
+{
+}
+
+struct _popup *
+model2311_control(struct _device *unit, int hd, int wd, int u)
+{
+     return NULL;
 }
 

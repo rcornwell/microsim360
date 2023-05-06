@@ -25,11 +25,8 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <SDL.h>
-#include <SDL_timer.h>
-#include <SDL_thread.h>
-#include <SDL_ttf.h>
-#include <SDL_image.h>
+#include <string.h>
+#include <stdlib.h>
 #include "logger.h"
 #include "device.h"
 #include "xlat.h"
@@ -1060,11 +1057,124 @@ model2844_init(void *rend, uint16_t addr)
      dev2844->addr = addr;
      ctx->created = ++created;
      ctx->addr = addr;
+     ctx->chan = (addr >> 8) & 0xf;
      ctx->WX = 0;
      for (i = 0; i < 8; i++)
          ctx->disk[i] = NULL;
      add_chan(dev2844, addr);
      add_disk(&step_2844, (void *)ctx);
      return dev2844;
+}
+
+
+int
+model2844_create(struct _option *opt)
+{
+     struct  _device *dev2844;
+     struct  _2844_context *ctx;
+     int              i;
+
+     if ((dev2844 = (struct _device *)calloc(1, sizeof(struct _device))) == NULL)
+         return 0;
+
+     if ((ctx = (struct _2844_context *)calloc(1, sizeof(struct _2844_context))) == NULL) {
+         free (dev2844);
+         return 0;
+     }
+
+     dev2844->bus_func = &model2844_dev;
+     dev2844->dev = (void *)ctx;
+     dev2844->draw_model = (void *)model2314_draw;
+     dev2844->create_ctrl = (void *)model2314_control;
+     dev2844->n_units = 8;
+     ctx->addr = opt->addr & 0xff;
+     ctx->chan = (opt->addr >> 8) & 0xf;
+     ctx->WX = 0;
+     for (i = 0; i < 8; i++) {
+         ctx->disk[i] = NULL;
+         dev2844->rect[i].x = 0;
+         dev2844->rect[i].y = 0;
+         dev2844->rect[i].w = 0;
+         dev2844->rect[i].h = 0;
+     }
+     add_chan(dev2844, opt->addr);
+     add_disk(&step_2844, (void *)ctx);
+     return 1;
+}
+
+int
+model2314_create(struct _option *opt)
+{
+     struct  _device *dev2844;
+     struct  _2844_context *ctx;
+     struct _option   opts;
+     int              i;
+     char            *file;
+     int              fmt;
+     char            *vol;
+     int              t;
+
+     dev2844 = find_chan(opt->addr, 0xf8);
+     if (dev2844 == NULL) {
+         fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     i = opt->addr & 0x7;
+     ctx = (struct _2844_context *)dev2844->dev;
+     if (ctx->disk[i] != NULL) {
+         fprintf(stderr, "Duplicate device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     ctx->disk[i] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
+     if (ctx->disk[i] == NULL) {
+         fprintf(stderr, "Unable to create device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     if (dasd_settype(ctx->disk[i], "2314") == 0) {
+         fprintf(stderr, "Unknown type %s %03x\n", opt->opt, opt->addr);
+         free(ctx->disk[i]);
+         ctx->disk[i] = NULL;
+         return 0;
+     }
+     file = NULL;
+     vol = NULL;
+     fmt = 0;
+     while (get_option(&opts)) {
+         if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
+             file = strdup(opts.string);
+         } else if (strcmp(opts.opt, "FORMAT") == 0) {
+             fmt = 1;
+         } else if (strcmp(opts.opt, "VOLID") == 0) {
+             vol = strdup(opts.string);
+         } else {
+             fprintf(stderr, "Invalid option %s to 2314 Unit\n", opts.opt);
+             free(ctx->disk[i]);
+             ctx->disk[i] = NULL;
+             return 0;
+         }
+     }
+     dev2844->rect[i].x = 0;
+     dev2844->rect[i].y = 0;
+     dev2844->rect[i].w = 180;
+     dev2844->rect[i].h = 100;
+     if (vol != NULL) {
+         for (t = 0; t < 8; t++) {
+             if (vol[t] == '\0')
+                 break;
+             ctx->disk[i]->vol_label[t] = vol[t];
+         }
+         for (;t < 8; t++) {
+             ctx->disk[i]->vol_label[t] = ' ';
+         }
+         ctx->disk[i]->vol_label[t] = '\0';
+         free(vol);
+     }
+     if (file != NULL) {
+         if (dasd_attach(ctx->disk[i], file, fmt) == 0) {
+             log_warn("Unable to open file %s\n", file);
+         }
+         free(file);
+     }
+     return 1;
 }
 

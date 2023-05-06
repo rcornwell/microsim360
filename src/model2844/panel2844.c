@@ -1,5 +1,5 @@
 /*
- * microsim360 - Model 2841 disk controller.
+ * microsim360 - Model 2844 disk controller.
  *
  * Copyright 2023, Richard Cornwell
  *
@@ -35,17 +35,17 @@
 #include "event.h"
 #include "device.h"
 #include "xlat.h"
-#include "model2841.h"
+#include "model2844.h"
 
-#include "model2311.xpm"
+#include "model2314.xpm"
 
 
-SDL_Texture *model2311_img = NULL;
+SDL_Texture *model2314_img = NULL;
 
 void
-model2311_draw(struct _device *unit, void *rend)
+model2314_draw(struct _device *unit, void *rend)
 {
-    struct _2841_context *ctx = (struct _2841_context *)unit->dev;
+    struct _2844_context *ctx = (struct _2844_context *)unit->dev;
     SDL_Renderer *render = (SDL_Renderer *)rend;
     SDL_Rect     rect;
     SDL_Rect     rect2;
@@ -57,12 +57,12 @@ model2311_draw(struct _device *unit, void *rend)
     int          y;
     char         buf[100];
 
-    if (model2311_img == NULL) {
+    if (model2314_img == NULL) {
         SDL_Surface *text;
 
-        text = IMG_ReadXPMFromArray(model2311_xpm);
-        model2311_img = SDL_CreateTextureFromSurface(render, text);
-        SDL_SetTextureBlendMode(model2311_img, SDL_BLENDMODE_BLEND);
+        text = IMG_ReadXPMFromArray(model2314_xpm);
+        model2314_img = SDL_CreateTextureFromSurface(render, text);
+        SDL_SetTextureBlendMode(model2314_img, SDL_BLENDMODE_BLEND);
         SDL_FreeSurface(text);
     }
 
@@ -81,7 +81,7 @@ model2311_draw(struct _device *unit, void *rend)
         rect.y = y;
         rect.w = unit->rect[i].w;
         rect.h = unit->rect[i].h;
-        SDL_RenderCopy(render, model2311_img, &rect2, &rect);
+        SDL_RenderCopy(render, model2314_img, &rect2, &rect);
         sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
         text = TTF_RenderText_Solid(font14, buf, c1);
         txt = SDL_CreateTextureFromSurface(render, text);
@@ -94,10 +94,10 @@ model2311_draw(struct _device *unit, void *rend)
     }
 }
 
-static void model2311_update(struct _popup *popup, void *device, int index)
+static void model2314_update(struct _popup *popup, void *device, int index)
 {
     struct _device *unit = (struct _device *)device;
-    struct _2841_context *ctx = (struct _2841_context *)unit->dev;
+    struct _2844_context *ctx = (struct _2844_context *)unit->dev;
 
 fprintf (stderr, "Disk key %d\n", index);
     switch (index) {
@@ -130,10 +130,10 @@ static SDL_Color   col_red_off = { 0xff, 0x00, 0x4a };
 static char *format_mode[] = {"No", "Yes", NULL };
 
 struct _popup *
-model2311_control(struct _device *unit, int hd, int wd, int u)
+model2314_control(struct _device *unit, int hd, int wd, int u)
 {
     struct _popup  *popup;
-    struct _2841_context *ctx = (struct _2841_context *)unit->dev;
+    struct _2844_context *ctx = (struct _2844_context *)unit->dev;
     SDL_Surface *text;
     int    i, j;
     int    w, h;
@@ -142,7 +142,7 @@ model2311_control(struct _device *unit, int hd, int wd, int u)
 
     if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
         return popup;
-    sprintf(buffer, "IBM2311 Dev 0x'%03X'", ctx->addr + u);
+    sprintf(buffer, "IBM2314 Dev 0x'%03X'", ctx->addr + u);
     popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         800, 200, SDL_WINDOW_RESIZABLE );
     popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
@@ -294,10 +294,9 @@ model2311_control(struct _device *unit, int hd, int wd, int u)
     popup->combo[popup->cmb_ptr].max = i - 1;
     popup->cmb_ptr++;
 
-    popup->update = &model2311_update;
+    popup->update = &model2314_update;
     return popup;
 }
 
-DEV_LIST_STRUCT(2302, UNIT_TYPE, 0);
-DEV_LIST_STRUCT(2311, UNIT_TYPE, 0);
-DEV_LIST_STRUCT(2841, CTRL_TYPE, 0);
+DEV_LIST_STRUCT(2314, UNIT_TYPE, 0);
+DEV_LIST_STRUCT(2844, CTRL_TYPE, 0);

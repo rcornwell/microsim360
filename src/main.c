@@ -96,6 +96,7 @@ main(int argc, char *argv[])
     char  *log_file = NULL;
     struct _device   *dev;
     int               scr_wid, scr_hi;
+    int               i;
 
     opterr = 0;
 
@@ -130,8 +131,10 @@ main(int argc, char *argv[])
           exit(1);
        }
     }
-    for (dev = chan[0]; dev != NULL; dev = dev->next) {
-         printf("Device %03x\n", dev->addr);
+    for (i = 0; i < 6; i++) {
+        for (dev = chan[i]; dev != NULL; dev = dev->next) {
+             printf("Device %03x\n", dev->addr);
+        }
     }
     layout_periph(&scr_wid, &scr_hi);
     if (title != NULL) {

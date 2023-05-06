@@ -1103,3 +1103,138 @@ model2841_init(void *rend, uint16_t addr)
      return dev2841;
 }
 
+int
+model2841_create(struct _option *opt)
+{
+     struct  _device *dev2841;
+     struct  _2841_context *ctx;
+     int              i;
+
+     if ((dev2841 = (struct _device *)calloc(1, sizeof(struct _device))) == NULL)
+         return 0;
+
+     if ((ctx = (struct _2841_context *)calloc(1, sizeof(struct _2841_context))) == NULL) {
+         free (dev2841);
+         return 0;
+     }
+
+     dev2841->bus_func = &model2841_dev;
+     dev2841->dev = (void *)ctx;
+     dev2841->draw_model = (void *)&model2311_draw;
+     dev2841->create_ctrl = (void *)&model2311_control;
+     dev2841->n_units = 8;
+     ctx->addr = opt->addr & 0xff;;
+     ctx->chan = (opt->addr >> 8) & 0x7;
+     ctx->WX = 0;
+     for (i = 0; i < dev2841->n_units; i++) {
+         ctx->disk[i] = NULL;
+         dev2841->rect[i].x = 0;
+         dev2841->rect[i].y = 0;
+         dev2841->rect[i].w = 0;
+         dev2841->rect[i].h = 0;
+     }
+     add_chan(dev2841, opt->addr);
+     add_disk(&step_2841, (void *)ctx);
+     return 1;
+}
+
+int
+model2311_create(struct _option *opt)
+{
+     struct  _device *dev2841;
+     struct  _2841_context *ctx;
+     struct _option   opts;
+     int              i;
+     char            *file;
+     int              fmt;
+     char            *vol;
+     int              t;
+
+     dev2841 = find_chan(opt->addr, 0xf8);
+     if (dev2841 == NULL) {
+         fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     i = opt->addr & 0x7;
+     ctx = (struct _2841_context *)dev2841->dev;
+     if (ctx->disk[i] != NULL) {
+         fprintf(stderr, "Duplicate device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     ctx->disk[i] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
+     if (ctx->disk[i] == NULL) {
+         fprintf(stderr, "Unable to create device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     if (dasd_settype(ctx->disk[i], "2311") == 0) {
+         fprintf(stderr, "Unknown type %s %03x\n", opt->opt, opt->addr);
+         free(ctx->disk[i]);
+         ctx->disk[i] = NULL;
+         return 0;
+     }
+     file = NULL;
+     vol = NULL;
+     fmt = 0;
+     while (get_option(&opts)) {
+         if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
+             file = strdup(opts.string);
+         } else if (strcmp(opts.opt, "FORMAT") == 0) {
+             fmt = 1;
+         } else if (strcmp(opts.opt, "VOLID") == 0) {
+             vol = strdup(opts.string);
+         } else {
+             fprintf(stderr, "Invalid option %s to 2415 Unit\n", opts.opt);
+             free(ctx->disk[i]);
+             ctx->disk[i] = NULL;
+             return 0;
+         }
+     }
+     dev2841->rect[i].x = 0;
+     dev2841->rect[i].y = 0;
+     dev2841->rect[i].w = 180;
+     dev2841->rect[i].h = 100;
+     if (vol != NULL) {
+         dasd_setvolid(ctx->disk[i], vol);
+         free(vol);
+     }
+     if (file != NULL) {
+         if (dasd_attach(ctx->disk[i], file, fmt) == 0) {
+             log_warn("Unable to open file %s\n", file);
+         }
+         free(file);
+     }
+     return 1;
+}
+
+int
+model2302_create(struct _option *opt)
+{
+     struct  _device *dev2841;
+     struct  _2841_context *ctx;
+     int              i;
+
+     dev2841 = find_chan(opt->addr, 0xf8);
+     if (dev2841 == NULL) {
+         fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     i = opt->addr & 0x7;
+     ctx = (struct _2841_context *)dev2841->dev;
+     if (ctx->disk[i] != NULL) {
+         fprintf(stderr, "Duplicate device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     ctx->disk[i] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
+     if (ctx->disk[i] != NULL) {
+         fprintf(stderr, "Unable to create device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     if (dasd_settype(ctx->disk[i], "2302") == 0) {
+         fprintf(stderr, "Unknown type %s %03x\n", opt->opt, opt->addr);
+         free(ctx->disk[i]);
+         ctx->disk[i] = NULL;
+         return 0;
+     }
+     return 1;
+}
+
