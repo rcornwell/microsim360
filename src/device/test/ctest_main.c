@@ -36,6 +36,10 @@
 
 int main(int argc, const char *argv[])
 {
-    int result = ctest_main(argc, argv);
+    int result;
+
+    log_level = 0x137f;
+    log_init("device.log");
+    result = ctest_main(argc, argv);
     return result;
 }

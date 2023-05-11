@@ -270,7 +270,7 @@ tape_write_byte(struct _tape_buffer *tape, uint8_t data)
      if (tape->file_name == NULL)
         return -1;
      /* Check if at end of buffer */
-     if (tape->pos_buff > sizeof(tape->buffer)) {
+     if (tape->pos_buff >= sizeof(tape->buffer)) {
          /* If buffer is dirty flush it to the file */
          if (tape->dirty) {
              int     r;
@@ -307,7 +307,7 @@ tape_readbk_byte(struct _tape_buffer *tape, uint8_t *data)
      if (tape->file_name == NULL)
         return -1;
      /* Check if at end of buffer */
-     if (tape->pos_buff == 0) {
+     if (tape->pos_buff == 0 || tape->len_buff == 0) {
          /* If buffer is dirty flush it to the file */
          if (tape->dirty) {
              int     r;
@@ -325,21 +325,30 @@ tape_readbk_byte(struct _tape_buffer *tape, uint8_t *data)
          if (tape->pos == 0) {
             *data = tape->buffer[tape->pos_buff];
             tape->format |= TAPE_BOT;
-            return 1;
-         }
-         if (tape->pos != 0) {
+            tape->pos_buff = 0;
+            tape->len_buff = 0;
+            return 0;
+         } else {
+             int       opos = -1;
+
              /* Backup current buffer first position */
-             tape->pos -= sizeof(tape->buffer);
-             if (tape->pos < 0) {
+             if (tape->pos < sizeof(tape->buffer)) {
+                 opos = tape->pos;
                  tape->pos = 0;
+             } else {
+                 tape->pos -= sizeof(tape->buffer);
              }
              lseek(tape->fd, tape->pos, SEEK_SET);
              tape->len_buff = read(tape->fd, tape->buffer, sizeof(tape->buffer));
-             tape->pos_buff = tape->len_buff;
+             if (opos == -1) {
+                 tape->pos_buff = tape->len_buff;
+             } else {
+                 tape->pos_buff = opos;
+             }
          }
          tape->format &= ~TAPE_EOT;
      }
-     *data = tape->buffer[tape->pos_buff--];
+     *data = tape->buffer[--tape->pos_buff];
      log_tape("Tape readbk byte c=%02x %d %ld %d %d\n", *data, tape->lrecl, tape->pos, tape->pos_buff, tape->len_buff);
      return 1;
 }
@@ -535,7 +544,7 @@ tape_read_forw(struct _tape_buffer *tape)
                    if (j > tape->len_buff)
                        j = tape->len_buff;
                    k = 0;
-                   while (j > 0) {
+                   while (j > 0 && (tape->pos_buff + k + 16) < sizeof(tape->buffer)) {
                        log_tape_s("data ");
                        for(i = 0; i < j && i < 16; i++)
                            log_tape_c ("%02x ", tape->buffer[tape->pos_buff + i + k]);
@@ -568,7 +577,6 @@ tape_read_forw(struct _tape_buffer *tape)
                            return r;
                        tape->pos_frame += IRG_LEN;
                        tape->format |= TAPE_MARK;
-                       r = tape_peek_byte(tape, &lrecl[0]);
                        log_tape("Tape mark %d\n", r);
                        return (r == 0) ? 0 : 2;
                    }
@@ -588,8 +596,6 @@ tape_read_back(struct _tape_buffer *tape)
      uint8_t       lrecl[4];
      int           r;
      int           i;
-     int           j;
-     int           k;
 
      if (tape->file_name == NULL)
         return -1;
@@ -603,7 +609,6 @@ tape_read_back(struct _tape_buffer *tape)
      case TYPE_E11:
 
                    tape->srec = tape->pos + tape->pos_buff;
-                   r = tape_readbk_byte(tape, &lrecl[0]);
                    /* Read in 4 byte logical record length */
                    for (i = 3; i >= 0; i--) {
                        r = tape_readbk_byte(tape, &lrecl[i]);
@@ -623,55 +628,29 @@ tape_read_back(struct _tape_buffer *tape)
                    if (tape->lrecl == 0) {
                        tape->pos_frame -= IRG_LEN;
                        tape->format |= TAPE_MARK;
-                       /* Point to first byte of current record */
-                       tape_read_byte(tape, &lrecl[0]);
                        log_tape("Tape mark\n");
                        return 2;
                    }
                    tape->orecl = tape->lrecl;
-
-                   j = tape->lrecl;
-                   k = 0;
-                   if (j > tape->len_buff)
-                       j = tape->len_buff;
-                   while (j > 0) {
-                       log_tape_s("data ");
-                       for(i = 0; i < j && i < 16; i++)
-                           log_tape_c ("%02x ", tape->buffer[tape->pos_buff + i + k]);
-                       log_tape_c(" ");
-                       for(i = 0; i < j && i < 16; i++) {
-                           uint8_t ch = ebcdic_to_ascii[tape->buffer[tape->pos_buff + i + k]];
-                           log_tape_c ("%c", isprint(ch) ? ch : '.');
-                       }
-                       j -= 16;
-                       k += 16;
-                   }
                    log_tape("Tape read backward: %d %d\n", tape->orecl, tape->pos_buff);
                    break;
 
      case TYPE_P7B:
                    /* Peek at previous character */
                    tape->srec = tape->pos + tape->pos_buff;
-                   r = tape_peek_byte(tape, &lrecl[0]);
-                   if (r == 0) {  /* At end of media */
-                       r = tape_readbk_byte(tape, &lrecl[0]);
-                       if (lrecl[0] == (IRG_MASK|BCD_TM)) {
-                           tape->lrecl = 2;
-                           tape->pos_frame -= IRG_LEN;
-                           tape->format |= TAPE_MARK;
-                           return 2;
-                       }
-                   }
+                   r = tape_readbk_byte(tape, &lrecl[0]);
                    if (r != 1)
                        return r;
-                   tape->srec = tape->pos + tape->pos_buff;
                    tape->lrecl = 0;  /* Flag at beginning of record */
                    if (lrecl[0] == (IRG_MASK|BCD_TM)) {
-                       r = tape_readbk_byte(tape, &lrecl[0]);
+                       tape->srec = tape->pos + tape->pos_buff;
                        tape->pos_frame -= IRG_LEN;
                        tape->lrecl = 2;
                        tape->format |= TAPE_MARK;
                        return 2;
+                   } else {
+                       /* If not mark, read back over skipped character */
+                       r = tape_read_byte(tape, &lrecl[0]);
                    }
                    break;
      }
@@ -872,10 +851,6 @@ tape_finish_rec(struct _tape_buffer *tape)
                         if (tape->lrecl != tape->orecl) {
                             log_tape(" Tape read error lrecl != lrecl\n");
                         }
-                        /* Position us at head of next record */
-                        r = tape_read_byte(tape, &lrecl[0]);
-                        if (r < 0)
-                           return r;
                         break;
                    }
                    break;
