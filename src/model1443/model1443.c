@@ -1495,4 +1495,4 @@ model1443_create(struct _option *opt)
      return 1;
 }
 
-DEV_LIST_STRUCT(1443, DEVICE_TYPE, 0);
+DEV_LIST_STRUCT(1443, DEV_TYPE, 0);

@@ -107,6 +107,7 @@ step_2841(void *data)
         if ((ctx->UR_REG & (0x80 >> i)) != 0 && (ctx->FT & 0x81) == 0x81 && (ctx->FC & 0x04) != 0) {
             uint8_t   data, am;
             ix = 0;
+            data = 0;
             if ((ctx->FC & 0x40) != 0) {
                 if (dasd_read_byte(ctx->disk[i], &data, &am, &ix)) {
                     log_disk("Disk read %d %02x\n", i, data);

@@ -3556,7 +3556,7 @@ struct _dec_case {
   /* Run group of decimal test cases */
   DTEST(instruct, decimal_test) {
       struct _dec_case *test;
-      char      result[30];
+      char      result[40];
       int       i;
       int       l1, l2;
       uint8_t   data;

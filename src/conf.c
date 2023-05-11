@@ -374,7 +374,7 @@ load_config(char *name)
                    switch(devlist->type) {
                    case HEAD_TYPE:
                              break;
-                   case DEVICE_TYPE:
+                   case DEV_TYPE:
                    case CTRL_TYPE:
                    case UNIT_TYPE:
                              if (get_addr(&opt) == 0) {
@@ -429,7 +429,7 @@ load_line(char *line)
                 switch(devlist->type) {
                 case HEAD_TYPE:
                           break;
-                case DEVICE_TYPE:
+                case DEV_TYPE:
                 case CTRL_TYPE:
                 case UNIT_TYPE:
                           if (get_addr(&opt) == 0) {

@@ -33,6 +33,7 @@ add_subdirectory(model1442)
 add_subdirectory(model1443)
 add_subdirectory(model2030)
 add_subdirectory(model2050)
+#add_subdirectory(model2075)
 #add_subdirectory(model2065)
 add_subdirectory(model2415)
 add_subdirectory(model2841)
@@ -44,11 +45,19 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${includes})
 target_sources(${PROJECT_NAME} PUBLIC main.c)
 target_link_libraries(${PROJECT_NAME} PUBLIC toplib)
 #add_dependencies(${PROJECT_NAME} font1.h)
+if (WIN32)
+set_property(TARGET ${PROJECT_NAME} APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
+endif()
+
 
 
 if (RUN_TESTS)
 add_executable(sim_test test/ctest_main.c test/event_test.c)
 
+if (WIN32)
+set_property(TARGET sim_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
+endif()
+target_link_libraries(sim_test PUBLIC asan)
 target_link_libraries(sim_test PUBLIC toplib)
 add_custom_command(TARGET sim_test
             COMMAND sim_test

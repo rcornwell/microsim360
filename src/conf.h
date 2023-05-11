@@ -42,7 +42,7 @@ struct _option {
 
 #define HEAD_TYPE    0
 #define CPU_TYPE     1
-#define DEVICE_TYPE  2
+#define DEV_TYPE     2
 #define CTRL_TYPE    3
 #define UNIT_TYPE    4
 #define LOG_TYPE     5

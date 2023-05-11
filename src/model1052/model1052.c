@@ -1237,5 +1237,5 @@ model1052_create(struct _option *opt)
     return 1;
 }
 
-DEV_LIST_STRUCT(1052, DEVICE_TYPE, 0);
+DEV_LIST_STRUCT(1052, DEV_TYPE, 0);
 

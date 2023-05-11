@@ -989,7 +989,7 @@ cycle_2030()
                   char buf[10];
                   strcat(dis_buffer, cm_name[sal->CM]);
                   buf[0] = '(';
-                  buf[1] = hex[sal->CK];
+                  buf[1] = hex[sal->CK & 0xf];
                   buf[2] = '>';
                   buf[3] = 'W';
                   buf[4] = ')';

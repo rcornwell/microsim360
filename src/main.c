@@ -87,6 +87,9 @@
 #include "device.h"
 #include "panel.h"
 #include "conf.h"
+#ifdef _WIN32
+#include "getopt.h"
+#endif
 
 int
 main(int argc, char *argv[])

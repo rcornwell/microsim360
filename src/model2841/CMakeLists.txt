@@ -45,6 +45,9 @@ target_link_libraries(test2841_test model2841lib)
 target_link_libraries(test2841_test devicelib)
 target_link_libraries(test2841_test toplib)
 #add_dependencies(test2841_test model2841_ros.h)
+if (WIN32)
+set_property(TARGET test2841_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
+endif()
 add_custom_command(TARGET test2841_test
             COMMAND test2841_test
             COMMENT "Test instructions for 2841"
