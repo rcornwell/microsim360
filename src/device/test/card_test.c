@@ -69,6 +69,11 @@ CTEST_TEARDOWN(card_test) {
     (void)remove("file2.deck");
     (void)remove("file3.deck");
     (void)remove("file4.deck");
+    if (card_ctx->file != NULL) {
+        fclose(card_ctx->file);
+    }
+    free(card_ctx->file_name);
+    free(card_ctx->images);
     free(card_ctx);
 }
 

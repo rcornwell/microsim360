@@ -511,7 +511,7 @@ log_disk("Index\n");
                     count = -1;
                     break;
                    }
-log_disk("HA Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[count]);
+//log_disk("HA Check=%02x %02x %02x\n", dasd->ck_sum[0], dasd->ck_sum[1], rec[count]);
               break;
 
          case DK_POS_GAP1:
