@@ -658,7 +658,7 @@ log_disk("Gap2 %d\n", count);
                       dasd->ck_sum[0] ^= disk_type[type].sync;
                   }
               }
-log_disk("Key %d %d\n", count, dasd->klen);
+log_disk("Key %d %d %02x\n", count, dasd->klen, da[count]);
               break;
 
          case DK_POS_GAP3:                /* Beginning of record */
@@ -685,7 +685,7 @@ log_disk("Gap3 %d\n", count);
                       dasd->ck_sum[0] ^= disk_type[type].sync;
                   }
               }
-log_disk("Data %d %d\n", count, dasd->dlen);
+log_disk("Data %d %d %02x\n", count, dasd->dlen, da[count]);
               break;
 
          case DK_POS_END:               /* Past end of data */
@@ -1798,7 +1798,7 @@ dasd_format(struct _dasd_t * dasd, int flag) {
     int                 pos;
     int                 r;
 
-//    if (flag || get_yn("Initialize dasd? [Y] ", TRUE)) {
+    /* Create header */
     log_info("Format\n");
     memset(&hdr, 0, sizeof(struct dasd_header));
     memcpy(&hdr.devid[0], "CKD_P370", 8);
@@ -1809,11 +1809,16 @@ dasd_format(struct _dasd_t * dasd, int flag) {
     r = write(dasd->fd, &hdr, sizeof(struct dasd_header));
     if (r != sizeof(struct dasd_header)) {
         log_error("Disk write on %s %d\n", dasd->file_name, r);
+        return 1;
     }
+
+    /* Allocate cylinder buffer */
     tsize = hdr.tracksize * hdr.heads;
     dasd->tsize = hdr.tracksize;
     if (dasd->cbuf == NULL && (dasd->cbuf = (uint8_t *)calloc(tsize, sizeof(uint8_t))) == 0)
         return 1;
+
+    /* Create empty disk with HA and R0 based on standard */
     for (cyl = 0; cyl <= disk_type[type].cyl; cyl++) {
         pos = 0;
         for (hd = 0; hd < disk_type[type].heads; hd++) {
@@ -1837,6 +1842,8 @@ dasd_format(struct _dasd_t * dasd, int flag) {
             dasd->cbuf[pos++] = (hd >> 8);
             dasd->cbuf[pos++] = (hd & 0xff);
             dasd->cbuf[pos++] = 1;              /* Rec */
+
+            /* If flag create dummy IPL and VOLID records */
             if (cyl == 0 && hd == 0 && flag) {
                 unsigned int p;
                 /* R1, IPL1 */
@@ -1887,6 +1894,7 @@ dasd_format(struct _dasd_t * dasd, int flag) {
         r = write(dasd->fd, dasd->cbuf, tsize);
         if (r != tsize) {
             log_error("Disk write on %s %d\n", dasd->file_name, r);
+            return 1;
         }
         memset(dasd->cbuf, 0, tsize);
     }
@@ -1905,25 +1913,32 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int init)
     uint8_t             *rec;
     int                 pos;
 
+    /* Attempt to open disk */
     log_info("Attach %s %d\n", file_name, dasd->type);
     if ((dasd->fd = open(file_name, O_RDWR, 0660)) < 0) {
         if (init) {
+           /* If initialize valid, try and create it */
            if ((dasd->fd = open(file_name, O_RDWR|O_CREAT, 0660)) < 0) {
                return 0;
            }
         }
     }
+
+    /* Save file name for later */
     dasd->file_name = strdup(file_name);
 
+    /* Read in header if possible */
     log_info("File %s %d\n", file_name, dasd->type);
     if (read(dasd->fd, &hdr, sizeof(struct dasd_header)) !=
           sizeof(struct dasd_header) || strncmp(&hdr.devid[0], "CKD_P370", 8) != 0 || init) {
+        /* Not there or valid magic number, try and format it if allowed */
         if (dasd_format(dasd, init)) {
             dasd_detach(dasd);
             return -1;
         }
     }
 
+    /* Read in header and try and find disk type */
     isize = lseek(dasd->fd, 0, SEEK_END);
     log_info("Drive %d %d %02x %02x %d\r\n",
              hdr.heads, hdr.tracksize, hdr.devtype, hdr.fileseq, hdr.highcyl);
@@ -1940,17 +1955,21 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int init)
              break;
          }
     }
+
+    /* Check if valid name */
     if (disk_type[i].name == 0) {
          dasd_detach(dasd);
          return -1;
     }
+
+    /* Allocate cylinder buffer */
+    tsize = hdr.tracksize * hdr.heads;
+    dasd->tsize = hdr.tracksize;
     if (dasd->cbuf == NULL && (dasd->cbuf = (uint8_t *)calloc(tsize, sizeof(uint8_t))) == 0) {
         dasd_detach(dasd);
         return -1;
     }
     /* Read in first cylinder */
-    tsize = hdr.tracksize * hdr.heads;
-    dasd->tsize = hdr.tracksize;
     (void)lseek(dasd->fd, sizeof(struct dasd_header), SEEK_SET);
     r = read(dasd->fd, dasd->cbuf, tsize);
     if (r != tsize) {
