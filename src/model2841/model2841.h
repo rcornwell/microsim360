@@ -69,9 +69,10 @@ struct _2841_context {
     int         addressed;          /* Last address out matched */
     int         tr_1;               /* Transfer 1 latch */
     int         tr_2;               /* Transfer 2 latch */
-    int         srv_in;             /* Service in */
+    int         srv_in;             /* Service in raised */
     int         srv_req;            /* Service request latch */
     int         svc_req;            /* Service received */
+    int         sta_in;             /* Status in raised */
     int         steering;           /* Steering latch */
     int         tags;               /* Last bus output tags */
     int         index;              /* Index sensed */
