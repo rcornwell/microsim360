@@ -768,7 +768,7 @@ tape_finish_rec(struct _tape_buffer *tape)
 {
      uint8_t      lrecl[4];
      int           r;
-     int           i;
+     int           i, k, j, l;
 
      if (tape->file_name == NULL)
         return -1;
@@ -812,6 +812,26 @@ tape_finish_rec(struct _tape_buffer *tape)
                         if ((tape->format & TAPE_FMT) == TYPE_TAP && tape->lrecl & 1) {
                             (void)tape_write_byte(tape, lrecl[0]);
                         }
+                        j = tape->srec - tape->pos;
+                        if (j >= 0 && j < sizeof(tape->buffer)) {
+                            l = tape->lrecl;
+                            if (l > tape->len_buff)
+                                l = tape->len_buff;
+                            k = 0;
+                            while (j > 0 && (j + k + 16) < sizeof(tape->buffer) && l > 0) {
+                                log_tape_s("data ");
+                                for(i = 0; i < l && i < 16; i++)
+                                    log_tape_c ("%02x ", tape->buffer[j + i + k]);
+                                log_tape_c(" ");
+                                for(i = 0; i < l && i < 16; i++) {
+                                    uint8_t ch = ebcdic_to_ascii[tape->buffer[j + i + k]];
+                                    log_tape_c ("%c", isprint(ch) ? ch : '.');
+                                }
+                                l -= 16;
+                                k += 16;
+                            }
+                        }
+
                         lrecl[0] = tape->lrecl & 0xff;
                         lrecl[1] = (tape->lrecl >> 8) & 0xff;
                         lrecl[2] = (tape->lrecl >> 16) & 0xff;
