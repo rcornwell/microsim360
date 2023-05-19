@@ -56,6 +56,8 @@ struct _log_type {
      { LOG_TAPE,    "TAPE" },
      { LOG_DISK,    "DISK" },
      { LOG_CARD,    "CARD" },
+     { LOG_DMICRO,  "DMICRO" },
+     { LOG_DREG,  "DREG" },
      { 0, NULL},
 };
 
