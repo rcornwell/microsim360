@@ -47,6 +47,8 @@ extern FILE *log_file;
 #define LOG_TAPE     0x1000              /* Log detailed tape information */
 #define LOG_DISK     0x2000              /* Log detailed disk information */
 #define LOG_CARD     0x4000              /* Log detailed card information */
+#define LOG_DMICRO   0x8000              /* Log disk microcode information */
+#define LOG_DREG     0x10000             /* Log disk register information */
 
 void log_init(char *filename);
 void log_print_c(int level, const char *fmt, ...);
@@ -120,4 +122,9 @@ void log_print(int level, char *filename, int line, const char *fmt, ...);
 
 #define log_disk_s(...) if ((log_level & LOG_DISK) != 0) \
                               log_print_s( LOG_DISK, __FILE__, __LINE__, __VA_ARGS__)
+#define log_dmicro(...) if ((log_level & LOG_DMICRO) != 0) \
+                              log_print( LOG_DMICRO, __FILE__, __LINE__, __VA_ARGS__)
+
+#define log_dreg(...) if ((log_level & LOG_DREG) != 0) \
+                              log_print( LOG_DREG, __FILE__, __LINE__, __VA_ARGS__)
 #endif
