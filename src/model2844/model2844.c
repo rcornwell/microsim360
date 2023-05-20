@@ -155,7 +155,7 @@ step_2844(void *data)
    sal = &ros_2844[nextWX];
 
    /* Disassemble micro instruction */
-   if (log_level & LOG_MICRO) {
+   if (log_level & LOG_DMICRO) {
        sprintf(buffer, "%d:%s %03X: %02X %s ", ctx->created, sal->NOTE, nextWX, sal->CN, ca_name[sal->CA]);
 
        switch (sal->CC) {
@@ -265,7 +265,7 @@ step_2844(void *data)
              strcat(buffer, tbuf);
        }
        strcat(buffer, "\n");
-       log_micro(buffer);
+       log_dmicro(buffer);
    }
 
 
@@ -370,7 +370,7 @@ step_2844(void *data)
    case 9: /* SORSP */
            if ((ctx->srv_in && (ctx->IG_REG & BIT2) != 0) ||
                (ctx->srv_req && (ctx->IG_REG & BIT2) != 0) ||
-               (ctx->srv_in && (ctx->tags & CHAN_SRV_OUT) != 0))
+               (ctx->srv_in && (ctx->tags & (CHAN_SRV_OUT)) != 0))
               nextWX |= 0x1;
            break;
    case 10: /* SELTO */
@@ -769,10 +769,10 @@ log_trace("Raise svc request %d\n", ctx->svc_req);
            break;
    }
 
-   log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x WX=%03x %d\n",
+   log_dreg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x WX=%03x %d\n",
            ctx->OP_REG, ctx->DW_REG, ctx->UR_REG, ctx->BX_REG, ctx->BY_REG,
            ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG, ctx->SC_REG, ctx->WX, ctx->selected);
-   log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x SP=%02x CX=%02x A=%02x B=%02x > %02x %x %x\n",
+   log_dreg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x SP=%02x CX=%02x A=%02x B=%02x > %02x %x %x\n",
            ctx->KL_REG, ctx->ER_REG, ctx->GP_REG, ctx->IG_REG, ctx->DR_REG,
            ctx->ST_REG, ctx->FT, ctx->FC, ctx->SP_REG, ctx->CX_REG, ctx->Abus, ctx->Bbus, ctx->Alu_out, ctx->carry, ctx->d_nzero);
 }
@@ -793,27 +793,32 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     if ((*tags & (CHAN_OPR_OUT|CHAN_SUP_OUT)) == 0) {
         if (ctx->selected) {
            *tags &= ~(CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SRV_IN|CHAN_STA_IN);
+           ctx->sta_in = 0;
         }
         ctx->selected = 0;
         ctx->WX = 0;
         return;
     }
 
+    /* Save bus out and tags for microcode */
     ctx->bus_out = bus_out & 0xff;
     ctx->tags = *tags;
 
+    /* If address out, see if we are target */
     if ((*tags & CHAN_ADR_OUT) != 0) {
         if ((bus_out & 0xf0) == ctx->addr ||
               ((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) == 0) {
+            /* Respond with busy if status still raised */
             if ((ctx->IG_REG & BIT5) != 0) {
                *bus_in = 0x100 | SNS_SMS | SNS_BSY;
                *tags |= CHAN_STA_IN;
+               ctx->sta_in = 1;
                log_trace("Unit busy\n");
                ctx->addressed = 0;
                ctx->ER_REG |= BIT3|BIT7;
             } else {
                ctx->addressed = 1;
-               ctx->ER_REG |= BIT1;
+               ctx->ER_REG |= BIT1;   /* Status of address out line */
                log_trace("Unit Addressed\n");
             }
         } else {
@@ -823,46 +828,55 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
         ctx->ER_REG &= ~BIT1;
     }
 
+    /* If IG Bit 1, then drop operator in */
     if ((ctx->IG_REG & BIT1) != 0) {
-log_trace("Drop Op in\n");
+        log_trace("Drop Op in\n");
         ctx->opr_in = 0;
         ctx->IG_REG &= ~BIT1;
         *tags &= ~CHAN_OPR_IN;
     }
 
-    if ((*tags & CHAN_SEL_OUT) != 0 && ctx->addressed) {
-        ctx->selected = 1;
-    } else {
-        ctx->selected = 0;
-log_trace("Clear selected\n");
+    /* Drop status in if IG Bit5 clear */
+    if ((ctx->IG_REG & BIT5) == 0 && ctx->sta_in) {
+       *tags &= ~CHAN_STA_IN;
+       ctx->sta_in = 0;
     }
 
+    /* If we are have select out and are addressed, flag it */
+    if ((*tags & CHAN_SEL_OUT) != 0 && ctx->addressed) {
+        ctx->selected = 1;
+        log_trace("Set selected\n");
+    } else {
+        ctx->selected = 0;
+        log_trace("Clear selected\n");
+    }
+
+    /* If Oper in flag, raise oper in */
     if (ctx->opr_in) {
         *tags |= CHAN_OPR_IN;
         ctx->ER_REG &= ~(BIT3);
-//        *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
     }
 
     /* If request, enable request in */
-    if (ctx->selected == 0 && ctx->request) { //(ctx->IG_REG & BIT6) != 0) {
+    if (ctx->selected == 0 && ctx->request) {
        *tags |= CHAN_REQ_IN;
-//       ctx->request = 1;
     }
 
+    /* If request pending, and select out, respond to request */
     if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {
        *tags &= ~(CHAN_REQ_IN);
        *tags |= CHAN_OPR_IN;
        ctx->request = 0;
        ctx->addressed = 1;
        ctx->selected = 1;
-log_trace("Clear request, set select\n");
+       log_trace("Clear request, set select\n");
     }
 
     /* If request, enable request in */
     if (ctx->selected == 0) {
        if ((ctx->IG_REG & (BIT3|BIT6)) != 0) {
            ctx->request = 1;
-log_trace("Set request\n");
+           log_trace("Set request\n");
        }
 
        /* If Polling and attention pending, generate request in */
@@ -873,10 +887,7 @@ log_trace("Set request\n");
        if (ctx->request) {
            *tags |= CHAN_REQ_IN;
        }
-
     }
-
-
 
     /* Present end status */
     if (ctx->selected == 0 && (ctx->IG_REG & BIT5) != 0) {
@@ -889,139 +900,82 @@ log_trace("Set request\n");
             ctx->tr_1 = 0;
             ctx->tr_2 = 0;
         }
+
+        /* If status in and service out, drop status in */
         if ((*tags & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN|CHAN_SRV_OUT)) {
             *tags &= ~CHAN_STA_IN;
+            ctx->sta_in = 0;
             ctx->ER_REG &= ~BIT7;
         }
-#if 0
-        /* Wait for channel to accept it with CMD out */
-        if ((*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN))
-                    == (CHAN_SEL_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
-            *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN|CHAN_ADR_IN);
-            *tags |= (CHAN_OPR_IN|CHAN_ADR_IN);
-            ctx->tr_1 = 1;
-        }
-
-        /* Wait for CMD out to drop */
-        if (ctx->tr_1 && (*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_OPR_IN)) ==
-                   (CHAN_SEL_OUT|CHAN_OPR_IN)) {
-            *tags &= ~(CHAN_SEL_OUT);
-            *tags |= (CHAN_OPR_IN|CHAN_STA_IN);
-            /* Place status on bus */
-           ctx->tr_1 = 0;
-           ctx->tr_2 = 1;
-        }
-
-        /* Wait for CMD out or Service out */
-        if (ctx->tr_2 &&
-            (*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) ==
-                     (CHAN_SEL_OUT|CHAN_CMD_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
-             /* stacked status */
-            *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN|CHAN_OPR_IN);
-        }
-
-        /* Wait for CMD out or Service out */
-        if (ctx->tr_2 &&
-            (*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_CMD_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) ==
-                     (CHAN_SEL_OUT|CHAN_SRV_OUT|CHAN_OPR_IN|CHAN_STA_IN)) {
-             /* status accepted */
-            *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN|CHAN_OPR_IN);
-        }
-
-        /* Wait for channel to be idle */
-        if ((*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_OPR_IN)) == 0) {
-            *tags |= CHAN_REQ_IN;
-        }
-#endif
     }
 
-
+    /* Process bus when selected by CPU */
     if (ctx->selected) {
-#if 0
-         if ((*tags & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN|CHAN_SRV_OUT) &&
-                 (ctx->IG_REG & BIT5) == 0) {
-log_trace("Drop selct\n");
-            ctx->addressed = 0;
-         }
-#endif
          *tags &= ~(CHAN_SEL_OUT);
 
+         /* If IG Bit 7, raise address IN with selected device */
          if (ctx->IG_REG & BIT7) {
              *tags |= CHAN_ADR_IN;
-            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+             *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
              ctx->opr_in = 1;
              ctx->tr_1 = 0;
          } else {
              *tags &= ~CHAN_ADR_IN;
          }
 
+         /* Make sure valid parity on data bus */
          if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
              ctx->ER_REG |= BIT2;
          } else {
              ctx->ER_REG &= ~BIT2;
          }
 
-log_trace("TR1=%d TR2=%d SVC=%d SVI=%d\n", ctx->tr_1, ctx->tr_2, ctx->svc_req, ctx->srv_in);
+         /* TR2 gets service request flag */
+         log_trace("TR1=%d TR2=%d SVC=%d SVI=%d\n", ctx->tr_1, ctx->tr_2, ctx->svc_req, ctx->srv_in);
          ctx->tr_2 = ctx->svc_req;
+
+         /* If service in, clear request */
          if (ctx->srv_in) {
              ctx->svc_req = 0;
-log_trace("Clear svc request\n");
+             log_trace("Clear svc request\n");
          }
 
+         /* If TR1 & IG Bit 2 (Read), request service */
+         /* If no request & IG Bit 1 (Write), request data */
          if (((ctx->IG_REG & BIT2) != 0 && ctx->tr_1) ||
              ((ctx->IG_REG & BIT0) != 0 && (ctx->srv_in == 0 || ctx->tr_1))) {
              ctx->svc_req = 1;
-log_trace("Raise svc request %d\n", ctx->svc_req);
+             log_trace("Raise svc request %d\n", ctx->svc_req);
          }
 
-         if (ctx->tr_2) {
+         /* If TR2 set, tell channel we have data */
+         if (ctx->tr_2 && ctx->srv_in == 0) {
              ctx->srv_in = 1;
              *tags |= CHAN_SRV_IN;
              *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
-log_trace("Raise Service in\n");
+             log_trace("Raise Service in\n");
          }
 
+         /* Clear service in when data taken */
          if ((ctx->tr_1 && (ctx->IG_REG & BIT2) == 0) ||
-             ((ctx->IG_REG & BIT2) != 0 && (*tags & CHAN_SRV_OUT) != 0 && ctx->tr_2 == 0)) {
+             ((ctx->IG_REG & BIT2) != 0 && (*tags & CHAN_SRV_OUT) != 0 && ctx->tr_2 == 0) ||
+             ((ctx->IG_REG & BIT2) == 0 && (*tags & CHAN_CMD_OUT) != 0 && ctx->srv_in)) {
              ctx->srv_in = 0;
              *tags &= ~CHAN_SRV_IN;
-log_trace("Clear Service in\n");
+             log_trace("Clear Service in\n");
          }
          ctx->tr_1 = 0;
 
-#if 0
-         /* If read latch */
-         if ((ctx->IG_REG & BIT2) != 0 && ctx->tr_1 && (*tags & CHAN_SRV_OUT) == 0) {
-             ctx->tr_1 = 0;
-             ctx->tr_2 = 1;
-         }
-
-         /* If write latch */
-         if ((ctx->IG_REG & BIT0) != 0 && ctx->tr_2 == 0 && (*tags & CHAN_SRV_OUT) == 0) {
-             ctx->tr_1 = 0;
-             ctx->tr_2 = 1;
-         }
-#endif
-
-         /* If status latch */
+         /* If status latch set, present status */
          if ((ctx->IG_REG & BIT5) != 0) {
- log_trace("Post final status\n");
+              log_trace("Post final status\n");
              *tags |= CHAN_STA_IN;
+             ctx->sta_in = 1;
              *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
          } else {
              *tags &= ~CHAN_STA_IN;
+             ctx->sta_in = 0;
          }
-
-#if 0
-         if (ctx->tr_2) {
-            *tags |= CHAN_SRV_IN;
-            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
-            ctx->bus_out = bus_out & 0xff;
-            if ((*tags & CHAN_SRV_OUT) != 0) {
-                ctx->tr_2 = 0;
-            }
-         }
-#endif
     }
 }
 

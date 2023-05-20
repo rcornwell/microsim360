@@ -72,6 +72,7 @@ struct _2844_context {
     int         srv_in;             /* Service in */
     int         srv_req;            /* Service request latch */
     int         svc_req;            /* Service received */
+    int         sta_in;             /* Status in */
     int         steering;           /* Steering latch */
     int         tags;               /* Last bus output tags */
     int         index;              /* Index sensed */
