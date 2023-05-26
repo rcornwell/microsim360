@@ -120,9 +120,9 @@ CTEST2(sel_test, sio_read_burst) {
      set_mem(0x604, 0x55555555);
      set_mem(0x608, 0x55555555);
      set_mem(0x60C, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
      set_mem(0x424, 0x47000424);  /* BC  0,424 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
@@ -161,9 +161,9 @@ CTEST2(sel_test, sio2_read_noburst) {
      set_mem(0x604, 0x55555555);
      set_mem(0x608, 0x55555555);
      set_mem(0x60C, 0x55555555);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
      set_mem(0x424, 0x47000424);  /* BC 0,424 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
@@ -202,10 +202,10 @@ CTEST2(sel_test, sio3_write) {
      set_mem(0x604, 0x4F5F6F7F);
      set_mem(0x608, 0x8F9FAFBF);
      set_mem(0x60C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -248,7 +248,7 @@ CTEST2(sel_test, sio4_write_burst) {
      set_mem(0x400, 0x9c00010f);  /* SIO 0f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
      set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x424, 0x47700420);  /* BC 0,424 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -278,8 +278,8 @@ log_trace("Sense\n");
      set_mem(0x500, 0x04000600); /* Set channel words */
      set_mem(0x504, 0x00000001);
      set_mem(0x600, 0xffffffff);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0xf */
-     set_mem(0x404, 0x9d00010f);  /* TIO 0xf */
+     set_mem(0x400, 0x9c00010f);  /* SIO 0x10f */
+     set_mem(0x404, 0x9d00010f);  /* TIO 0x10f */
      set_mem(0x408, 0x47700404);  /* BC 7,404 */
      set_mem(0x40C, 0x00000000);  /* 0 */
      test_io_inst(0);
@@ -298,9 +298,9 @@ CTEST2(sel_test, sio6_nop) {
      set_mem(0x500, 0x03000600); /* Set channel words */
      set_mem(0x504, 0x00000001);
      set_mem(0x600, 0xffffffff);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0xf */
+     set_mem(0x400, 0x9c00010f);  /* SIO 0x10f */
      set_mem(0x404, 0x47800410);  /* BC 7,410 */
-     set_mem(0x408, 0x9d00010f);  /* TIO 0xf */
+     set_mem(0x408, 0x9d00010f);  /* TIO 0x10f */
      set_mem(0x40c, 0x47700408);  /* BC 7,404 */
      set_mem(0x410, 0x00000000);  /* 0 */
      test_io_inst(0);
@@ -335,10 +335,10 @@ log_trace("Short read\n");
      set_mem(0x704, 0x55555555);
      set_mem(0x708, 0x55555555);
      set_mem(0x70C, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
-     set_mem(0x424, 0x47000424);  /* BC  0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC  7,420 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
 
@@ -385,10 +385,10 @@ CTEST2(sel_test, short_read_sli) {
      set_mem(0x704, 0x55555555);
      set_mem(0x708, 0x55555555);
      set_mem(0x70C, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
-     set_mem(0x424, 0x47000424);  /* BC  0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC  7,420 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
 
@@ -431,10 +431,10 @@ CTEST2(sel_test, short_write_burst) {
      set_mem(0x604, 0x4F5F6F7F);
      set_mem(0x608, 0x8F9FAFBF);
      set_mem(0x60C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -481,10 +481,10 @@ log_trace("CDA Test\n");
      set_mem(0x704, 0x55555555);
      set_mem(0x708, 0x55555555);
      set_mem(0x70C, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
-     set_mem(0x424, 0x47000424);  /* BC  0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC  7,420 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
 
@@ -533,10 +533,10 @@ CTEST2(sel_test, cda_read2) {
      set_mem(0x704, 0x55555555);
      set_mem(0x708, 0x55555555);
      set_mem(0x70C, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
-     set_mem(0x424, 0x47000424);  /* BC  0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC  7,420 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
 
@@ -588,7 +588,7 @@ CTEST2(sel_test, write_cda) {
      set_mem(0x400, 0x9c00010f);  /* SIO 0f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
      set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -637,10 +637,10 @@ CTEST2(sel_test, cda_read_skip) {
      set_mem(0x704, 0x55555555);
      set_mem(0x708, 0x55555555);
      set_mem(0x70C, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
-     set_mem(0x424, 0x47000424);  /* BC  0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC  7,420 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
 
@@ -684,10 +684,10 @@ CTEST2(sel_test, read_back) {
      set_mem(0x608, 0x55555555);
      set_mem(0x60C, 0x55555555);
      set_mem(0x610, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
-     set_mem(0x424, 0x47000424);  /* BC  0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC  7,420 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
 
@@ -733,10 +733,10 @@ log_trace("CMD CHAIN\n");
      set_mem(0x604, 0x4F5F6F7F);
      set_mem(0x608, 0x8F9FAFBF);
      set_mem(0x60C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -776,12 +776,12 @@ CTEST2(sel_test, tic_error) {
      set_mem(0x604, 0x4F5F6F7F);
      set_mem(0x608, 0x8F9FAFBF);
      set_mem(0x60C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x47300400);  /* BC 3,404 */
-     set_mem(0x408, 0x47800420);  /* BC 8,420 */
-     set_mem(0x40c, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x410, 0x00000000);
-     set_mem(0x420, 0x00000000);  /* stop */
+     set_mem(0x408, 0x47800420);  /* BC 8,428 */
+     set_mem(0x40c, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x410, 0x4770040c);  /* BC 7,40c */
+     set_mem(0x414, 0x47f00428);  /* BC f,428 */
 
      test_io_inst2();
      printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
@@ -816,10 +816,10 @@ log_trace("TIC TIC\n");
      set_mem(0x604, 0x4F5F6F7F);
      set_mem(0x608, 0x8F9FAFBF);
      set_mem(0x60C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -873,10 +873,10 @@ log_trace("TIC TEST\n");
      set_mem(0x604, 0x4F5F6F7F);
      set_mem(0x608, 0x8F9FAFBF);
      set_mem(0x60C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -930,10 +930,10 @@ log_trace("SMS TEST\n");
      set_mem(0x604, 0x4F5F6F7F);
      set_mem(0x608, 0x8F9FAFBF);
      set_mem(0x60C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -1177,10 +1177,10 @@ CTEST2(sel_test, read_prot) {
      set_mem(0x4004, 0x4F5F6F7F);
      set_mem(0x4008, 0x8F9FAFBF);
      set_mem(0x400C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -1222,10 +1222,10 @@ log_trace("Prot\n");
      set_mem(0x4004, 0x55555555);
      set_mem(0x4008, 0x55555555);
      set_mem(0x400C, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
-     set_mem(0x424, 0x47000424);  /* BC  0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC  7,420 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
 
@@ -1265,10 +1265,10 @@ CTEST2(sel_test, read_prot2) {
      set_mem(0x4004, 0x4F5F6F7F);
      set_mem(0x4008, 0x8F9FAFBF);
      set_mem(0x400C, 0xCFDFEFFF);
-     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
      set_mem(0x404, 0x82000410);  /* LPSW 410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
-     set_mem(0x424, 0x47000424);  /* BC 0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
      set_mem(0x410, 0xff060000);  /* Wait state PSW */
      set_mem(0x414, 0x12000408);
 
@@ -1310,10 +1310,10 @@ log_trace("Prot\n");
      set_mem(0x4004, 0x55555555);
      set_mem(0x4008, 0x55555555);
      set_mem(0x400C, 0x55555555);
-     set_mem(0x400, 0x9c00010f); /* SIO 00f */
+     set_mem(0x400, 0x9c00010f); /* SIO 10f */
      set_mem(0x404, 0x82000410); /* LPSW 0410 */
-     set_mem(0x420, 0x9d00010f);  /* TIO 00f */
-     set_mem(0x424, 0x47000424);  /* BC  0,424 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC  7,420 */
      set_mem(0x410, 0xff060000);  /* Wait PSW */
      set_mem(0x414, 0x14000408);
 
@@ -1329,5 +1329,46 @@ log_trace("Prot\n");
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
      ASSERT_EQUAL_X(0xff06010f, get_mem(0x38));
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
+}
+
+CTEST2_SKIP(sel_test, cc_test) {
+     int i;
+     init_cpu();
+     data->test_ctx.state = 0;
+     data->test_ctx.max_data = 0x10;
+     log_trace("CC TEST\n");
+     set_mask(0x00);
+     set_mem(0x40, 0);         /* Set CSW to zero */
+     set_mem(0x44, 0);
+     set_mem(0x78, 0x00000000);
+     set_mem(0x7c, 0x00000430);
+     set_mem(0x48, 0x500);   /* Set CAW */
+     set_mem(0x500, 0x03000600); /* Set channel words */
+     set_mem(0x504, 0x60000001);  /* NOP */
+     set_mem(0x508, 0x13000520);  /* Chan end without data end NOP */
+     set_mem(0x50c, 0x60000001);
+     set_mem(0x510, 0x13000540); /* Chan end without data end NOP */
+     set_mem(0x514, 0x20000001);
+     set_mem(0x400, 0x9c00010f);  /* SIO 10f */
+     set_mem(0x404, 0x82000410);  /* LPSW 410 */
+     set_mem(0x410, 0xff060000);  /* Wait state PSW */
+     set_mem(0x414, 0x12000408);
+     set_mem(0x420, 0x9d00010f);  /* TIO 10f */
+     set_mem(0x424, 0x47700420);  /* BC 7,420 */
+     set_mem(0x430, 0x58100040);  /* L 1,40 */
+     set_mem(0x434, 0x58200044);  /* L 2,44 */
+     set_mem(0x438, 0x41300444);  /* LA 3,444 */
+     set_mem(0x43c, 0x5030007c);  /* ST 3,7c  Adjust address */
+     set_mem(0x440, 0x82000410);  /* Wait some more */
+     set_mem(0x444, 0x58400040);  /* L 3,40 */
+     set_mem(0x448, 0x58400044);  /* L 3,40 */
+     set_mem(0x44c, 0x47f00420);  /* BC F,420 Wait for device */
+
+
+     test_io_inst2();
+     ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
+     ASSERT_EQUAL_X(0xff06000f, get_mem(0x38));
+     ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
