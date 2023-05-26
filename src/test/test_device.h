@@ -39,6 +39,9 @@ struct _test_context {
     int                    chan;         /* Channel address */
     int                    state;        /* Current channel state */
     int                    selected;     /* Device currently selected */
+    int                    request;      /* Device raising request out */
+    int                    addressed;    /* Device addressed */
+    int                    stacked;      /* Device has stacked status */
     int                    sense;        /* Current sense value */
     int                    cmd;          /* Current command */
     int                    cmd_done;     /* Command finished */
