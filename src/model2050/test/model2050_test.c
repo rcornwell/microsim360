@@ -362,12 +362,15 @@ test_io_inst2()
         step_count++;
         max++;
         log_trace("ROAR = [%03X]\n", cpu_2050.ROAR);
-        if ((cpu_2050.ROAR & 0xffc) == 0x148) {
-           if (count++ == 2) {
-               log_trace("Count =2 \n");
-               break;
-           }
+        if (cpu_2050.IA_REG == 0x428) {
+            break;
         }
+//        if ((cpu_2050.ROAR & 0xffc) == 0x148) {
+//           if (count++ == 2) {
+//               log_trace("Count =2 \n");
+//               break;
+//           }
+//        }
 //        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
  //          break;
         if (cpu_2050.ROAR == 0x10e)

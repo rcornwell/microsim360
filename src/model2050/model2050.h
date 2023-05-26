@@ -177,6 +177,7 @@ uint8_t     break_in;           /* Break in cycle requested */
 uint8_t     break_out;          /* In break out cycle */
 uint8_t     first_cycle;        /* First cycle of breakout */
 uint8_t     last_cycle;         /* Last cycle of breakout */
+uint8_t     chpostest;          /* Do CHPosTest */
 uint8_t     CHCTL;              /* Channel control register */
 
 uint8_t     CH;                 /* Current channel select */
@@ -206,7 +207,7 @@ uint32_t    IOSTAT[4];          /* I/O Status register */
  */
 uint16_t    GP_REG[4];          /* Selector General register */
 uint8_t     OP_REG[4];          /* Selector Operator register */
-uint8_t     FLAGS_REG[4];       /* Selector Flags register */
+uint16_t    FLAGS_REG[4];       /* Selector Flags register */
 /* CHPOS Register.
  *  Bit 0   UA Fetch
  *  Bit 1   CCW1 Type
@@ -222,15 +223,25 @@ uint8_t     inst_latch;
 uint8_t     D1[4];              /* Channel flag D1 */
 uint8_t     D2[4];              /* Channel flag D2 */
 uint8_t     C1[4];              /* Channel flag C1 */
+uint8_t     C2[4];              /* Channel flag C2 */
+uint8_t     C3[4];              /* Channel flag C3 */
+uint8_t     C4[4];              /* Channel flag C4 */
+uint8_t     CD[4];              /* Data chain flag */
 uint32_t    B_REG[4];           /* Select channel B regiser */
 uint32_t    C_REG[4];           /* Select channel C regiser */
+uint8_t     CBI_REG[4];         /* Modify bits for B */
+uint8_t     CCI_REG[4];         /* Modify bits for C */
+uint8_t     CLI_REG[4];         /* Modify bits for LS */
 uint8_t     B_FULL[4];          /* B register full */
 uint8_t     C_FULL[4];          /* C register full */
+uint8_t     LS_FULL[4];         /* Local storage full */
+uint8_t     IF_STOP[4];         /* Stop I/O after count exhausted */
 uint16_t    TAGS[4];            /* Channel tags. */
 uint16_t    TAGS_IN[4];         /* Channel tags in. */
 uint16_t    CHPOS[4];           /* Channel position register */
 uint16_t    CHREQ[4];           /* Channel position request register */
 uint16_t    CHCLK[4];           /* Channel clock register */
+uint8_t     BCHI;               /* Interrupt pending */
 
 } cpu_2050;
 
