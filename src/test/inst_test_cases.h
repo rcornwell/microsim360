@@ -978,21 +978,21 @@
       ASSERT_EQUAL_X(0x12345678 * 5, get_reg(3));
   }
 
-  /* Test LRA */
-  CTEST(instruct, lra) {
+  /* Test LA */
+  CTEST(instruct, la) {
       init_cpu();
       /* From Princ Ops p147 */
-      set_mem(0x400, 0x41100800);   /* LRA 1,800 */
+      set_mem(0x400, 0x41100800);   /* LA 1,800 */
       test_inst(0x0);
       ASSERT_EQUAL_X(2048, get_reg(1));
   }
 
-  /* Test LRA with index */
-  CTEST(instruct, lra2) {
+  /* Test LA with index */
+  CTEST(instruct, la2) {
       init_cpu();
       /* From Princ Ops p147 */
       set_reg(5, 0x00123456);
-      set_mem(0x400, 0x4150500a);  /* LRA 5, 10(5) */
+      set_mem(0x400, 0x4150500a);  /* LA 5, 10(5) */
       test_inst(0x0);
       ASSERT_EQUAL_X(0x00123460, get_reg(5));
   }
