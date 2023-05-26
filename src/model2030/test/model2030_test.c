@@ -443,7 +443,7 @@ test_io_inst(int mask)
     log_trace("first\n");
 }
 
-/* Execute two instructions */
+/* Execute instructions until PC = 0x428 */
 void
 test_io_inst2()
 {
@@ -460,22 +460,15 @@ test_io_inst2()
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
-    } while (cpu_2030.WX != 0x100);
-    log_trace("first\n");
-    do {
-        cycle_2030();
-        step_count++;
-        if (cpu_2030.WX == 0x147)
-           trap_flag = 1;
-    } while (cpu_2030.WX != 0x100);
-    log_trace("second\n");
-    do {
-        cycle_2030();
-        step_count++;
-        if (cpu_2030.WX == 0x147)
-           trap_flag = 1;
-    } while (cpu_2030.WX != 0x100);
-    log_trace("third\n");
+        if (cpu_2030.WX == 0x100 && cpu_2030.I_REG == 0x4 &&
+                   cpu_2030.J_REG == 0x128) {
+           log_trace("Match\n");
+           break;
+        }
+        if (cpu_2030.WX == 0x100) {
+           log_trace("Match2 %03x %03x\n", cpu_2030.I_REG, cpu_2030.J_REG);
+        }
+     } while (1);
 }
 
 

@@ -121,7 +121,8 @@ int
 main(int argc, const char *argv[])
 {
     load_line("2030F/1");
-    log_level = 0x37f;
+    log_level = LOG_INFO|LOG_WARN|LOG_ERROR|LOG_TRACE|LOG_ITRACE|\
+                        LOG_MICRO|LOG_REG|LOG_MEM|LOG_MPXCHN|LOG_SELCHN|LOG_DEVICE;
     log_init("debug.log");
     int result = ctest_main(argc, argv);
     return result;
