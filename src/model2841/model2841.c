@@ -1066,7 +1066,6 @@ model2311_create(struct _option *opt)
      char            *file;
      int              fmt;
      char            *vol;
-     int              t;
 
      dev2841 = find_chan(opt->addr, 0xf8);
      if (dev2841 == NULL) {
