@@ -3,7 +3,7 @@
         ACTION MAP
 // EXEC RPG
 00000H008  008            04096                                           RPG001
-01010FINPUT   IPE F  80  80            READ40 SYSIPT                      RPG002
+01010FINPUT   IPE F  80  80            READ42 SYSIPT                      RPG002
 01020FOUTPUT  O   F 132 132     OF     PRINTERSYSLST                      RPG003
 01010IINPUT   AA  01   1 Z-                                               RPG004
 01020I                                        8  29 NAME                  RPG005
