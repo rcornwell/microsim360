@@ -372,15 +372,25 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     case STATE_CMD:
              /* If we are selected, drop select out to rest of channel */
              if (ctx->selected) {
-                *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-                *tags |= CHAN_OPR_IN;
+                 *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
+                 *tags |= CHAN_OPR_IN;
 
+                 /* If CMD out to initial select, stack the status */
+                 if ((*tags & (CHAN_CMD_OUT|CHAN_STA_IN)) == (CHAN_CMD_OUT|CHAN_STA_IN)) {
+                     log_device("test stacking inital\n");
+                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     ctx->state = STATE_STACK;
+                     ctx->stacked = 1;
+                     ctx->selected = 0;
+                     break;
+                 }
+
+                 /* Wait for Command out to drop */
                  if ((*tags & (CHAN_CMD_OUT)) != 0) {
                      log_device("printer wait cmd drop stat\n");
                      break;
                  }
 
-                 /* Wait for Command out to drop */
                  /* On MPX channel select out will drop, along with command */
                  if ((*tags & (CHAN_CMD_OUT)) == 0) {
                      *tags |= CHAN_STA_IN;                   /* Wait for acceptance of status */
@@ -474,8 +484,8 @@ model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                       /* Halt I/O */
                       /* Device selected */
                       *tags &= ~(CHAN_OPR_IN);             /* Clear select out and in */
-                      ctx->state = STATE_OPR;              /* Return busy status */
                       ctx->data_end = 1;
+                      ctx->data_rdy = 0;
                       ctx->selected = 0;
                       log_device("printer Halt i/o\n");
                       break;

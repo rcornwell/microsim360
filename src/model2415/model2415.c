@@ -1002,6 +1002,17 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags &= ~(CHAN_SEL_OUT);   /* Clear select in */
                  *tags |= (CHAN_OPR_IN);
 
+                 /* If CMD out to initial select, stack the status */
+                 if ((*tags & (CHAN_CMD_OUT|CHAN_STA_IN)) == (CHAN_CMD_OUT|CHAN_STA_IN)) {
+                     log_device("test stacking inital\n");
+                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     ctx->state = STATE_STACK;
+                     ctx->stacked = 1;
+                     ctx->selected = 0;
+                     break;
+                 }
+
+                 /* Wait for Command out to drop */
                  if ((*tags & (CHAN_CMD_OUT)) != 0) {
                      log_device("tape wait command out drop\n");
                      break;
@@ -1104,8 +1115,9 @@ model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              if (ctx->selected && (*tags & (CHAN_ADR_OUT)) != 0) {
                   /* Halt I/O */
                   /* Device selected */
+                  *tags &= ~CHAN_OPR_IN;
+                  ctx->selected = 0;
                   ctx->data_end = 1;
-                  ctx->state = STATE_DATA_END;          /* Return busy status */
                   break;
              }
 
