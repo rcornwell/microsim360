@@ -55,14 +55,11 @@ void log_print_c(int level, const char *fmt, ...);
 void log_print_s(int level, char *filename, int line, const char *fmt, ...);
 void log_print(int level, char *filename, int line, const char *fmt, ...);
 
-#define log_info(...) if ((log_level & LOG_INFO) != 0) \
-                              log_print( LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define log_info(...) log_print( LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
 
-#define log_warn(...) if ((log_level & LOG_WARN) != 0) \
-                              log_print( LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define log_warn(...) log_print( LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
 
-#define log_error(...) if ((log_level & LOG_ERROR) != 0) \
-                              log_print( LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define log_error(...) log_print( LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 #define log_trace(...) if ((log_level & LOG_TRACE) != 0) \
                               log_print( LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)

@@ -84,6 +84,9 @@ log_print_s(int level, char *file, int line, const char *fmt, ...)
         return;
     if (last_level != 0) {
        fprintf(log_file, "\n");
+       if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
+           fprintf(stderr, "\n");
+       }
     }
 #ifdef LOG_FILE
     fprintf(log_file, "%" PRIu64 ":[%s:%d] ", step_count, file, line);
@@ -93,6 +96,9 @@ log_print_s(int level, char *file, int line, const char *fmt, ...)
     for (i = 0; log_type[i].mask != 0; i++) {
         if (log_type[i].mask == level) {
             fprintf(log_file, "%s ", log_type[i].name);
+            if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
+                fprintf(stderr, "%s ", log_type[i].name);
+            }
             break;
         }
     }
@@ -100,6 +106,11 @@ log_print_s(int level, char *file, int line, const char *fmt, ...)
     va_start(ap, fmt);
     vfprintf(log_file, fmt, ap);
     va_end(ap);
+    if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
+        va_start(ap, fmt);
+        vfprintf(stderr, fmt, ap);
+        va_end(ap);
+    }
 }
 
 void
@@ -119,6 +130,9 @@ log_print_c(int level, const char *fmt, ...)
         for (i = 0; log_type[i].mask != 0; i++) {
             if (log_type[i].mask == level) {
                 fprintf(log_file, "%s ", log_type[i].name);
+                if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
+                    fprintf(stderr, "%s ", log_type[i].name);
+                }
                 break;
             }
         }
@@ -127,6 +141,11 @@ log_print_c(int level, const char *fmt, ...)
     va_start(ap, fmt);
     vfprintf(log_file, fmt, ap);
     va_end(ap);
+    if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
+        va_start(ap, fmt);
+        vfprintf(log_file, fmt, ap);
+        va_end(ap);
+    }
 }
 
 
@@ -137,7 +156,7 @@ log_print(int level, char *file, int line, const char *fmt, ...)
     int            i;
 
     if (log_file == NULL) {
-        if ((log_level & (LOG_INFO|LOG_WARN|LOG_ERROR)) == 0) {
+        if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
             for (i = 0; log_type[i].mask != 0; i++) {
                 if (log_type[i].mask == level) {
                     fprintf(stderr, "%s ", log_type[i].name);
@@ -162,6 +181,9 @@ log_print(int level, char *file, int line, const char *fmt, ...)
     for (i = 0; log_type[i].mask != 0; i++) {
         if (log_type[i].mask == level) {
             fprintf(log_file, "%s ", log_type[i].name);
+            if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
+                fprintf(stderr, "%s ", log_type[i].name);
+            }
             break;
         }
     }
@@ -169,6 +191,11 @@ log_print(int level, char *file, int line, const char *fmt, ...)
     vfprintf(log_file, fmt, ap);
     va_end(ap);
     fflush(log_file);
+    if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
+        va_start(ap, fmt);
+        vfprintf(stderr, fmt, ap);
+        va_end(ap);
+    }
 }
 
 int
