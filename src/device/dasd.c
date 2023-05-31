@@ -456,7 +456,7 @@ dasd_update(struct _dasd_t *dasd)
               dasd->dirty = 0;
         }
         dasd->fpos = pos;
-        log_info("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
+        log_disk("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
         (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
         (void)read(dasd->fd, dasd->cbuf, tsize);
         dasd->tstart = (dasd->tsize * dasd->head);
@@ -765,7 +765,7 @@ log_disk("Disk read %s %d %d\n", disk_state[dasd->state], count, dasd->cpos);
               dasd->dirty = 0;
         }
         dasd->fpos = pos;
-        log_info("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
+        log_disk("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
         (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
         r = read(dasd->fd, dasd->cbuf, tsize);
         if (r != tsize) {
@@ -773,11 +773,11 @@ log_disk("Disk read %s %d %d\n", disk_state[dasd->state], count, dasd->cpos);
         }
         dasd->tstart = (dasd->tsize * dasd->head);
     }
-    log_info("state %s %d ams=%d h=%d\n", disk_state[dasd->state], dasd->tpos,
+    log_disk("state %s %d ams=%d h=%d\n", disk_state[dasd->state], dasd->tpos,
                   dasd->am_search, dasd->head);
 
     if (dasd->cpos >= (disk_type[type].bpt + 1)) {
-        log_info("state end %d\n", dasd->tpos);
+        log_disk("state end %d\n", dasd->tpos);
         dasd->tstart = (dasd->tsize * dasd->head);
         dasd->state = DK_POS_INDEX;
         dasd->cpos = -1;
@@ -1187,7 +1187,7 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
               dasd->dirty = 0;
         }
         dasd->fpos = pos;
-        log_info("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
+        log_disk("Load cyl=%d %x\n", dasd->cyl, dasd->fpos);
         (void)lseek(dasd->fd, dasd->fpos, SEEK_SET);
         r = read(dasd->fd, dasd->cbuf, tsize);
         if (r != tsize) {
@@ -1195,10 +1195,10 @@ dasd_write_byte(struct _dasd_t *dasd, uint8_t *data, uint8_t *am, uint8_t *ix)
         }
         dasd->tstart = (dasd->tsize * dasd->head);
     }
-    log_info("state %s %d\n", disk_state[dasd->state], dasd->cpos);
+    log_disk("state %s %d\n", disk_state[dasd->state], dasd->cpos);
 
     if (dasd->tpos >= dasd->tsize) {
-        log_info("state end %d\n", dasd->tpos);
+        log_disk("state end %d\n", dasd->tpos);
         dasd->state = DK_POS_INDEX;
         dasd->cpos = -1;
         dasd->tpos = -1;
@@ -1799,7 +1799,7 @@ dasd_format(struct _dasd_t * dasd, int flag) {
     int                 r;
 
     /* Create header */
-    log_info("Format\n");
+    log_disk("Format\n");
     memset(&hdr, 0, sizeof(struct dasd_header));
     memcpy(&hdr.devid[0], "CKD_P370", 8);
     hdr.heads = disk_type[type].heads;
@@ -1914,7 +1914,7 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int init)
     int                 pos;
 
     /* Attempt to open disk */
-    log_info("Attach %s %d\n", file_name, dasd->type);
+    log_info("Attach %s %s\n", file_name, disk_type[dasd->type].name);
     if ((dasd->fd = open(file_name, O_RDWR, 0660)) < 0) {
         if (init) {
            /* If initialize valid, try and create it */
@@ -1928,7 +1928,7 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int init)
     dasd->file_name = strdup(file_name);
 
     /* Read in header if possible */
-    log_info("File %s %d\n", file_name, dasd->type);
+    log_trace("File %s %d\n", file_name, dasd->type);
     if (read(dasd->fd, &hdr, sizeof(struct dasd_header)) !=
           sizeof(struct dasd_header) || strncmp(&hdr.devid[0], "CKD_P370", 8) != 0 || init) {
         /* Not there or valid magic number, try and format it if allowed */
