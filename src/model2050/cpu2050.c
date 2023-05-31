@@ -751,7 +751,7 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
     switch (cpu_2050.mem_state) {
     case R1:
              cpu_2050.mem_state = R2;
-             log_info("mem cycle read %06X %08x %d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, sal->tr);
+             log_mem("mem cycle read %06X %08x %d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, sal->tr);
              /* Check if this cycle will access the SDR register, wait */
              if (tr_interloc & (1 << sal->tr))
                  goto channel;
@@ -769,7 +769,7 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
                  else
                      cpu_2050.SDR_REG = M[SA >> 2];
              }
-             log_info("mem cycle read 2 %06X %08x i=%d ib=%d b=%d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, cpu_2050.init_mem, cpu_2050.init_bump_mem, cpu_2050.bump_mem);
+             log_mem("mem cycle read 2 %06X %08x i=%d ib=%d b=%d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, cpu_2050.init_mem, cpu_2050.init_bump_mem, cpu_2050.bump_mem);
              /* Check if this cycle will access the SDR register, wait */
              if (tr_interloc & (1 << sal->tr))
                  goto channel;
@@ -780,7 +780,7 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
                  goto channel;
              break;
     case R3:
-             log_info("mem cycle read 3 %06X %08x i=%d ib=%d b=%d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, cpu_2050.init_mem, cpu_2050.init_bump_mem, cpu_2050.bump_mem);
+             log_mem("mem cycle read 3 %06X %08x i=%d ib=%d b=%d\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG, cpu_2050.init_mem, cpu_2050.init_bump_mem, cpu_2050.bump_mem);
              cpu_2050.mem_state = W1;
              /* If we are initiating a memory cycle, wait */
              if (cpu_2050.init_mem | cpu_2050.init_bump_mem)
@@ -807,10 +807,10 @@ log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
              }
              SA = cpu_2050.SAR_REG & 0x3ffff;
 
-             log_info("mem write  %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
+             log_mem("mem write  %06X %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG);
 
              if (cpu_2050.init_mem | cpu_2050.init_bump_mem) {
-             log_info("mem init  %06X %08x %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG,
+             log_mem("mem init  %06X %08x %08x\n", cpu_2050.SAR_REG, cpu_2050.SDR_REG,
     mem_max);
                  cpu_2050.bump_mem = cpu_2050.init_bump_mem;
                  cpu_2050.init_mem = cpu_2050.init_bump_mem = 0;
@@ -3449,6 +3449,32 @@ log_trace("Set last word3\n");
        cpu_2050.io_mode = 0;
 
 channel:
+#if 0
+    /* Handle break in cycle */
+    if ((cpu_2050.init_mem | cpu_2050.init_bump_mem) == 0 &&
+              cpu_2050.mem_state == W1 && cpu_2050.break_in) {
+        cpu_2050.first_cycle = 1;
+        cpu_2050.io_mode = 1;
+        dtc_latch = 0;
+        for (i = 0; i < 4; i++) {
+            if (cpu_2050.break_in & (1 << i)) {
+               cpu_2050.CH = i;
+               cpu_2050.break_in &= ~(1 << i);
+               cpu_2050.polling[i] = 0;
+               break;
+            }
+        }
+        if (!cpu_2050.break_out) {
+            cpu_2050.BROAR = cpu_2050.ROAR;
+            cpu_2050.ROAR = cpu_2050.ROUTINE[cpu_2050.CH];
+            cpu_2050.LS[0x2c] = cpu_2050.R_REG;  /* Save R register for later */
+            cpu_2050.MPX_LST = 0;
+            cpu_2050.break_out = 1;
+        } else {
+            cpu_2050.ROAR = cpu_2050.ROUTINE[cpu_2050.CH];
+        }
+    }
+#endif
 
     /* Check if break in cycle */
     if (cpu_2050.mem_state == W1 && cpu_2050.break_in == 0 &&
@@ -4216,9 +4242,9 @@ log_trace("Backward\n");
         if (cpu_2050.CHPOS[i] != 0) {
             /* UA Fetch */
             if (cpu_2050.CHPOS[i] == 0x100) {
-               log_info("UA Fetch\n");
+               log_device("UA Fetch\n");
                if (dtc2) {
-                   log_info("DTC2\n");
+                   log_device("DTC2\n");
                    dtc2 = 0;
                    cpu_2050.C_REG[i] = cpu_2050.aob_latch;
                    cpu_2050.B_REG[i] = 0;
@@ -4229,11 +4255,11 @@ log_trace("Backward\n");
             }
             /* CCW2 */
             if (cpu_2050.CHPOS[i] == BIT1) {
-               log_info("CCW2\n");
+               log_device("CCW2\n");
                /* IOSTAT 2 = TIC
                   IOSTAT 1 = BKWD */
                if (dtc2) {
-                   log_info("DTC2\n");
+                   log_device("DTC2\n");
                    dtc2 = 0;
                    switch(cpu_2050.CHCLK[i]) {
                    case 0:
@@ -4270,10 +4296,10 @@ log_trace("Backward\n");
             }
             /* CCW1 */
             if (cpu_2050.CHPOS[i] == BIT0) {
-               log_info("CCW1\n");
+               log_device("CCW1\n");
                if (dtc2) {
                    int   cmd;
-                   log_info("DTC2\n");
+                   log_device("DTC2\n");
                    dtc2 = 0;
                    switch(cpu_2050.CHCLK[i]) {
                    case 0:
@@ -4333,7 +4359,7 @@ log_trace("Backward\n");
             }
             /* Unit Select */
             if (cpu_2050.CHPOS[i] == BIT2) {
-               log_info("Unit Sel %d\n", i);
+               log_device("Unit Sel %d\n", i);
                switch(cpu_2050.CHCLK[i]) {
                case 0:
                        if ((cpu_2050.TAGS[i] & (CHAN_ADR_OUT|CHAN_SEL_OUT)) == (CHAN_ADR_OUT)) {
@@ -4349,7 +4375,7 @@ log_trace("Backward\n");
                        break;
                 case 1:
                        if ((cpu_2050.TAGS_IN[i] & CHAN_SEL_IN) != 0) {
-                           log_info("No device\n");
+                           log_device("No device\n");
                            if (cpu_2050.inst_latch == (i + 1) && cpu_2050.CHCTL != 0) {
                                cpu_2050.TAGS[i] &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT);
                                cpu_2050.BUS_OUT[i] = 0x100;
@@ -4364,13 +4390,13 @@ log_trace("Backward\n");
                            }
                        }
                        if ((cpu_2050.TAGS_IN[i] & (CHAN_ADR_IN|CHAN_OPR_IN)) == (CHAN_OPR_IN)) {
-                           log_info("Selected\n");
+                           log_device("Selected\n");
                            cpu_2050.TAGS[i] &= ~(CHAN_ADR_OUT);
                        }
                        if ((cpu_2050.TAGS_IN[i] & (CHAN_ADR_IN|CHAN_OPR_IN)) == (CHAN_ADR_IN|CHAN_OPR_IN)) {
                            uint16_t    adr = (cpu_2050.C_REG[i] >> 24) & 0xff;
                            adr |= odd_parity[adr];
-                           log_info("Address Compare %03x %03x\n", cpu_2050.BUS_IN[i], adr);
+                           log_device("Address Compare %03x %03x\n", cpu_2050.BUS_IN[i], adr);
                            cpu_2050.BUS_OUT[i] = 0x100;
                            if (cpu_2050.BUS_IN[i] == adr) {
                                cpu_2050.C3[i] = 0;
@@ -4388,25 +4414,25 @@ log_trace("Backward\n");
                            cpu_2050.C_REG[i] = cpu_2050.B_REG[i];
                            cpu_2050.BUS_OUT[i] = (cpu_2050.C_REG[i] >> 24) & 0xff;
                            cpu_2050.BUS_OUT[i] |= odd_parity[cpu_2050.BUS_OUT[i]];
-                           log_info("Command out %02x %d\n", (cpu_2050.C_REG[i] >> 24) & 0xff, cpu_2050.C3[i]);
+                           log_device("Command out %02x %d\n", (cpu_2050.C_REG[i] >> 24) & 0xff, cpu_2050.C3[i]);
                        }
                        if (cpu_2050.C3[i]) {
-                           log_info("Done %d\n");
+                           log_device("Done %d\n");
                            cpu_2050.CHCLK[i] = 4;
                            break;
                        }
                        if ((cpu_2050.TAGS_IN[i] & CHAN_ADR_IN) != 0) {
-                           log_info("Raise CMD\n");
+                           log_device("Raise CMD\n");
                            cpu_2050.TAGS[i] |= CHAN_CMD_OUT;
                        }
                        if ((cpu_2050.TAGS_IN[i] & CHAN_ADR_IN) == 0) {
-                           log_info("Drop CMD\n");
+                           log_device("Drop CMD\n");
                            cpu_2050.TAGS[i] &= ~CHAN_CMD_OUT;
                        }
                        if ((cpu_2050.TAGS_IN[i] & CHAN_STA_IN) != 0) {
                            cpu_2050.C3[i] = 1;
                            cpu_2050.CHCLK[i] = 3;
-                           log_info("Status IN\n");
+                           log_device("Status IN\n");
                        }
                        break;
                case 3:
@@ -4439,7 +4465,7 @@ log_trace("Backward\n");
             }
             /* Read store */
             if (cpu_2050.CHPOS[i] == BIT3) {
-               log_info("Read store %d\n", cpu_2050.last_cycle);
+               log_device("Read store %d\n", cpu_2050.last_cycle);
                /* IOSTAT 3 = LS loaded
                   IOSTAT 2 = SKIP
                   IOSTAT 1 = BKWD */
@@ -4453,17 +4479,17 @@ log_trace("Backward\n");
             }
             /* Write Fetch */
             if (cpu_2050.CHPOS[i] == BIT4) {
-               log_info("Write fetch\n");
+               log_device("Write fetch\n");
             }
             /* End */
             if (cpu_2050.CHPOS[i] == BIT5) {
-               log_info("End\n");
+               log_device("End\n");
                /* IOSTAT 4 = Error or comm chain
                   IOSTAT 3 = Not 1 reg full and not 3 regs full
                   IOSTAT 2 = Not 2 regs full and not 1 reg ful
                   IOSTAT 1 = WR CHAIN DATA AND NEW CCW NOT USED */
                if (dtc1) {
-                   log_info("DTC1\n");
+                   log_device("DTC1\n");
                    dtc1 = 0;
                    switch(cpu_2050.CHCLK[i]) {
                    case 0:
@@ -4479,7 +4505,7 @@ log_trace("Backward\n");
             }
             /* Compare */
             if (cpu_2050.CHPOS[i] == BIT6) {
-               log_info("Compare\n");
+               log_device("Compare\n");
             }
             /* Interrupt routine */
             if (cpu_2050.CHPOS[i] == BIT7) {
@@ -4488,7 +4514,7 @@ log_trace("Backward\n");
         } else {  /* Handle automatic channel functions */
             if (cpu_2050.B_FULL[i] != 0 && cpu_2050.LS_FULL[i] == 0 && (cpu_2050.OP_REG[i] & 0x6) == 0 && cpu_2050.break_out == 0) {
                 /* Read, Read Backword */
-                log_info("Xfer B to LS\n");
+                log_device("Xfer B to LS\n");
                 cpu_2050.ROUTINE[i] = 0x40;
                 cpu_2050.CLI_REG[i] = cpu_2050.CBI_REG[i];
                 cpu_2050.break_in |= 1<<i;
@@ -4501,7 +4527,7 @@ log_trace("Backward\n");
 
             if (cpu_2050.C_FULL[i] != 0 && cpu_2050.B_FULL[i] == 0 && (cpu_2050.OP_REG[i] & 0x6) == 0) {
                 /* Read, Read Backword */
-                log_info("Xfer C to B\n");
+                log_device("Xfer C to B\n");
                 cpu_2050.B_REG[i] = cpu_2050.C_REG[i];
                 cpu_2050.CBI_REG[i] = cpu_2050.CCI_REG[i];
                 cpu_2050.B_FULL[i] = 1;
@@ -4518,13 +4544,13 @@ log_trace("Backward\n");
             }
 
             if ((cpu_2050.TAGS_IN[i] & (CHAN_SRV_IN|CHAN_OPR_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN|CHAN_OPR_IN)) {
-                log_info("Srv C=%d\n", cpu_2050.C_FULL[i]);
+                log_device("Srv C=%d\n", cpu_2050.C_FULL[i]);
                 switch(cpu_2050.OP_REG[i]) {
                 case 0:     /* Read */
                         if (cpu_2050.C_FULL[i] == 0 && cpu_2050.IF_STOP[i] == 0) {
                             int      bp = (3 - ((cpu_2050.GP_REG[i] >> 6) & 0x3)) * 8;
                             uint32_t msk = 0xff << bp;
-                            log_info("Read GP=%02x %02x M=%08x %d\n", cpu_2050.GP_REG[i], cpu_2050.BUS_IN[i] & 0xff, msk, bp);
+                            log_device("Read GP=%02x %02x M=%08x %d\n", cpu_2050.GP_REG[i], cpu_2050.BUS_IN[i] & 0xff, msk, bp);
                             cpu_2050.C_REG[i] &= ~msk;
                             cpu_2050.C_REG[i] |= ((uint32_t)cpu_2050.BUS_IN[i] & 0xff) << bp;
                             cpu_2050.CCI_REG[i] |= 0x1 << (3 - ((cpu_2050.GP_REG[i] >> 6) & 0x3));
@@ -4533,7 +4559,7 @@ log_trace("Backward\n");
                             cpu_2050.TAGS[i] |= CHAN_SRV_OUT;
                             /* Check if full */
                             if ((((cpu_2050.GP_REG[i] >> 2) ^ cpu_2050.GP_REG[i]) & 0x30) == 0) {
-                                log_info("Set C Full\n");
+                                log_device("Set C Full\n");
                                 cpu_2050.C_FULL[i] = 1;
                                 if ((cpu_2050.GP_REG[i] & BIT7) != 0) { /* L3W */
                                    cpu_2050.GP_REG[i] &= ~BIT7;
