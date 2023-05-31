@@ -1331,6 +1331,7 @@ model1052_create(struct _option *opt)
     dev1052->dev = (void *)ctx;
     dev1052->draw_model = NULL;
     dev1052->create_ctrl =  NULL;
+    dev1052->type_name = "1052";
     dev1052->rect[0].x = 0;
     dev1052->rect[0].y = 0;
     dev1052->rect[0].w = 0;

@@ -2553,6 +2553,7 @@ model2415_create(struct _option *opt)
          dev2415->dev = (void *)tape;
          dev2415->draw_model = (void *)&model2415_draw;
          dev2415->create_ctrl = (void *)&model2415_control;
+         dev2415->type_name = "2415";
          dev2415->n_units = 6;
          if (opt->flags & 1) {
              if (opt->dash_num >= 4)

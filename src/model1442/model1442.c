@@ -1478,6 +1478,7 @@ model1442_create(struct _option *opt)
      dev1442->dev = (void *)card;
      dev1442->draw_model = (void *)&model1442_draw;
      dev1442->create_ctrl = (void *)&model1442_control;
+     dev1442->type_name = "1442";
      dev1442->rect[0].x = 0;
      dev1442->rect[0].y = 0;
      dev1442->rect[0].w = 305;

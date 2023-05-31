@@ -87,6 +87,7 @@ struct _device {
     void      (*draw_model)(struct _device *unit, void *render);
     struct _popup *(*create_ctrl)(struct _device *unit, int hd, int wd, int u);
     void       *dev;               /* Pointer to device context */
+    char       *type_name;         /* Name of device */
     int         n_units;           /* Number of units */
     uint16_t    addr;              /* Device address and channel */
     struct _rect {

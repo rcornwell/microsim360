@@ -1040,6 +1040,7 @@ model2841_create(struct _option *opt)
      dev2841->dev = (void *)ctx;
      dev2841->draw_model = (void *)&model2311_draw;
      dev2841->create_ctrl = (void *)&model2311_control;
+     dev2841->type_name = "2841";
      dev2841->n_units = 8;
      ctx->addr = opt->addr & 0xff;;
      ctx->chan = (opt->addr >> 8) & 0x7;

@@ -1497,6 +1497,7 @@ model1443_create(struct _option *opt)
      dev1443->dev = (void *)lpr;
      dev1443->draw_model = (void *)&draw_model1443;
      dev1443->create_ctrl = (void *)&model1443_control;
+     dev1443->type_name = "1443";
      dev1443->rect[0].x = 305;
      dev1443->rect[0].y = 0;
      dev1443->rect[0].w = 280;
