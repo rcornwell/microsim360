@@ -113,6 +113,7 @@ uint32_t    right_bus;          /* Right alu input bus */
 uint32_t    left_bus;           /* Left alu input bus */
 uint32_t    alu_out;            /* Alu output bus */
 uint32_t    aob_latch;          /* AOB output latch */
+uint8_t     n_s_reg;            /* Next cycle S register */
 
 uint8_t     u_bus;              /* Mover u input */
 uint8_t     v_bus;              /* Mover v input */
@@ -173,8 +174,12 @@ uint16_t    ROAR;               /* ROAR address register. */
 uint16_t    BROAR;              /* Backup ROAR address. */
 uint16_t    PROAR;              /* Previous ROAR address. */
 uint16_t    NROAR;              /* Next ROAR address. */
+uint8_t     dead_cycle;         /* Dead cycle before interrupt */
+uint8_t     rest_cycle;         /* Restore cycle */
+uint8_t     s3_set;             /* Set S3 after restore */
 uint8_t     break_in;           /* Break in cycle requested */
 uint8_t     break_out;          /* In break out cycle */
+uint8_t     CAR_back;           /* Backup carry output */
 uint8_t     first_cycle;        /* First cycle of breakout */
 uint8_t     last_cycle;         /* Last cycle of breakout */
 uint8_t     chpostest;          /* Do CHPosTest */
