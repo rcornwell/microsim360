@@ -365,7 +365,7 @@ load_config(char *name)
 
     while (fgets(line_buffer, sizeof(line_buffer), config) != NULL) {
        line_ptr = line_buffer;
-       fprintf(stderr, "line=%s", line_buffer);
+/*       fprintf(stderr, "line=%s", line_buffer); */
        fnd = 0;
        if (get_model(&opt)) {
            for (devlist = dev_list(); devlist->magic == DEV_LIST_MAGIC && fnd == 0; devlist++) {
@@ -420,7 +420,7 @@ load_line(char *line)
     int            fnd;
 
     line_ptr = line;
-    fprintf(stderr, "line=%s", line_buffer);
+/*    fprintf(stderr, "line=%s", line_buffer); */
     fnd = 0;
     if (get_model(&opt)) {
         for (devlist = dev_list(); devlist->magic == DEV_LIST_MAGIC; devlist++) {
