@@ -68,6 +68,7 @@ uint16_t    Abus;               /* Holds the input to the A side of ALU. */
 uint16_t    Bbus;               /* Holds the input to the B side of ALU. */
 uint16_t    Alu_out;            /* Holds output of Alu. */
 uint8_t     prev_carry;         /* Holds previous carry out. */
+uint8_t     dead_cycle;         /* Interrupt transfer cycle */
 
 
 uint8_t     C_REG;
@@ -96,10 +97,12 @@ uint8_t     SA_REG;             /* Storage address register. */
 uint8_t     STAT_REG;           /* Immediate stat register */
 
 uint16_t    WX;                 /* ROAR address register. */
-uint16_t    FWX;                /* Backup ROAR address. */
-uint16_t    GWX;                /* Backup ROAR address. */
-uint8_t     MPX_STAT;           /* Save status register */
-uint8_t     SEL_STAT;           /* Save status register */
+uint16_t    FWX;                /* Backup ROAR MPX address. */
+uint16_t    GWX;                /* Backup ROAR SEL address. */
+uint8_t     MPX_X6X7;           /* Backup X6 & X7 for MPX channel */
+uint8_t     SEL_X6X7;           /* Backup X6 & X7 for SEL channel */
+uint8_t     mpx_ros_rest;       /* Restore ROS for MPX */
+uint8_t     sel_ros_rest;       /* Restore ROS for SEL */
 
 /* Virtual registers */
 /* FA functions.

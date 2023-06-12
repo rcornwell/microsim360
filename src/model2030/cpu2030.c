@@ -255,7 +255,6 @@ cycle_2030()
    static uint16_t   carries;
    int               i;
    struct _device   *dev;
-   uint16_t          h_backup;
 
    sal = &ros_2030[nextWX];
    cpu_2030.ros_row1 = sal->row1;
@@ -413,6 +412,10 @@ cycle_2030()
       alu_chk = 0;
       cpu_2030.ASCII = 0;
       SYS_RST = 0;
+      if (LOAD == 0) {
+         load_mode = 0;
+         cpu_2030.FT &= ~BIT4;  /* Clear load flag. */
+      }
       LOAD = 0;
       /* Set memory parity to valid */
       for (i = 0; i < mem_max; i++)
@@ -760,6 +763,7 @@ cycle_2030()
            /* Copy GUV to MN */
            cpu_2030.M_REG = cpu_2030.GU[i];
            cpu_2030.N_REG = cpu_2030.GV[i];
+           cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
            /* Count -1 to GZY */
            cpu_2030.GHZ = (cpu_2030.GD[i] - 1) & 0xff;
            cpu_2030.GHY = (cpu_2030.GC[i] & 0xff);
@@ -769,7 +773,6 @@ cycle_2030()
            if (cpu_2030.GHZ == 0 && cpu_2030.GHY == 0) {
                sel_cnt_rdy_not_zero[i] = 0;
            }
-           cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
            /* Check if in range of memory */
            if (((0xFFFF ^ mem_max) & cpu_2030.MN_REG) != 0) {
                cpu_2030.GE[i] |= BIT2;
@@ -785,8 +788,8 @@ cycle_2030()
            /* Copy GUV to GCD, and New Count in GZY to GUV */
            cpu_2030.GC[i] = cpu_2030.GU[i];
            cpu_2030.GD[i] = cpu_2030.GV[i];
-           cpu_2030.GV[i] = cpu_2030.GHZ| odd_parity[cpu_2030.GHZ];
-           cpu_2030.GU[i] = cpu_2030.GHY| odd_parity[cpu_2030.GHY];
+           cpu_2030.GV[i] = cpu_2030.GHZ | odd_parity[cpu_2030.GHZ];
+           cpu_2030.GU[i] = cpu_2030.GHY | odd_parity[cpu_2030.GHY];
            /* If output and GR empty */
            if (sel_cnt_rdy_zero[i] == 0 && (cpu_2030.GG[i] & 1) == 1 && sel_gr_full[i] == 0) {
                cpu_2030.GR[i] = M[cpu_2030.MN_REG];
@@ -856,40 +859,11 @@ cycle_2030()
        }
 
     } else {
-        h_backup = cpu_2030.H_REG;
         /* If we have interrupt, transfer to it */
-        if (any_priority_pulse) {
+        if (any_priority_pulse && cpu_2030.sel_ros_rest == 0 && cpu_2030.mpx_ros_rest == 0) {
            priority_lch = 1;
            clock_start_lch = 1;
-           if (mpx_share_pulse) {
-              cpu_2030.FWX = nextWX;
-              cpu_2030.MPX_STAT = cpu_2030.STAT_REG;
-              if (t_request == 0) {
-                 cpu_2030.MPX_TAGS |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
-                 cpu_2030.FT |= BIT6;
-              }
-              mpx_share_pulse = 0;
-           }
-
-           if (sel_chain_pulse) {
-              cpu_2030.GWX = nextWX;
-              cpu_2030.SEL_STAT = cpu_2030.STAT_REG;
-              cpu_2030.ch_sav = cpu_2030.ch_sel;
-              if (sel_ros_req & 1) {
-                 cpu_2030.ch_sel = 0;
-                 sel_ros_req &= 2;
-                 if (sel_chain_req[0])
-                     priority_bus |= 3;
-              } else {
-                 cpu_2030.ch_sel = 1;
-                 sel_ros_req &= 1;
-                 if (sel_chain_req[1])
-                     priority_bus |= 3;
-              }
-              sel_chain_pulse = 0;
-           }
-           cpu_2030.WX = priority_bus;
-           goto chan_scan;
+           cpu_2030.dead_cycle = 1;
         }
         /* Otherwise see if CPU clock is running */
         if (clock_start_lch) {
@@ -925,7 +899,7 @@ cycle_2030()
           }
 
           /* Disassemble micro instruction */
-          if ((log_level & LOG_MICRO) != 0 && (cpu_2030.WX != 0xAE)) {
+          if ((log_level & LOG_MICRO) != 0/* && (cpu_2030.WX != 0xAE)*/) {
               sprintf (dis_buffer, "%s %03X: %02x ", sal->note, cpu_2030.WX, sal->CK);
               if (sal->CK < 0x10) {
                   if (sal->PK != 0 || sal->CB == 3 || sal->CU == 2) {
@@ -1008,9 +982,6 @@ cycle_2030()
                   buf[8] = ' ';
                   buf[9] = '\0';;
                   strcat(dis_buffer, buf);
-                  strcat(dis_buffer, ch_name[sal->CH]);
-                  strcat(dis_buffer, " ");
-                  strcat(dis_buffer, cl_name[sal->CL]);
               } else if (sal->CM == 6) {
                   char buf[10];
                   int val =  0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) | (sal->CK & 0x7);
@@ -1027,9 +998,6 @@ cycle_2030()
                   buf[4] = ' ';
                   buf[5] = '\0';;
                   strcat(dis_buffer, buf);
-                  strcat(dis_buffer, ch_name[sal->CH]);
-                  strcat(dis_buffer, " ");
-                  strcat(dis_buffer, cl_name[sal->CL]);
               } else {
                   char buf[10];
                   strcat(dis_buffer, cm_name[sal->CM]);
@@ -1041,10 +1009,10 @@ cycle_2030()
                   buf[3] = ' ';
                   buf[4] = '\0';;
                   strcat(dis_buffer, buf);
-                  strcat(dis_buffer, ch_name[sal->CH]);
-                  strcat(dis_buffer, " ");
-                  strcat(dis_buffer, cl_name[sal->CL]);
               }
+              strcat(dis_buffer, ch_name[sal->CH]);
+              strcat(dis_buffer, " ");
+              strcat(dis_buffer, cl_name[sal->CL]);
               if ((cpu_2030.FT & BIT7) != 0)
                   strcat(dis_buffer, " SUP");
               strcat(dis_buffer, "\n");
@@ -1052,7 +1020,7 @@ cycle_2030()
            }
 
            /* Read memory from previous request */
-           if (read_call) {
+           if (read_call && cpu_2030.dead_cycle == 0) {
 
                protect_loc_cpu_or_mpx = 0;
                mem_prot = 0;
@@ -1115,133 +1083,135 @@ cycle_2030()
 
 
            /* Compute next address */
-           switch (sal->CM) {
-           case 2:       /* Store */
-                   if (stg_prot_req)
-                       break;
-                   /* Fall through */
-           case 0:       /* Write */
-                  /* Do write to memory from this request */
-                  if (allow_write) {
-                      switch (store) {
-                      case MAIN:
-                           if (sal->CU == 1) {
-                               M[cpu_2030.MN_REG] = cpu_2030.GR[cpu_2030.ch_sel];
-                           } else {
-                               M[cpu_2030.MN_REG] = cpu_2030.R_REG;
-                               log_mem("Write main %04x %03x\n", cpu_2030.MN_REG, cpu_2030.R_REG);
-                           }
-                           cpu_2030.MP[cpu_2030.SA_REG] = cpu_2030.Q_REG & 0x0f;
+           if (cpu_2030.dead_cycle == 0) {
+               switch (sal->CM) {
+               case 2:       /* Store */
+                       if (stg_prot_req)
                            break;
-                      case MPX:
-                           log_mem("Write mpx %04x %03x %02x %x\n", cpu_2030.MN_REG, cpu_2030.R_REG,
-                                    cpu_2030.SA_REG, cpu_2030.Q_REG & 0xf);
-                           cpu_2030.MP[cpu_2030.SA_REG] = cpu_2030.Q_REG & 0xf;
-                           /* Fall through */
-                      case LOCAL:
-                           if (sal->CU == 1)
-                               cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.GR[cpu_2030.ch_sel];
-                           else
-                               cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.R_REG;
-                           break;
+                       /* Fall through */
+               case 0:       /* Write */
+                      /* Do write to memory from this request */
+                      if (allow_write) {
+                          switch (store) {
+                          case MAIN:
+                               if (sal->CU == 1) {
+                                   M[cpu_2030.MN_REG] = cpu_2030.GR[cpu_2030.ch_sel];
+                               } else {
+                                   M[cpu_2030.MN_REG] = cpu_2030.R_REG;
+                                   log_mem("Write main %04x %03x\n", cpu_2030.MN_REG, cpu_2030.R_REG);
+                               }
+                               cpu_2030.MP[cpu_2030.SA_REG] = cpu_2030.Q_REG & 0x0f;
+                               break;
+                          case MPX:
+                               log_mem("Write mpx %04x %03x %02x %x\n", cpu_2030.MN_REG, cpu_2030.R_REG,
+                                        cpu_2030.SA_REG, cpu_2030.Q_REG & 0xf);
+                               cpu_2030.MP[cpu_2030.SA_REG] = cpu_2030.Q_REG & 0xf;
+                               /* Fall through */
+                          case LOCAL:
+                               if (sal->CU == 1)
+                                   cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.GR[cpu_2030.ch_sel];
+                               else
+                                   cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.R_REG;
+                               break;
+                          }
+                          allow_write = 0;
+                          read_call = 0;
+                          inh_stg_prot = 0;
                       }
-                      allow_write = 0;
-                      read_call = 0;
+                      break;
+               case 1:          /* Compute */
+                      break;
+               case 3:          /* Read IJ */
+                      cpu_2030.M_REG = cpu_2030.I_REG;
+                      cpu_2030.N_REG = cpu_2030.J_REG;
                       inh_stg_prot = 0;
-                  }
-                  break;
-           case 1:          /* Compute */
-                  break;
-           case 3:          /* Read IJ */
-                  cpu_2030.M_REG = cpu_2030.I_REG;
-                  cpu_2030.N_REG = cpu_2030.J_REG;
-                  inh_stg_prot = 0;
-                  break;
-           case 4:          /* Read UV */
-                  cpu_2030.M_REG = cpu_2030.U_REG;
-                  cpu_2030.N_REG = cpu_2030.V_REG;
-                  inh_stg_prot = 0;
-                  break;
-           case 5:          /* Read T */
-                  cpu_2030.M_REG = 0x100;
-                  cpu_2030.N_REG = cpu_2030.T_REG;
-                  inh_stg_prot = 1;
-                  break;
-           case 6:          /* Read CK */
-                  cpu_2030.M_REG = 0x100;
-                  cpu_2030.N_REG = 0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) |
-                         (sal->CK & 0x7);
-                  /* Use selector channel 2 */
-                  if (cpu_2030.ch_sel && ((sal->CK & 0x1e) == 06 || sal->CK == 05))
-                      cpu_2030.N_REG |= 0x10;
-                  cpu_2030.N_REG |= odd_parity[cpu_2030.N_REG];
-                  inh_stg_prot = 1;
-                  break;
-           case 7:
-                  cpu_2030.M_REG = cpu_2030.GU[cpu_2030.ch_sel];
-                  cpu_2030.N_REG = cpu_2030.GV[cpu_2030.ch_sel];
-                  inh_stg_prot = 0;
-                  break;
-           }
+                      break;
+               case 4:          /* Read UV */
+                      cpu_2030.M_REG = cpu_2030.U_REG;
+                      cpu_2030.N_REG = cpu_2030.V_REG;
+                      inh_stg_prot = 0;
+                      break;
+               case 5:          /* Read T */
+                      cpu_2030.M_REG = 0x100;
+                      cpu_2030.N_REG = cpu_2030.T_REG;
+                      inh_stg_prot = 1;
+                      break;
+               case 6:          /* Read CK */
+                      cpu_2030.M_REG = 0x100;
+                      cpu_2030.N_REG = 0x88 | ((sal->CN & 0x80) >> 2) | ((sal->CK & 0x8) << 1) |
+                             (sal->CK & 0x7);
+                      /* Use selector channel 2 */
+                      if (cpu_2030.ch_sel && ((sal->CK & 0x1e) == 06 || sal->CK == 05))
+                          cpu_2030.N_REG |= 0x10;
+                      cpu_2030.N_REG |= odd_parity[cpu_2030.N_REG];
+                      inh_stg_prot = 1;
+                      break;
+               case 7:
+                      cpu_2030.M_REG = cpu_2030.GU[cpu_2030.ch_sel];
+                      cpu_2030.N_REG = cpu_2030.GV[cpu_2030.ch_sel];
+                      inh_stg_prot = 0;
+                      break;
+               }
 
-           /* If load new address, generate SA and Main/MPX request */
-           if (sal->CM >= 3) {
-               store = MAIN;
-               mem_wrap_req = 0;
-               switch (sal->CU) {
-               case 0:
-                   /* Check if in range of memory */
-                   if (((0xFFFF ^ mem_max) & cpu_2030.MN_REG) != 0) {
-                        mem_wrap_req = 1;
-                        log_trace("Memory wrap %04x\n", cpu_2030.MN_REG);
-                   }
-                   if (i_wrap_cpu && sal->CM == 3 && (cpu_2030.H_REG & BIT6) == 0) {
-                        mem_wrap_req = 1;
-                        log_trace("Memory wrap i wrap\n");
-                   }
-                   if (u_wrap_cpu && sal->CM == 4 && (cpu_2030.H_REG & BIT6) == 0) {
-                        mem_wrap_req = 1;
-                        log_trace("Memory wrap u wrap\n");
-                   }
-                   if (u_wrap_mpx && sal->CM == 4 && (cpu_2030.H_REG & BIT6) != 0) {
-                        mem_wrap_req = 1;
-                        log_trace("Memory wrap u wrap\n");
-                   }
-                   break;
-               case 1:
-                   store = LOCAL;
-                   cpu_2030.M_REG = BIT0|BIT1|BIT2;
-                   cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
-                   break;
-               case 2:
-                   store = MPX;
-                   cpu_2030.M_REG = cpu_2030.XX_REG;
-                   cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
-                   cpu_2030.SA_REG = (cpu_2030.XX_REG & 0xE0) | ((cpu_2030.N_REG >> 3) & 0x1f);
-                   break;
-               case 3:
-                   if ((cpu_2030.G_REG & (BIT0|BIT1)) == 0) {
+               /* If load new address, generate SA and Main/MPX request */
+               if (sal->CM >= 3) {
+                   store = MAIN;
+                   mem_wrap_req = 0;
+                   switch (sal->CU) {
+                   case 0:
+                       /* Check if in range of memory */
+                       if (((0xFFFF ^ mem_max) & cpu_2030.MN_REG) != 0) {
+                            mem_wrap_req = 1;
+                            log_trace("Memory wrap %04x\n", cpu_2030.MN_REG);
+                       }
+                       if (i_wrap_cpu && sal->CM == 3 && (cpu_2030.H_REG & BIT6) == 0) {
+                            mem_wrap_req = 1;
+                            log_trace("Memory wrap i wrap\n");
+                       }
+                       if (u_wrap_cpu && sal->CM == 4 && (cpu_2030.H_REG & BIT6) == 0) {
+                            mem_wrap_req = 1;
+                            log_trace("Memory wrap u wrap\n");
+                       }
+                       if (u_wrap_mpx && sal->CM == 4 && (cpu_2030.H_REG & BIT6) != 0) {
+                            mem_wrap_req = 1;
+                            log_trace("Memory wrap u wrap\n");
+                       }
+                       break;
+                   case 1:
+                       store = LOCAL;
                        cpu_2030.M_REG = BIT0|BIT1|BIT2;
                        cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
-                       store = LOCAL;
+                       break;
+                   case 2:
+                       store = MPX;
+                       cpu_2030.M_REG = cpu_2030.XX_REG;
+                       cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
+                       cpu_2030.SA_REG = (cpu_2030.XX_REG & 0xE0) | ((cpu_2030.N_REG >> 3) & 0x1f);
+                       break;
+                   case 3:
+                       if ((cpu_2030.G_REG & (BIT0|BIT1)) == 0) {
+                           cpu_2030.M_REG = BIT0|BIT1|BIT2;
+                           cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
+                           store = LOCAL;
+                       }
                    }
-               }
-               if (!allow_write && !mem_wrap_req) {
-                   read_call = 1;
-               }
-               if (store == MAIN) {
-                   cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
-                   cpu_2030.SA_REG = (0xE0) | ((cpu_2030.M_REG >> 3) & 0x1F);
-               } else {
-                   cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xE0) << 3) | (cpu_2030.N_REG & 0xff);
-               }
-               /* Check validity of M and N registers */
-               if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 ||
-                     ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
-                   cpu_2030.MC_REG |= BIT2;
-                   mem_prot = 1;
-               }
+                   if (!allow_write && !mem_wrap_req) {
+                       read_call = 1;
+                   }
+                   if (store == MAIN) {
+                       cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
+                       cpu_2030.SA_REG = (0xE0) | ((cpu_2030.M_REG >> 3) & 0x1F);
+                   } else {
+                       cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xE0) << 3) | (cpu_2030.N_REG & 0xff);
+                   }
+                   /* Check validity of M and N registers */
+                   if (((odd_parity[cpu_2030.M_REG & 0xff] ^ cpu_2030.M_REG) & 0x100) != 0 ||
+                         ((odd_parity[cpu_2030.N_REG & 0xff] ^ cpu_2030.N_REG) & 0x100) != 0) {
+                       cpu_2030.MC_REG |= BIT2;
+                       mem_prot = 1;
+                   }
 
+               }
            }
 
            /* Base next address. */
@@ -1380,7 +1350,7 @@ cycle_2030()
                    break;
            }
 
-           /* Handle alternate CK thst change branch address */
+           /* Handle alternate CK that change branch address */
            switch(sal->CK) {
            case 0x11:  nextWX = ((cpu_2030.U_REG & 0xff) << 8) | (cpu_2030.V_REG & 0xff);
                        break;
@@ -1430,7 +1400,52 @@ cycle_2030()
 
            if (sal->CM < 3 && sal->CU == 2) {
                nextWX &= 0xff;
-               nextWX |= (sal->CK & 0xF) << 8;
+               nextWX |= (sal->CK & 0xf) << 8;
+           }
+
+           /* If in dead cycle, switch to new routine, save X6 and X7 for later */
+           if (cpu_2030.dead_cycle) {
+              if (sel_chain_pulse) {
+                 cpu_2030.GWX = cpu_2030.WX;
+                 cpu_2030.SEL_X6X7 = nextWX & 3;
+                 sel_chain_pulse = 0;
+                 if (sel_ros_req & 1) {
+                    cpu_2030.ch_sel = 0;
+                    sel_ros_req &= 2;
+                    if (sel_chain_req[0])
+                        priority_bus |= 3;
+                 } else {
+                    cpu_2030.ch_sel = 1;
+                    sel_ros_req &= 1;
+                    if (sel_chain_req[1])
+                        priority_bus |= 3;
+                 }
+                 log_trace("Select dead cycle\n");
+              } else if (mpx_share_pulse) {
+                 cpu_2030.FWX = cpu_2030.WX;
+                 cpu_2030.MPX_X6X7 = nextWX & 3;
+                 if (t_request == 0) {
+                    cpu_2030.MPX_TAGS |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
+                    cpu_2030.FT |= BIT6;
+                 }
+                 mpx_share_pulse = 0;
+                 log_trace("MPX dead cycle\n");
+              }
+              cpu_2030.dead_cycle = 0;
+              cpu_2030.WX = priority_bus;
+              goto chan_scan;
+           }
+
+           /* Restore the previous X6 and X7 values */
+           if (cpu_2030.sel_ros_rest) {
+               nextWX &= 0xffc;
+               nextWX |= cpu_2030.SEL_X6X7;
+               cpu_2030.sel_ros_rest = 0;
+           }
+           if (cpu_2030.mpx_ros_rest) {
+               nextWX &= 0xffc;
+               nextWX |= cpu_2030.MPX_X6X7;
+               cpu_2030.mpx_ros_rest = 0;
            }
 
            cpu_2030.WX = nextWX;
@@ -1887,6 +1902,20 @@ cycle_2030()
                    cpu_2030.TA = cpu_2030.Alu_out & 0xff;
                    break;
            case 5:
+                   /* Handle special case of CU when CM specifies read or write */
+                   if (sal->CM < 3 && sal->CU == 3) {
+                       if (cpu_2030.H_REG & BIT5) {
+                           cpu_2030.sel_ros_rest = 1;
+                           sel_ros_req &= ~(1 << cpu_2030.ch_sel);
+                           cpu_2030.ch_sel = cpu_2030.ch_sav;
+                           cpu_2030.WX = cpu_2030.GWX;
+                           log_selchn("SEL IRQ2 %d %d\n", sel_ros_req, cpu_2030.H_REG & BIT5);
+                       } else {
+                           cpu_2030.mpx_ros_rest = 1;
+                           cpu_2030.WX = cpu_2030.FWX;
+                           log_mpxchn("MPX IRQ %d %d\n", sel_ros_req, cpu_2030.H_REG & BIT5);
+                       }
+                   }
                    cpu_2030.H_REG = cpu_2030.Alu_out;
                    priority_lch = 0;
                    break;
@@ -2354,14 +2383,11 @@ cycle_2030()
            }
 
            /* Save status of flags for next cycle to check */
-           /* But don't update if doing a restore cycle */
-           if (sal->CM >= 3 || sal->CU != 3) {
-                cpu_2030.STAT_REG = (((carries & BIT0) != 0) ? BIT5 : 0) |
-                                    (((carries & BIT1) != 0) ? BIT6 : 0) |
-                                    (((cpu_2030.Alu_out & 0xff)== 0) ? BIT4 : 0);
-           }
+           cpu_2030.STAT_REG = (((carries & BIT0) != 0) ? BIT5 : 0) |
+                               (((carries & BIT1) != 0) ? BIT6 : 0) |
+                               (((cpu_2030.Alu_out & 0xff)== 0) ? BIT4 : 0);
 
-          if ((cpu_2030.WX != 0xAE)) {
+           if ((cpu_2030.WX != 0xAE)) {
 
            log_reg("D=%02x F=%02x G=%02x H=%02x L=%02x Q=%02x R=%02x S=%02x T=%02x MC=%02x FT=%02x MASK=%02x XX=%x %02x %s %02x -> %02x asc=%d\n",
                    cpu_2030.D_REG, cpu_2030.F_REG, cpu_2030.G_REG, cpu_2030.H_REG, cpu_2030.L_REG,
@@ -2383,17 +2409,13 @@ cycle_2030()
                    cpu_2030.GI[1] & 0xff, cpu_2030.GK[1] & 0xff, cpu_2030.GR[1] & 0xff,
                    cpu_2030.GO[1] & 0xff, cpu_2030.GC[1] & 0xff, cpu_2030.GD[1] & 0xff,
                    cpu_2030.GU[1] & 0xff, cpu_2030.GV[1] & 0xff);
-          }
+            }
         }
 
 chan_scan:
         /* Scan each channel */
         /* Start with MPX channel */
         cpu_2030.FT &= ~BIT3;
-        /* Call out to console first */
-        model1052_func(cpu_2030.console, &cpu_2030.TT, cpu_2030.TA, &t_request);
-        if (t_request)
-            cpu_2030.FT |= BIT3;
         if (mpx_start_sel) {
             cpu_2030.MPX_TAGS |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
             cpu_2030.FT |= BIT3;
@@ -2411,6 +2433,15 @@ chan_scan:
              dev->bus_func(dev, &cpu_2030.MPX_TI, cpu_2030.O_REG, &cpu_2030.FI);
         }
         print_tags("CPU In", 0, cpu_2030.MPX_TI, cpu_2030.FI);
+        if ((cpu_2030.MPX_TAGS & (CHAN_SEL_OUT)) == 0 &&
+            (cpu_2030.MPX_TI & (CHAN_OPR_IN)) == 0) {
+            /* Call out to console first */
+            model1052_func(cpu_2030.console, &cpu_2030.TT, cpu_2030.TA, &t_request);
+            if (t_request)
+               cpu_2030.FT |= BIT3;
+        } else {
+            t_request = 0;
+        }
 
         /* Check for MPX request */
         if (mpx_cmd_start == 0 && mpx_start_sel == 0 && (cpu_2030.FT & BIT3) == 0 &&
@@ -2713,9 +2744,9 @@ chan_scan:
             cpu_2030.FT &= ~BIT5;
             if ((cpu_2030.MPX_TI & CHAN_SEL_IN) != 0)
                cpu_2030.FT |= BIT5;
-            if ((cpu_2030.MPX_TI & CHAN_STA_IN) != 0)
+            if ((cpu_2030.MPX_TI & CHAN_STA_IN) != 0 && !t_request)
                cpu_2030.STAT_REG |= BIT1;
-            if ((cpu_2030.MPX_TI & CHAN_SRV_IN) != 0)
+            if ((cpu_2030.MPX_TI & CHAN_SRV_IN) != 0 && !t_request)
                cpu_2030.STAT_REG |= BIT3;
             if ((cpu_2030.MPX_TI & CHAN_OPR_IN) != 0) {
                cpu_2030.STAT_REG |= BIT2;
@@ -2726,20 +2757,6 @@ chan_scan:
                cpu_2030.STAT_REG |= BIT0;
         }
 
-        /* Handle special case of CU when CM specifies read or write */
-        if (sal->CM < 3 && sal->CU == 3) {
-            if (h_backup & BIT5) {
-                sel_ros_req &= ~(1 << cpu_2030.ch_sel);
-                cpu_2030.ch_sel = cpu_2030.ch_sav;
-                cpu_2030.WX = cpu_2030.GWX;
-                cpu_2030.STAT_REG = cpu_2030.SEL_STAT;
-                log_selchn("SEL IRQ2 %d %d\n", sel_ros_req, h_backup & BIT5);
-            } else {
-                cpu_2030.WX = cpu_2030.FWX;
-                cpu_2030.STAT_REG = cpu_2030.MPX_STAT;
-                log_mpxchn("MPX IRQ %d %d\n", sel_ros_req, h_backup & BIT5);
-            }
-        }
         /* Update the priority latch */
         if (allow_write == 0 || gate_sw_to_wx) {
             priority_stack_reg = 0;
