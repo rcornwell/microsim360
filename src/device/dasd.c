@@ -1819,7 +1819,7 @@ dasd_format(struct _dasd_t * dasd, int flag) {
         return 1;
 
     /* Create empty disk with HA and R0 based on standard */
-    for (cyl = 0; cyl <= disk_type[type].cyl; cyl++) {
+    for (cyl = 0; cyl < disk_type[type].cyl; cyl++) {
         pos = 0;
         for (hd = 0; hd < disk_type[type].heads; hd++) {
             int cpos = pos;
@@ -1940,11 +1940,11 @@ dasd_attach(struct _dasd_t *dasd, char *file_name, int init)
 
     /* Read in header and try and find disk type */
     isize = lseek(dasd->fd, 0, SEEK_END);
-    log_info("Drive %d %d %02x %02x %d\r\n",
-             hdr.heads, hdr.tracksize, hdr.devtype, hdr.fileseq, hdr.highcyl);
+    log_info("Drive %d %d %02x %02x %d %d\r\n",
+             hdr.heads, hdr.tracksize, hdr.devtype, hdr.fileseq, hdr.highcyl, isize);
     for (i = 0; disk_type[i].name != 0; i++) {
          tsize = (disk_type[i].bpt | 0x1ff) + 1;
-         dsize = 512 + (tsize * disk_type[i].heads * (disk_type[i].cyl + 1));
+         dsize = sizeof(struct dasd_header) + (tsize * disk_type[i].heads * (disk_type[i].cyl + 1));
          if (hdr.devtype == disk_type[i].dev_type && hdr.tracksize == tsize &&
              hdr.heads == disk_type[i].heads && dsize == isize) {
              if (dasd->type != i) {
@@ -2014,8 +2014,10 @@ dasd_detach(struct _dasd_t *dasd)
           (void)write(dasd->fd, dasd->cbuf, tsize);
           dasd->dirty = 0;
     }
-    close(dasd->fd);
-    dasd->fd = -1;
+    if (dasd->fd >= 0) {
+        close(dasd->fd);
+        dasd->fd = -1;
+    }
     free(dasd->cbuf);
     dasd->cbuf = NULL;
     free(dasd->file_name);
