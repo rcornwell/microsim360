@@ -81,6 +81,7 @@ struct _1442_context {
     int                    request;      /* Request channel */
     int                    addressed;    /* Device has been addressed */
     int                    stacked;      /* Device has stack status */
+    int                    busy_flag;    /* If we returned fast busy */
     int                    sense;        /* Current sense value */
     int                    cmd;          /* Current command */
     int                    status;       /* Current bus status */
@@ -200,7 +201,9 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     case STATE_IDLE:
             /* Wait until Channels asks for us */
             if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT)) &&
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_REQ_IN)) &&
                  (bus_out & 0xff) == ctx->addr) {
                 /* Device selected */
                 if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
@@ -553,6 +556,16 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  break;
              }
 
+             /* Check if another device is being selected */
+             if (ctx->request && (
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN))) {
+                *tags &= ~(CHAN_REQ_IN);
+                ctx->request = 0;
+                log_device("printer other device\n");
+                break;
+             }
+
              /* If we got bus, go and transfer */
              if (ctx->addressed && (*tags & CHAN_CMD_OUT) != 0) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
@@ -717,6 +730,10 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
              *tags |= CHAN_OPR_IN;
 
+             if (ctx->busy_flag) {
+                 ctx->status |= SNS_CTLEND;
+             }
+
              /* Wait for Service out to drop */
              if ((*tags & (CHAN_SRV_OUT|CHAN_STA_IN)) == (CHAN_SRV_OUT)) {
                  break;
@@ -740,6 +757,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
                  log_device("reader Accepted end\n");
                  ctx->selected = 0;
+                 ctx->busy_flag = 0;
                  ctx->state = STATE_IDLE;              /* All done, back to idle state */
                  break;
              }
@@ -886,6 +904,7 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                 *tags &= ~(CHAN_SEL_OUT);                 /* Clear select out and in */
                 *tags |= CHAN_STA_IN;
                 *bus_in = 0x100 | SNS_SMS | SNS_BSY;
+                ctx->busy_flag = 1;
                 ctx->addressed = 1;
                 log_device("reader select attempt\n");
              }

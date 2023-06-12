@@ -181,7 +181,9 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     case STATE_IDLE:
              /* Wait until Channels asks for us */
              if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT)) &&
+                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT) &&
+                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
+                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_REQ_IN)) &&
                   (bus_out & 0xff) == ctx->addr) {
                  /* Device selected */
                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
@@ -575,6 +577,16 @@ model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  ctx->addressed = 1;
                  log_device("console request selected\n");
                  break;
+             }
+
+             /* Check if another device is being selected */
+             if (ctx->request && (
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
+                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN))) {
+                *tags &= ~(CHAN_REQ_IN);
+                ctx->request = 0;
+                log_device("printer other device\n");
+                break;
              }
 
              /* If we got bus, go and transfer */
