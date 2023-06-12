@@ -136,7 +136,7 @@ main(int argc, char *argv[])
     }
     for (i = 0; i < 6; i++) {
         for (dev = chan[i]; dev != NULL; dev = dev->next) {
-             printf("Device %03x\n", dev->addr);
+             log_info("Device %03x %s\n", dev->addr, dev->type_name);
         }
     }
     layout_periph(&scr_wid, &scr_hi);
