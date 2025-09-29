@@ -2055,6 +2055,20 @@
       ASSERT_EQUAL_X(2148000000, get_reg(7)); /* Note: decimal, not hex */
   }
 
+  /* Test for overflow */
+  CTEST(instruct, cvb_overflow1) {
+      init_cpu();
+      log_trace("CVB Fail\n");
+      set_reg(5, 50);
+      set_reg(6, 900);
+      set_mem(1000, 0x00000284);
+      set_mem(1004, 0x4242842c);
+      set_mem(0x400, 0x4f756032); /* CVB 7,32(5,6) */
+      test_inst(0x0);
+log_trace("Res = %08x\n", get_reg(7));
+      ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0xa987b39a, get_reg(7)); /* Note: decimal, not hex */
+  }
   /* Test for larger overflow */
   CTEST(instruct, cvb_big_overflow) {
       init_cpu();
@@ -3541,6 +3555,7 @@ struct _dec_case {
      { CP,  "027c", "000000235d", "027c", CC2},
      { CP,  "5c", "000000235d", "5c", CC2},
      { CP,  "12345c", "54321c", "12345c", CC1},
+     { ED,  "20204021", "a0", "fa204021", CC0, 7},
      { ED,  "ee2020202120", "00023c", "eeeeeeeef2f3", CC2},
      { ED,  "ee2020202120", "0c1c012c", "eeeef1eef1f2", CC2},
      { ED,  "ee2020202120", "0d1d012d", "eeeef1f0f1f2", CC1},
@@ -3549,6 +3564,9 @@ struct _dec_case {
      { ED,  "ee202020", "00c0", "eeeeee20", CC0, 7},
      { ED,  "ee212020", "000f", "eeeef0f0", CC0},
      { ED,  "ee2020202020202020202020202020", "013b026c00129c789a", "eeeef1f3f0f2f6eeeef1f2f9f7f8f9", CC2},
+#ifndef MODEL30
+     { ED,  "402020402120", "X1", "40f4f040f2f0", CC1},
+#endif
      { AP,  "3c", "5c", "8c", CC2},
      { 0,  "", "", "", CC0}
 };
@@ -3567,6 +3585,7 @@ struct _dec_case {
       for (test = &dec_cases[0]; test->op != 0; test++) {
           l1 = l2 = 0;
           addr = 0x1000;
+          set_reg(10, 0x1000);
           for (i = 0; i < strlen(test->i1); i++) {
                if (i & 1) {
                    data |= (strchr(hex, test->i1[i]) - hex);
@@ -3577,19 +3596,25 @@ struct _dec_case {
                    data = (strchr(hex, test->i1[i]) - hex) << 4;
                }
           }
-          addr = 0x2000;
-          for (i = 0; i < strlen(test->i2); i++) {
-               if (i & 1) {
-                   data |= (strchr(hex, test->i2[i]) - hex);
-                   l2++;
-                   set_mem_b(addr, data);
-                   addr++;
-               } else {
-                   data = (strchr(hex, test->i2[i]) - hex) << 4;
-               }
+          /* Overlap data fields */
+          if (test->i2[0] == 'X') {
+              data = (strchr(hex, test->i2[1]) - hex);
+              set_reg(12, 0x1000);
+              set_reg(10, 0x1000 + data);
+          } else {
+              addr = 0x2000;
+              set_reg(12, 0x2000);
+              for (i = 0; i < strlen(test->i2); i++) {
+                   if (i & 1) {
+                       data |= (strchr(hex, test->i2[i]) - hex);
+                       l2++;
+                       set_mem_b(addr, data);
+                       addr++;
+                   } else {
+                       data = (strchr(hex, test->i2[i]) - hex) << 4;
+                   }
+              }
           }
-          set_reg(10, 0x1000);
-          set_reg(12, 0x2000);
           if (test->op == 0xde) {
              set_mem(0x400, (test->op << 24) | (((l1) -1) << 16) | 0xa000);
           } else {
@@ -3601,24 +3626,21 @@ struct _dec_case {
           addr = 0x1000;
           for (i = 0; i < strlen(test->out); i++) {
                if (i & 1) {
-                   data |= (strchr(hex, test->out[i]) - hex);
-                   l1++;
                    addr++;
                    result[i] = hex[data & 0xf];
                } else {
-                   uint8_t data2 = get_mem_b(addr);
-                   result[i] = hex[(data2 >> 4) & 0xf];
-                   data = (strchr(hex, test->out[i]) - hex) << 4;
+                   data = get_mem_b(addr);
+                   result[i] = hex[(data >> 4) & 0xf];
                }
           }
           result[i] = '\0';
 printf("DEC %x %s , %s => %s\n", test->op, test->i1, test->i2, result);
           if (test->ex) {
 printf("Trap ex %d %d=%d\n", trap_flag, get_mem(0x28), test->ex);
-//              ASSERT_TRUE(trap_flag);
- //             ASSERT_EQUAL_X(test->ex, get_mem(0x28) & 0xffff);
+              ASSERT_TRUE(trap_flag);
+              ASSERT_EQUAL_X(test->ex, get_mem(0x28) & 0xffff);
           } else {
-          ASSERT_STR(test->out, result);
+              ASSERT_STR(test->out, result);
               ASSERT_EQUAL(test->cc, CC_REG);
               ASSERT_FALSE(trap_flag);
               ASSERT_EQUAL_X(test->ex, get_mem(0x28) & 0xffff);

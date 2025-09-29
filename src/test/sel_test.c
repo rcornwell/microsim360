@@ -44,9 +44,9 @@ CTEST_DATA(sel_test) {
 CTEST_SETUP(sel_test) {
     data->dev.bus_func = &test_dev;
     data->dev.dev = (void *)&data->test_ctx;
-    data->dev.addr = 0xf;
+    data->dev.addr = 0x10f;
     data->dev.next = NULL;
-    data->test_ctx.addr = 0xf;
+    data->test_ctx.state = 0;
     chan[1] = &data->dev;
 }
 
@@ -58,7 +58,6 @@ CTEST2(sel_test, tch) {
      init_cpu();
      set_cc(CC0);
      log_trace("Test IO\n");
-     data->test_ctx.state = 0;
      set_mem(0x400, 0x9f00010f);
      set_mem(0x404, 0x00000000);
      test_io_inst(0);
@@ -69,7 +68,6 @@ CTEST2(sel_test, tch) {
 CTEST2(sel_test, tch2) {
      init_cpu();
      log_trace("Test IO\n");
-     data->test_ctx.state = 0;
      set_mem(0x400, 0x9f00040f);
      set_mem(0x404, 0x00000000);
      test_io_inst(0);
@@ -80,7 +78,6 @@ CTEST2(sel_test, tch2) {
 CTEST2(sel_test, tio) {
      init_cpu();
      log_trace("Test IO\n");
-     data->test_ctx.state = 0;
      set_mem(0x400, 0x9d00010f);
      set_mem(0x404, 0x00000000);
      test_io_inst(0);
@@ -91,7 +88,6 @@ CTEST2(sel_test, tio) {
 CTEST2(sel_test, tio2) {
      init_cpu();
      log_trace("Test IO2\n");
-     data->test_ctx.state = 0;
      set_mem(0x400, 0x9d000110);
      set_mem(0x404, 0x00000000);
      test_io_inst(0);
@@ -104,16 +100,15 @@ CTEST2(sel_test, sio_read_burst) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0xf0 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_cc(CC0);
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x02000600); /* Set channel words */
      set_mem(0x504, 0x00000010);
      set_mem(0x600, 0x55555555); /* Invalidate data */
@@ -146,7 +141,6 @@ CTEST2(sel_test, sio2_read_noburst) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0xf0 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 0;
      set_mask(0x00);
@@ -187,7 +181,6 @@ CTEST2(sel_test, sio3_write) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mask(0x00);
@@ -230,7 +223,6 @@ CTEST2(sel_test, sio4_write_burst) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mask(0x00);
@@ -270,7 +262,6 @@ CTEST2(sel_test, sio4_write_burst) {
 
 CTEST2(sel_test, sio5_sense) {
      init_cpu();
-     data->test_ctx.state = 0;
 log_trace("Sense\n");
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
@@ -291,7 +282,6 @@ log_trace("Sense\n");
 
 CTEST2(sel_test, sio6_nop) {
      init_cpu();
-     data->test_ctx.state = 0;
      set_mem(0x40,  0xffffffff);         /* Set CSW to zero */
      set_mem(0x44,  0xffffffff);
      set_mem(0x48,  0x500);   /* Set CAW */
@@ -312,11 +302,12 @@ CTEST2(sel_test, sio6_nop) {
 /* Test CE only on initial select */
 CTEST2(sel_test, sio6_ce_only) {
      init_cpu();
-     data->test_ctx.state = 0;
      log_trace("CE TEST\n");
      set_mem(0x40,  0xffffffff);         /* Set CSW to zero */
      set_mem(0x44,  0xffffffff);
      set_mem(0x48,  0x500);   /* Set CAW */
+     set_mem(0x78,  0x00000000);
+     set_mem(0x7c,  0x00000420);
      set_mem(0x500, 0x13000600); /* Set channel words */
      set_mem(0x504, 0x00000001);
      set_mem(0x600, 0xffffffff);
@@ -340,11 +331,12 @@ CTEST2(sel_test, sio6_ce_only) {
 
 CTEST2(sel_test, sio6_ce_only_nop) {
      init_cpu();
-     data->test_ctx.state = 0;
      log_trace("CE CC TEST\n");
      set_mem(0x40,  0xffffffff);         /* Set CSW to zero */
      set_mem(0x44,  0xffffffff);
      set_mem(0x48,  0x500);   /* Set CAW */
+     set_mem(0x78,  0x00000000);
+     set_mem(0x7c,  0x00000420);
      set_mem(0x500, 0x13000600); /* Set channel words */
      set_mem(0x504, 0x40000001);
      set_mem(0x508, 0x03000600); /* Set channel words */
@@ -424,15 +416,14 @@ CTEST2(sel_test, short_read_sli) {
      for (i = 0; i < 0x20; i++) {
          data->test_ctx.buffer[i] = 0x10 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x02000600); /* Set channel words */
      set_mem(0x504, 0x20000010);
      set_mem(0x600, 0x55555555); /* Invalidate data */
@@ -474,15 +465,14 @@ CTEST2(sel_test, short_write_burst) {
      for (i = 0; i < 0x20; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x01000600); /* Set channel words */
      set_mem(0x504, 0x00000010);
      set_mem(0x600, 0x0F1F2F3F); /* Data to send */
@@ -518,15 +508,14 @@ log_trace("CDA Test\n");
      for (i = 0; i < 0x20; i++) {
          data->test_ctx.buffer[i] = 0x10 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x02000600); /* Set channel words */
      set_mem(0x504, 0x80000010);
      set_mem(0x508, 0x02000700); /* Set channel words */
@@ -570,15 +559,14 @@ CTEST2(sel_test, cda_read2) {
      for (i = 0; i < 0x20; i++) {
          data->test_ctx.buffer[i] = 0x10 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x02000600); /* Set channel words */
      set_mem(0x504, 0x80000010);
      set_mem(0x508, 0x02000700); /* Set channel words */
@@ -622,15 +610,15 @@ CTEST2(sel_test, write_cda) {
      for (i = 0; i < 0x20; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
+log_trace("CDA CHAIN\n");
      data->test_ctx.max_data = 0x20;
      data->test_ctx.burst = 1;
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x01000600); /* Set channel words */
      set_mem(0x504, 0x80000010);
      set_mem(0x508, 0x01000700); /* Set channel words */
@@ -651,7 +639,7 @@ CTEST2(sel_test, write_cda) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     for (i = 0; i < 0x10; i++) {
+     for (i = 0; i < 0x20; i++) {
          printf(" %02x", data->test_ctx.buffer[i]);
      }
      printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
@@ -674,15 +662,14 @@ CTEST2(sel_test, cda_read_skip) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x10 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x02000600); /* Set channel words */
      set_mem(0x504, 0x90000005);
      set_mem(0x508, 0x02000606); /* Set channel words */
@@ -726,15 +713,14 @@ CTEST2(sel_test, read_back) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x10 + (0x0f - i);
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x0c00060f); /* Set channel words */
      set_mem(0x504, 0x00000010);
      set_mem(0x600, 0x55555555); /* Invalidate data */
@@ -770,16 +756,15 @@ CTEST2(sel_test, cmd_chain) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mask(0x00);
 log_trace("CMD CHAIN\n");
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x01000600); /* Set channel words */
      set_mem(0x504, 0x40000010);
      set_mem(0x508, 0x03000701); /* Set channel words */
@@ -814,15 +799,63 @@ log_trace("CMD CHAIN\n");
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test command chain with short record, suppressing */
+CTEST2(sel_test, cmd_chain_sli) {
+     int i;
+     init_cpu();
+     for (i = 0; i < 0x20; i++) {
+         data->test_ctx.buffer[i] = 0x10 + i;
+     }
+     data->test_ctx.max_data = 0x20;
+     data->test_ctx.burst = 0;
+     set_mask(0x00);
+     log_trace("CMD CHAIN SLI\n");
+     set_mem(0x40, 0);         /* Set CSW to zero */
+     set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
+     set_mem(0x78, 0x00000000);
+     set_mem(0x7c, 0x00000420);
+     set_mem(0x500, 0x02000600); /* Set channel words */
+     set_mem(0x504, 0x60000010);
+     set_mem(0x508, 0x02000700); /* Set channel words */
+     set_mem(0x50c, 0x00000020);
+     /* Invalidate data */
+     for(i = 0; i <= 0x20; i += 4) {
+        set_mem(0x600 + i, 0x55555555);
+        set_mem(0x700 + i, 0x55555555);
+     }
+     set_mem(0x400, 0x9c00010f);  /* SIO 0f */
+     set_mem(0x404, 0x82000410);  /* LPSW 410 */
+     set_mem(0x420, 0x9d00010f);  /* TIO 0f */
+     set_mem(0x424, 0x47700424);  /* BC 7,424 */
+     set_mem(0x410, 0xff060000);  /* Wait state PSW */
+     set_mem(0x414, 0x12000408);
+
+     test_io_inst2();
+     for (i = 0; i < 0x10; i++) {
+          ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x600 + i));
+     }
+     for (; i < 0x20; i++) {
+          ASSERT_EQUAL_X(0x55, get_mem_b(0x600 + i));
+     }
+     for (i = 0; i < 0x20; i++) {
+          ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x700 + i));
+     }
+     ASSERT_EQUAL_X(0x00000510, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
+     ASSERT_EQUAL_X(0xff06010f, get_mem(0x38));
+     ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
+}
+
 /* Test nop instruction with chaining */
 CTEST2(sel_test, sio_nop_cc) {
      init_cpu();
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x03000600); /* Set channel words */
      set_mem(0x504, 0x40000001);
      set_mem(0x508, 0x03000600); /* Set channel words */
@@ -844,15 +877,14 @@ CTEST2(sel_test, sio_nop_cc) {
 
 CTEST2(sel_test, tic_error) {
      init_cpu();
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mask(0x00);
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x08000520); /* Set channel words */
      set_mem(0x504, 0x40000010);
      set_mem(0x520, 0x04000702); /* Set channel words */
@@ -888,9 +920,9 @@ CTEST2(sel_test, tic_tic) {
 log_trace("TIC TIC\n");
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x01000600); /* Set channel words */
      set_mem(0x504, 0x40000010);
      set_mem(0x508, 0x08000518); /* TIC to 520 */
@@ -937,16 +969,15 @@ CTEST2(sel_test, tic_test) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mask(0x00);
 log_trace("TIC TEST\n");
      set_mem(0x40, 0);         /* Set CSW to zero */
      set_mem(0x44, 0);
+     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x78, 0x00000000);
      set_mem(0x7c, 0x00000420);
-     set_mem(0x48, 0x500);   /* Set CAW */
      set_mem(0x500, 0x01000600); /* Set channel words */
      set_mem(0x504, 0x40000010);
      set_mem(0x508, 0x08000520);
@@ -988,7 +1019,6 @@ CTEST2(sel_test, sms_test) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.sms = 1;
      data->test_ctx.burst = 1;
@@ -1046,7 +1076,6 @@ CTEST2(sel_test, pci_test) {
      for (i = 0; i < 0x40; i++) {
          data->test_ctx.buffer[i] = 0x10 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x40;
      data->test_ctx.burst = 1;
      set_mask(0x00);
@@ -1115,7 +1144,6 @@ CTEST2(sel_test, halt_io) {
      for (i = 0; i < 0x40; i++) {
          data->test_ctx.buffer[i] = 0x10 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x40;
      data->test_ctx.burst = 1;
      set_mask(0x00);
@@ -1141,7 +1169,6 @@ CTEST2(sel_test, halt_io2) {
          data->test_ctx.buffer[i] = (0x10 + i) & 0xff;
      }
 log_trace("HIO 2\n");
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x80;
      data->test_ctx.burst = 1;
      set_mask(0x00);
@@ -1198,7 +1225,6 @@ CTEST2(sel_test, tio_busy) {
      for (i = 0; i < 0x80; i++) {
          data->test_ctx.buffer[i] = 0x10 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x80;
      data->test_ctx.burst = 1;
 log_trace("TIO Busy\n");
@@ -1247,7 +1273,6 @@ CTEST2(sel_test, read_prot) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
@@ -1291,7 +1316,6 @@ CTEST2(sel_test, write_prot) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0xf0 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
@@ -1335,7 +1359,6 @@ CTEST2(sel_test, read_prot2) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0x55;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
@@ -1379,7 +1402,6 @@ CTEST2(sel_test, write_prot2) {
      for (i = 0; i < 0x10; i++) {
          data->test_ctx.buffer[i] = 0xf0 + i;
      }
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
@@ -1418,9 +1440,7 @@ log_trace("Prot\n");
 }
 
 CTEST2(sel_test, cc_test) {
-     int i;
      init_cpu();
-     data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
      log_trace("CC TEST\n");
      set_mask(0x00);
