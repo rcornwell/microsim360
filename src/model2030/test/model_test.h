@@ -98,7 +98,7 @@ void set_fpreg_s(int num, uint32_t data);
 uint64_t get_fpreg_d(int num);
 
 /* Set a floating point register short */
-void set_fpreg_d(int num, uint64_t data); 
+void set_fpreg_d(int num, uint64_t data);
 
 /* Initialize the CPU to run tests */
 void init_cpu();
