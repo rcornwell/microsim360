@@ -418,7 +418,7 @@ cycle_2030()
       }
       LOAD = 0;
       /* Set memory parity to valid */
-      for (i = 0; i < mem_max; i++)
+      for (i = 0; i <= mem_max; i++)
           M[i] = odd_parity[M[i]&0xff] | (M[i]&0xff);
       for (i = 0; i < 2048; i++)
           cpu_2030.LS[i] = odd_parity[cpu_2030.LS[i]&0xff] | (cpu_2030.LS[i]&0xff);
@@ -793,7 +793,6 @@ cycle_2030()
            /* If output and GR empty */
            if (sel_cnt_rdy_zero[i] == 0 && (cpu_2030.GG[i] & 1) == 1 && sel_gr_full[i] == 0) {
                cpu_2030.GR[i] = M[cpu_2030.MN_REG];
-               sel_gr_full[i] = 1;
                log_mem("Read main sel%d %04x %03x\n", i, cpu_2030.MN_REG, cpu_2030.GR[i]);
            }
            /* Update Q with selector memory protection */
@@ -844,6 +843,11 @@ cycle_2030()
                if (((cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN)) &&
                     sel_cnt_rdy_zero[i] == 0)
                    cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
+           }
+
+           if (sel_cnt_rdy_zero[i] == 0 && (cpu_2030.GG[i] & 1) == 1 && sel_gr_full[i] == 0) {
+               sel_gr_full[i] = 1;
+               log_mem("Write main sel%d %04x %03x\n", i, cpu_2030.MN_REG, cpu_2030.GR[i]);
            }
 
            /* If count 0 update other register */
@@ -2274,16 +2278,18 @@ cycle_2030()
                    /* Reset select out */
                    case 0xc:
                             cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
-                            if (sel_poll_ctrl[cpu_2030.ch_sel] == 0)
+                            if (sel_poll_ctrl[cpu_2030.ch_sel] == 0 && sel_halt_io[cpu_2030.ch_sel] == 0)
                                 cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~(CHAN_ADR_OUT);
                              log_selchn("Reset select out\n"); break;
                             break;
                    /* Set channel busy */
                    case 0xd: sel_chan_busy[cpu_2030.ch_sel] = 1;
-                             log_selchn("Set channel busy\n"); break;
+                             log_selchn("Set channel busy\n");
+                              break;
                    /* Set Halt IO */
                    case 0xe: sel_halt_io[cpu_2030.ch_sel] = 1;
                              sel_chain_req[cpu_2030.ch_sel] = 0;
+                             log_selchn("Set channel halt\n");
                              break;
                    /* Set Interface check */
                    case 0xf: cpu_2030.GE[cpu_2030.ch_sel] |= BIT6; break;
@@ -2399,16 +2405,16 @@ cycle_2030()
                    cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX,
                    cpu_2030.STAT_REG, cpu_2030.O_REG, carries, priority_lch, allow_write, read_call,
                    second_err_stop, tc);
-           log_selchn("GE[0]=%02x GF[0]=%02x GG[0]=%02x GI[0]=%02x GK[0]=%02x GR[0]=%02x GO[0]=%02x GCD=%02x%02x GUV=%02x%02x\n",
+           log_selchn("GE[0]=%02x GF[0]=%02x GG[0]=%02x GI[0]=%02x GK[0]=%02x GR[0]=%02x GO[0]=%02x GCD=%02x%02x GUV=%02x%02x  h=%d\n",
                    cpu_2030.GE[0] & 0xff, cpu_2030.GF[0] & 0xff, cpu_2030.GG[0] & 0xff,
                    cpu_2030.GI[0] & 0xff, cpu_2030.GK[0] & 0xff, cpu_2030.GR[0] & 0xff,
                    cpu_2030.GO[0] & 0xff, cpu_2030.GC[0] & 0xff, cpu_2030.GD[0] & 0xff,
-                   cpu_2030.GU[0] & 0xff, cpu_2030.GV[0] & 0xff);
-           log_selchn("GE[1]=%02x GF[1]=%02x GG[1]=%02x GI[1]=%02x GK[1]=%02x GR[1]=%02x GO[1]=%02x GCD=%02x%02x GUV=%02x%02x\n",
+                   cpu_2030.GU[0] & 0xff, cpu_2030.GV[0] & 0xff, sel_halt_io[0]);
+           log_selchn("GE[1]=%02x GF[1]=%02x GG[1]=%02x GI[1]=%02x GK[1]=%02x GR[1]=%02x GO[1]=%02x GCD=%02x%02x GUV=%02x%02x  h=%d\n",
                    cpu_2030.GE[1] & 0xff, cpu_2030.GF[1] & 0xff, cpu_2030.GG[1] & 0xff,
                    cpu_2030.GI[1] & 0xff, cpu_2030.GK[1] & 0xff, cpu_2030.GR[1] & 0xff,
                    cpu_2030.GO[1] & 0xff, cpu_2030.GC[1] & 0xff, cpu_2030.GD[1] & 0xff,
-                   cpu_2030.GU[1] & 0xff, cpu_2030.GV[1] & 0xff);
+                   cpu_2030.GU[1] & 0xff, cpu_2030.GV[1] & 0xff, sel_halt_io[1]);
             }
         }
 
@@ -2513,8 +2519,8 @@ chan_scan:
                  if (cpu_2030.O_REG & BIT5)  /* Request in */
                     cpu_2030.SEL_TI[i] |= CHAN_REQ_IN;
              }
-             log_selchn("Select %d tags: b=%d p=%d i=%d %x\n",
-                    i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], sel_ros_req);
+             log_selchn("Select %d tags: b=%d p=%d i=%d f=%d %x\n",
+                    i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], sel_gr_full[i], sel_ros_req);
 
              /* If device has acknoweleged address out, drop it */
              if (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN) ||
@@ -2525,20 +2531,17 @@ chan_scan:
                  log_selchn("Ack Addr Out\n");
              }
 
-             /* If output try and refill GR with next location, or clear flag */
-             if ((cpu_2030.GG[i] & 1) != 0 && sel_gr_full[i] == 0) {
-                 if (sel_cnt_rdy_not_zero[i] && !sel_halt_io[i]) {
-                     log_selchn("Fill channel %d\n", i);
-                     sel_share_req |= 1 << i;
-                     sel_read_cycle[i] = 1;
-                 }
-             }
-
              /* If input and has data save it in GR */
              if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_IN) &&
                 ((cpu_2030.GG[i] & 3) == 2 || (cpu_2030.GG[i] & 5) == 4)) {
                  log_selchn("Get data\n");
-                 if (sel_gr_full[i] == 0 && sel_cnt_rdy_not_zero[i]) {
+                 if ((cpu_2030.GE[i] & (BIT1|BIT2|BIT3|BIT4|BIT5|BIT6)) != 0) {
+                     cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
+                     log_selchn("Read Abort\n");
+                 }
+
+                 if (sel_gr_full[i] == 0 && sel_cnt_rdy_not_zero[i] &&
+                     (cpu_2030.GE[i] & (BIT1|BIT2|BIT3|BIT4|BIT5|BIT6)) == 0) {
                      log_selchn("Read data %02x\n", cpu_2030.GI[i]);
                      cpu_2030.GR[i] = cpu_2030.GI[i];
                      sel_share_req |= 1 << i;
@@ -2547,7 +2550,8 @@ chan_scan:
                  }
 
                  if (sel_cnt_rdy_zero[i] != 0 && sel_gr_full[i] == 0 &&
-                     (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
+                     (cpu_2030.GE[i] & (BIT1|BIT2|BIT3|BIT4|BIT5|BIT6)) == 0 &&
+                      sel_chan_busy[i]) {
                      log_selchn("Read end\n");
                      if ((cpu_2030.GF[i] & BIT2) == 0)
                          cpu_2030.GE[i] |= BIT1;
@@ -2559,9 +2563,15 @@ chan_scan:
              /* Output and device requesting service */
              if (cpu_2030.SEL_TI[i] == (CHAN_HLD_OUT|CHAN_OPR_OUT|CHAN_OPR_IN|CHAN_SRV_IN) &&
                 (cpu_2030.GG[i] & 1) != 0) {
+                 if ((cpu_2030.GE[i] & (BIT1|BIT2|BIT3|BIT4|BIT5|BIT6)) != 0) {
+                     cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
+                     log_selchn("Send Abort\n");
+                 }
+
                  /* Check for stop condition */
                  if (sel_cnt_rdy_not_zero[i] == 0 && sel_gr_full[i] == 0 &&
-                     (cpu_2030.GE[i] & BIT4) == 0 && sel_chan_busy[i]) {
+                     (cpu_2030.GE[i] & (BIT1|BIT2|BIT3|BIT4|BIT5|BIT6)) == 0 &&
+                      sel_chan_busy[i]) {
                      cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;
                      if ((cpu_2030.GF[i] & BIT2) == 0) {  /* Set length error */
                           cpu_2030.GE[i] |= BIT1;
@@ -2573,11 +2583,10 @@ chan_scan:
                     cpu_2030.GO[i] = cpu_2030.GR[i];
                     sel_gr_full[i] = 0;
                     cpu_2030.SEL_TAGS[i] |= CHAN_SRV_OUT;
+                    /* If count 0 update other register */
                     if (sel_cnt_rdy_not_zero[i] == 0)
                         sel_cnt_rdy_zero[i] = 1;
                     log_selchn("Send data %02x %d\n", cpu_2030.GO[i], sel_cnt_rdy_zero[i]);
-                    /* If count 0 update other register */
-
                  }
              }
 
@@ -2588,6 +2597,14 @@ chan_scan:
                       cpu_2030.SEL_TAGS[i] &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                       log_selchn("Drop Select out\n");
                  }
+             }
+
+             /* Refill buffer when empty on Write */
+             if ((cpu_2030.GG[i] & 1) != 0 && sel_gr_full[i] == 0 && sel_cnt_rdy_not_zero[i] != 0 &&
+                     sel_read_cycle[i] == 0 && sel_write_cycle[i] == 0) {
+                 log_selchn("Fill channel %d\n", i);
+                 sel_share_req |= 1 << i;
+                 sel_read_cycle[i] = 1;
              }
 
              /* If we have acknowledgement of command out */
@@ -2633,7 +2650,7 @@ chan_scan:
              } else if (((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN)) &&
                    sel_poll_ctrl[i] && (cpu_2030.GF[i] & (BIT0|BIT1)) == (0)) {
                  /* Check if length incomplete */
-                 if (sel_cnt_rdy_not_zero[i] && (cpu_2030.SEL_TI[i] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == CHAN_SRV_OUT &&
+                 if (sel_cnt_rdy_not_zero[i] &&
                       sel_gr_full[i] == 0 && (cpu_2030.GF[i] & BIT2) == 0) {
                       cpu_2030.GE[i] |= BIT1;
                  }
@@ -2676,6 +2693,8 @@ chan_scan:
              /* When we loss operator IN, the device has disconnected, signal clear address out */
              if (sel_halt_io[i] && (cpu_2030.SEL_TI[i] & (CHAN_ADR_OUT|CHAN_OPR_IN)) == CHAN_ADR_OUT) {
                  cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~(CHAN_ADR_OUT);
+                 sel_halt_io[i] = 0;
+                 log_selchn("Halt acknowledge\n");
              }
 
              /* If device attempts to connect to use, generate interrupt */
@@ -2706,6 +2725,10 @@ chan_scan:
                         }
                    }
                    if ((cpu_2030.GF[i] & (BIT1)) == (0)) {
+                        /* Check if length incomplete */
+                        if (sel_cnt_rdy_not_zero[i] && sel_gr_full[i] == 0 && (cpu_2030.GF[i] & BIT2) == 0) {
+                             cpu_2030.GE[i] |= BIT1;
+                        }
                         sel_ros_req |= 1 << i;
                         log_selchn("Status interrupt\n");
                    }

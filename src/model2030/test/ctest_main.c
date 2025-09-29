@@ -88,7 +88,7 @@ uint8_t  clock_start_lch;
 uint8_t  load_mode;
 
 
-/* The following functions are referenced by the 2030 simulator, 
+/* The following functions are referenced by the 2030 simulator,
    but do not need to preform any function during unit test.
 */
 void

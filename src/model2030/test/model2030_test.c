@@ -34,6 +34,7 @@
 #include "logger.h"
 #include "cpu.h"
 #include "model_test.h"
+#include "test_device.h"
 
 
 uint64_t         step_count;
@@ -42,6 +43,7 @@ int              testcycles = 100;
 #define FTEST(a, b)   CTEST_SKIP(a, b)
 #define DTEST(a, b)   CTEST(a, b)
 #define MTEST(a, b)   CTEST_SKIP(a, b)
+#define MODEL30
 
 /* Set MASK */
 void set_mask(uint8_t mask)
@@ -279,11 +281,17 @@ randfloat(int powRange)
 void
 init_cpu()
 {
+    int   i;
     SYS_RST = 1;
     CHK_SW = 2;
     RATE_SW = 1;
     PROC_SW = 1;
     mem_max = 0xffff;
+
+    /* Clear memory */
+    for (i = 0; i <= 0x1000; i++) {
+        set_mem_b(i, 0);
+    }
     do {
         cycle_2030();
         step_count++;
@@ -421,7 +429,10 @@ double cnvt_64_float(int num)
 void
 test_io_inst(int mask)
 {
-    int    stop_flag = 0;
+    int       stop_flag = 0;
+    int       i;
+    device_t *dev;
+
     cpu_2030.LS[0x7AA] = 0x100;
     cpu_2030.LS[0x7A9] = 0x04;
     cpu_2030.LS[0x7BB] = mask | (cpu_2030.LS[0x7BB] & 0xf0);
@@ -434,6 +445,11 @@ test_io_inst(int mask)
     log_trace("Do io\n");
     do {
         cycle_2030();
+        for(i = 0; i < 2; i++) {
+            for (dev = chan[i]; dev != NULL; dev = dev->next) {
+                test_step(dev);
+            }
+        }
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;
@@ -447,6 +463,9 @@ test_io_inst(int mask)
 void
 test_io_inst2()
 {
+    int      i;
+    device_t *dev;
+
     cpu_2030.LS[0x7AA] = 0x100;
     cpu_2030.LS[0x7A9] = 0x04;
     cpu_2030.LS[0x7BB] = 0x100;
@@ -457,6 +476,11 @@ test_io_inst2()
     cpu_2030.J_REG = 0x100;
     do {
         cycle_2030();
+        for(i = 0; i < 2; i++) {
+            for (dev = chan[i]; dev != NULL; dev = dev->next) {
+                test_step(dev);
+            }
+        }
         step_count++;
         if (cpu_2030.WX == 0x147)
            trap_flag = 1;

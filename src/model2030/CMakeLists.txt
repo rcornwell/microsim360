@@ -41,7 +41,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC model2030lib)
 
 if (RUN_TESTS)
 add_executable(inst2030_test test/ctest_main.c test/model2030_test.c
-           ../test/io_test.c ../test/sel_test.c ../test/test_device.c)
+           ../test/io_test.c ../test/sel_test.c ../test/mul_io_test.c ../test/test_device.c)
 target_link_libraries(inst2030_test model2030lib)
 target_link_libraries(inst2030_test devicelib)
 target_link_libraries(inst2030_test toplib)
