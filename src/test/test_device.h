@@ -25,37 +25,35 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "device.h"
 
-#define SENSE_CMDREJ    BIT0  /* Invalid command */
-#define SENSE_INTERV    BIT1  /* Operator intervention, test empty */
-#define SENSE_BUSCHK    BIT2  /* Bus parity error */
-#define SENSE_EQUCHK    BIT3  /* Equipment check, not implemented */
-#define SENSE_DATCHK    BIT4  /* More then 1 punch in rows 1-7 */
-#define SENSE_OVRRUN    BIT5  /* Data missed */
-
+#define SENSE_MAX       1
 
 struct _test_context {
-    int                    addr;         /* Device address */
-    int                    chan;         /* Channel address */
-    int                    state;        /* Current channel state */
-    int                    selected;     /* Device currently selected */
-    int                    request;      /* Device raising request out */
-    int                    addressed;    /* Device addressed */
-    int                    stacked;      /* Device has stacked status */
-    int                    sense;        /* Current sense value */
-    int                    cmd;          /* Current command */
-    int                    cmd_done;     /* Command finished */
-    int                    status;       /* Current bus status */
-    int                    data;         /* Current byte to send/recieve */
-    int                    data_rdy;     /* Data is valid */
-    int                    data_end;     /* Data transfer over */
-    int                    dly;          /* Delay */
-    uint8_t                buffer[256];  /* Data buffer. */
-    int                    max_data;     /* Max counter. */
-    int                    data_cnt;     /* Data counter */
-    int                    burst;        /* Transfer in burst mode */
-    int                    sms;          /* Return SMS status */
+    device_state_t         state;             /* Current channel state */
+    int                    selected;          /* Device currently selected */
+    int                    sense[SENSE_MAX];  /* Current sense value */
+    int                    sense_cnt;         /* Sense counter */
+    int                    cmd;               /* Current command */
+    int                    cmd_done;          /* Command finished */
+    int                    chaining;          /* Command chaining */
+    int                    busy;              /* Device in operation */
+    int                    status;            /* Current bus status */
+    int                    data;              /* Current byte to send/recieve */
+    int                    data_rdy;          /* Data is valid */
+    int                    data_end;          /* Data transfer over */
+    int                    data_cnt;          /* Data counter */
+    int                    disconnect;        /* Disconnect device if in operation */
+    int                    delay;             /* Delay */
+    uint8_t                buffer[256];       /* Data buffer. */
+    int                    max_data;          /* Max counter. */
+    int                    burst;             /* Transfer bytes in burst mode */
+    int                    burst_cnt;         /* Number of bytes to transfer per burst */
+    int                    burst_max;         /* Max number of bytes per burst */
+    int                    sms;               /* Return SMS status */
 };
+
+void test_step(struct _device *unit);
 
 void test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 

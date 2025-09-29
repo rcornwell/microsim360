@@ -35,6 +35,11 @@ char *bus_tags[] = {
     "SLO", "ADO", "CMD", "SRO", "SUP", "HLD", "OPO", NULL,
     "OPI", "ADI", "STI", "SVI", "RQI", NULL, NULL, NULL };
 
+char *state_tags[] = {
+    "IDLE", "BUSY", "INIT", "CMD", "STATUS", "ACCEPT", "WAIT",
+    "END", "ENDACCEPT", "DEVEND", "DATA1", "DATA2", "OPR"};
+
+
 struct _disk *disk = NULL;       /* Disk controllers */
 struct _device *chan[6];         /* Channels */
 uint32_t      *M;
@@ -54,7 +59,8 @@ print_tags(char *name, int state, uint16_t tags, uint16_t bus_out)
         char   buffer[1024];
         int i;
 
-        sprintf(buffer, "%s state=%d Tags: bus=%03x %04x ", name, state, bus_out, tags);
+        sprintf(buffer, "%s state=%s Tags: bus=%03x %04x ", name,
+                         state_tags[state], bus_out, tags);
         for (i = 0; i < 16; i++) {
             if (bus_tags[i] != NULL) {
               if ((tags & (0x8000 >> i)) != 0) {

@@ -30,25 +30,27 @@
 #include <stdarg.h>
 
 extern int log_level;
+extern int log_enable;
 extern FILE *log_file;
 
-#define LOG_INFO     0x0001              /* Log informational messages */
-#define LOG_WARN     0x0002              /* Log warnings */
-#define LOG_ERROR    0x0004              /* Log error */
-#define LOG_TRACE    0x0008              /* Generic trace messages */
-#define LOG_ITRACE   0x0010              /* Log Instruction trace */
-#define LOG_MICRO    0x0020              /* Log micro instructions */
-#define LOG_REG      0x0040              /* Log Micro register state */
-#define LOG_MEM      0x0080              /* Log memory access */
-#define LOG_MPXCHN   0x0100              /* Log muliplex channel status */
-#define LOG_SELCHN   0x0200              /* Log selecter channel status */
-#define LOG_DEVICE   0x0400              /* Log device messages */
-#define LOG_CONSOLE  0x0800              /* Log console traffic */
-#define LOG_TAPE     0x1000              /* Log detailed tape information */
-#define LOG_DISK     0x2000              /* Log detailed disk information */
-#define LOG_CARD     0x4000              /* Log detailed card information */
-#define LOG_DMICRO   0x8000              /* Log disk microcode information */
+#define LOG_INFO     0x00001             /* Log informational messages */
+#define LOG_WARN     0x00002             /* Log warnings */
+#define LOG_ERROR    0x00004             /* Log error */
+#define LOG_TRACE    0x00008             /* Generic trace messages */
+#define LOG_ITRACE   0x00010             /* Log Instruction trace */
+#define LOG_MICRO    0x00020             /* Log micro instructions */
+#define LOG_REG      0x00040             /* Log Micro register state */
+#define LOG_MEM      0x00080             /* Log memory access */
+#define LOG_MPXCHN   0x00100             /* Log muliplex channel status */
+#define LOG_SELCHN   0x00200             /* Log selecter channel status */
+#define LOG_DEVICE   0x00400             /* Log device messages */
+#define LOG_CONSOLE  0x00800             /* Log console traffic */
+#define LOG_TAPE     0x01000             /* Log detailed tape information */
+#define LOG_DISK     0x02000             /* Log detailed disk information */
+#define LOG_CARD     0x04000             /* Log detailed card information */
+#define LOG_DMICRO   0x08000             /* Log disk microcode information */
 #define LOG_DREG     0x10000             /* Log disk register information */
+#define LOG_EVENT    0x20000             /* Log events */
 
 void log_init(char *filename);
 void log_print_c(int level, const char *fmt, ...);
@@ -124,4 +126,6 @@ void log_print(int level, char *filename, int line, const char *fmt, ...);
 
 #define log_dreg(...) if ((log_level & LOG_DREG) != 0) \
                               log_print( LOG_DREG, __FILE__, __LINE__, __VA_ARGS__)
+#define log_event(...) if ((log_level & LOG_EVENT) != 0) \
+                              log_print( LOG_EVENT, __FILE__, __LINE__, __VA_ARGS__)
 #endif

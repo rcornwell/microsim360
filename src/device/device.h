@@ -78,8 +78,26 @@
 #define IN_TAGS         0x00ff        /* Inbound tags */
 
 
+typedef enum {
+        STATE_IDLE,           /* Device in Idle state */
+        STATE_BUSY,           /* Device responding to busy status */
+        STATE_INIT_SEL,       /* Device responding to selection */
+        STATE_COMMAND,        /* Device responding to command out */
+        STATE_STATUS,         /* Device presenting status */
+        STATE_STATUS_ACCEPT,  /* Device waiting for status to be accepted */
+        STATE_STATUS_WAIT,
+        STATE_END_STATUS,     /* Device presenting ending status */
+        STATE_END_ACCEPT,     /* Device waiting for ending status to be accepted */
+        STATE_WAIT_DEVEND,    /* Hold bus on selector channel waiting for device end */
+        STATE_OPR,            /* Wait for something to do */
+        STATE_DATA_1,         /* Request data transfer */
+        STATE_DATA_2,         /* Wait for service out */
+} device_state_t;
+
+
+
 /* Device structure. One per controller */
-struct _device {
+typedef struct _device {
     void      (*bus_func)(struct _device *dev,
                           uint16_t *tags,
                           uint16_t bus_out,
@@ -96,8 +114,11 @@ struct _device {
         int     w;                 /* Width of device image */
         int     h;                 /* Height of image */
     }           rect[8];
+    uint8_t     request;           /* Request pending */
+    uint8_t     stacked;           /* Stacked status */
+    uint8_t     selected;          /* Device selected */
     struct _device *next;          /* Next device in chain */
-};
+} device_t;
 
 /* Disk controller microcode steps */
 struct _disk {
@@ -111,26 +132,26 @@ struct _unit {
 };
 
 struct _control {
-    char *name;
-    int   type;
-    int   opts;
-    int  (*create)(struct _option *opt);
-    struct _device *(*init)(void *render, uint16_t addr);
+    char      *name;
+    int        type;
+    int        opts;
+    int       (*create)(struct _option *opt);
+    device_t *(*init)(void *render, uint16_t addr);
     unsigned int    magic;
 };
 
-extern struct _device *chan[6];         /* Channels */
+extern device_t       *chan[6];         /* Channels */
 extern struct _disk   *disk;            /* Disk controller that need to be run */
 
 void print_tags(char *name, int state, uint16_t tags, uint16_t bus_out);
 
 void print_inst(uint8_t *val);
 
-void add_chan(struct _device *dev, uint16_t addr);
+void add_chan(device_t *dev, uint16_t addr);
 
 struct _device *find_chan(uint16_t addr, uint16_t mask);
 
-void del_chan(struct _device *dev, uint16_t addr);
+void del_chan(device_t *dev, uint16_t addr);
 
 void add_disk(void (*fnc)(void *), void *drive);
 

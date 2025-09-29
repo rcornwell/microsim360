@@ -34,6 +34,7 @@
 
 int log_level;
 extern uint64_t     step_count;
+int log_enable;
 
 FILE *log_file = NULL;
 
@@ -58,6 +59,7 @@ struct _log_type {
      { LOG_CARD,    "CARD" },
      { LOG_DMICRO,  "DMICRO" },
      { LOG_DREG,  "DREG" },
+     { LOG_EVENT, "EVENT" },
      { 0, NULL},
 };
 
@@ -70,6 +72,7 @@ log_init(char *filename)
         fprintf(stderr, "Unable to open log file %s\n", filename);
         exit(1);
     }
+    log_enable = 1;
 }
 
 static int last_level = 0;
@@ -80,7 +83,7 @@ log_print_s(int level, char *file, int line, const char *fmt, ...)
     va_list        ap;
     int            i;
 
-    if (log_file == NULL)
+    if (log_file == NULL || log_enable == 0)
         return;
     if (last_level != 0) {
        fprintf(log_file, "\n");
@@ -119,7 +122,7 @@ log_print_c(int level, const char *fmt, ...)
     va_list        ap;
     int            i;
 
-    if (log_file == NULL)
+    if (log_file == NULL || log_enable == 0)
         return;
     if (last_level == 0) {
 #ifdef LOG_FILE
@@ -155,7 +158,7 @@ log_print(int level, char *file, int line, const char *fmt, ...)
     va_list        ap;
     int            i;
 
-    if (log_file == NULL) {
+    if (log_file == NULL || log_enable == 0) {
         if ((level & (LOG_INFO|LOG_WARN|LOG_ERROR)) != 0) {
             for (i = 0; log_type[i].mask != 0; i++) {
                 if (log_type[i].mask == level) {

@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include "xlat.h"
 #include "logger.h"
+#include "event.h"
 #include "device.h"
 #include "test_device.h"
 
@@ -36,6 +37,7 @@
  *            01234567
  *  Write     00000001
  *  Read      00000010
+ *  Read      00010010    Read by delay DE after 100 cycles.
  *  Nop       00000011
  *  One Byte  00001011    Read one byte of option.
  *  End       00010011    Immediate channel end, device end after 100 cycles.
@@ -51,6 +53,7 @@
 #define SENSE_OVRRUN    BIT5  /* Data missed */
 
 
+#if 0
 #define STATE_IDLE      0     /* Device in Idle state */
 #define STATE_SEL       1     /* Device now selected */
 #define STATE_CMD       2     /* Device awaiting command */
@@ -68,737 +71,605 @@
 #define STATE_STACK_STA 14    /* Stack status */
 #define STATE_STACK_HLD 15    /* Stack hold */
 #define STATE_WAIT      16    /* After data transfer wait motion */
+#endif
 
+/* Step command by one step. */
+void
+test_step(struct _device *unit)
+{
+    struct _test_context *ctx = (struct _test_context *)unit->dev;
+
+    /* Wait until CPU handles data or done with command */
+    if (ctx->data_rdy || ctx->cmd_done || ctx->cmd == 0) {
+       return;
+    }
+
+    /* Wait until delay passed */
+    if (ctx->delay != 0) {
+        ctx->delay--;
+        return;
+    }
+
+    switch (ctx->cmd & 0xf) {
+    case 4:  /* Sense */
+    case 0:  /* Test I/O */
+           break;
+    case 3: /* Control */
+           /* Issue device end */
+           ctx->cmd_done = 1;
+           unit->request = 1;
+           break;
+    case 0xb:   /* Grab a data byte */
+    case 1: /* Write */
+           log_trace("Test: %03x write data %02x %d %d\n",unit->addr, ctx->data, ctx->data_cnt, ctx->max_data);
+           unit->request = 1;
+           if (ctx->data_end) {
+               ctx->cmd_done = 1;
+               break;
+           }
+           ctx->buffer[ctx->data_cnt] = ctx->data;
+           ctx->data_cnt++;
+           if (ctx->data_cnt >= ctx->max_data) {
+               log_trace("Test write end\n");
+               ctx->data_end = 1;
+               ctx->cmd_done = 1;
+           } else {
+               ctx->data_rdy = 1;
+               ctx->delay = 100;
+           }
+           break;
+    case 2: /* Read */
+    case 0xc: /* Read backward. */
+           unit->request = 1;
+           if (ctx->data_end || ((ctx->cmd & 0x10) != 0 && ctx->data_cnt > ctx->max_data)) {
+               ctx->cmd_done = 1;
+               break;
+           }
+           ctx->data = ctx->buffer[ctx->data_cnt];
+           ctx->data_cnt++;
+           if (ctx->data_cnt > ctx->max_data) {
+               ctx->data_end = 1;
+               if ((ctx->cmd & 0x10) == 0) {
+                   ctx->cmd_done = 1;
+               } else {
+                   ctx->delay = 100;
+              }
+           } else {
+               ctx->data_rdy = 1;
+               ctx->delay = 100;
+           }
+           log_trace("Test: %03x read data %02x %d %d\n",unit->addr, ctx->data, ctx->data_cnt, ctx->max_data);
+           break;
+    default:
+           break;
+    }
+}
+
+/* Decode command to device */
+void
+device_cmd(struct _device *unit, uint8_t bus_out)
+{
+    struct _test_context *ctx = (struct _test_context *)unit->dev;
+
+    log_device("test: %03x command %02x\n",unit->addr, bus_out);
+    ctx->cmd = bus_out & 0xff;
+    ctx->data_rdy = 0;
+    ctx->data_cnt = 0;
+    ctx->data_end = 0;
+    ctx->cmd_done = 0;
+    unit->stacked = 0;
+    ctx->status = 0;
+    ctx->busy = 1;
+    ctx->burst_cnt = ctx->burst_max;
+    ctx->delay = 100;
+    switch (ctx->cmd & 0xf) {
+    case 0: /* Test I/O */
+           ctx->busy = 0;
+           break;
+    case 0xb:  /* Grab a data byte */
+           ctx->sense[0] = 0;
+           ctx->data_rdy = 1;
+           ctx->data_cnt = 10;
+           break;
+    case 1: /* Write */
+           ctx->sense[0] = 0;
+           ctx->data_rdy = 1;
+           break;
+    case 2: /* Read */
+           ctx->sense[0] = 0;
+           if ((ctx->cmd & 0xc0) != 0) {
+              goto invalid;
+           }
+           break;
+    case 3: /* Control */
+           /* Nop or control */
+           ctx->sense[0] = 0;
+           /* Issue Channel end */
+           if (ctx->cmd == 0x13) {
+               ctx->delay = 200;
+               ctx->disconnect = 1;
+           } else if (ctx->cmd == 0x23) {
+               goto invalid;
+           } else {
+               ctx->cmd_done = 1;
+               ctx->busy = 0;
+           }
+           ctx->data_end = 1;
+           break;
+    case 0xc: /* Read backward */
+           ctx->sense[0] = 0;
+           break;
+    case 4:  /* Sense */
+           ctx->data = ctx->sense[0];
+           ctx->sense_cnt = 1;
+           ctx->data_rdy = 1;
+           ctx->delay = 0;
+           log_device("test: %03x Sense %02x\n",unit->addr, ctx->sense[0]);
+           break;
+    default:
+
+invalid:
+           ctx->cmd = 0;
+           ctx->cmd_done = 1;
+           ctx->data_end = 1;
+           ctx->busy = 0;
+           ctx->status = SNS_UNITCHK;
+           ctx->sense[0] = SENSE_CMDREJ;     /* Invalid command */
+           break;
+    }
+}
+
+/* Process command */
 void
 test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in)
 {
     struct _test_context *ctx = (struct _test_context *)unit->dev;
     static   uint16_t last_tags = 0;
 
-    if (last_tags != *tags || ctx->selected) {
+    if (last_tags != *tags || unit->selected) {
         print_tags("Test", ctx->state, *tags, bus_out);
         last_tags = *tags;
     }
+
     /* Reset device if OPER OUT is dropped */
     if ((*tags & (CHAN_OPR_OUT|CHAN_SUP_OUT)) == 0) {
-        if (ctx->selected) {
+        if (unit->selected) {
            *tags &= ~(CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SRV_IN|CHAN_STA_IN);
         }
-        ctx->selected = 0;
-        ctx->request = 0;
-        ctx->addressed = 0;
+        log_device("test: %03x reset\n",unit->addr);
+        unit->selected = 0;
+        unit->request = 0;
         ctx->state = STATE_IDLE;
-        ctx->sense = 0;
+        ctx->sense[0] = 0;
         ctx->cmd = 0;
+        ctx->cmd_done = 0;
+        ctx->busy = 0;
+        ctx->data_end = 0;
+        ctx->data_rdy = 0;
         return;
     }
 
     switch (ctx->state) {
+    /* Idle wait for CPU to talk to us */
     case STATE_IDLE:
-            /* Wait until Channels asks for us */
-            if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT)) &&
-                 (bus_out & 0xff) == ctx->addr) {
-                 /* Device selected */
-                 if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                     ctx->sense |= SENSE_BUSCHK;
-                 *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
-                 *tags |= CHAN_OPR_IN;
-                 ctx->state = STATE_SEL;
-                 ctx->addressed = 1;
-                 log_device("test selected\n");
-             }
-             break;
+            ctx->disconnect = 0;
+            log_device("test: %03x idle r=%d s=%d dly=%d %02x %02x\n",unit->addr, unit->request,
+                unit->stacked, ctx->delay, ctx->cmd, ctx->status);
+            /* If operation out, reset device */
+            if ((*tags & CHAN_OPR_OUT) == 0) {
+                break;
+            }
 
-    case STATE_SEL:
-             /* If we are selected, drop select out to rest of channel */
-             if (ctx->addressed || ctx->selected) {
-                 *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-                 *tags |= CHAN_OPR_IN;
-             }
+            /* If operation in, another device has channel */
+            if ((*tags & CHAN_OPR_IN) != 0) {
+                if (unit->request || unit->stacked) {
+                    *tags &= ~(CHAN_REQ_IN);
+                }
+                break;
+            }
 
-             /* When address out drops put our address on bus in */
-             if (ctx->addressed && (*tags & (CHAN_ADR_OUT|CHAN_CMD_OUT)) == 0) {
-                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
-                  *bus_in = ctx->addr | odd_parity[ctx->addr];
-                  ctx->selected = 1;         /* Mark us as selected */
-                  ctx->addressed = 0;
-                  log_device("test address\n");
-                  break;
-             }
+        print_tags("Test", ctx->state, *tags, bus_out);
+            /* If we have request and suppress out is down, post request */
+            if (unit->request || unit->stacked) {
+                if ((*tags & CHAN_SUP_OUT) == 0) {
+                    *tags |= CHAN_REQ_IN;
+                } else {
+                    *tags &= ~CHAN_REQ_IN;
+                }
+            }
 
-             if (ctx->selected) {
-                  if ((*tags & (CHAN_ADR_OUT|CHAN_CMD_OUT)) == 0) {
-                      *tags |= CHAN_ADR_IN;      /* Return address until accepted */
-                      *bus_in = ctx->addr | odd_parity[ctx->addr];
-                      break;
-                  }
-
-                  /* If we get Address out again, we need to halt */
-                  if ((*tags & (CHAN_ADR_OUT)) != 0) {
-                      *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN|CHAN_OPR_IN);  /* Clear select in */
-                      ctx->selected = 0;
-                      log_device("Halt device\n");
-                      ctx->state = STATE_IDLE;
-                      break;
-                 }
-
-                 /* Wait for Command out to raise */
-                 /* Can now drop address in */
-                 if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                     log_device("test command %02x\n", bus_out);
-                     ctx->cmd = bus_out & 0xff;
-                     ctx->data_rdy = 0;
-                     ctx->data_end = 0;
-                     ctx->cmd_done = 0;
-                     ctx->stacked = 0;
-                     ctx->status = 0;
-                     ctx->state = STATE_CMD;
-                     *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);              /* Clear address in */
-                     switch (ctx->cmd & 07) {
-                     case 0: /* Test I/O */
+            /* If select out check if channel is asking for us or we have status */
+            if ((*tags & CHAN_SEL_OUT) != 0) {
+                 /* Check if looking for this device */
+                 if ((*tags & CHAN_ADR_OUT) != 0) {
+                     if ((bus_out & 0xff) == (unit->addr & 0xff)) {
+                        *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);
+                        /* Check if parity error on bus */
+                        if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
+                            ctx->sense[0] |= SENSE_BUSCHK;
+                        }
+                        /* If device in operation, respond with busy status */
+                        if (ctx->busy) {
+                            *bus_in = SNS_BSY | odd_parity[SNS_BSY];
+                            *tags |= CHAN_STA_IN;             /* Put Busy flag on bus */
+                            ctx->state = STATE_BUSY;
+                            log_device("test: %03x busy\n",unit->addr);
                             break;
-                     case 1: /* Write */
-                            ctx->sense = 0;
-                            ctx->data_rdy = 1;
-                            ctx->data_cnt = 0;
-                            break;
-                     case 2: /* Read */
-                            ctx->sense = 0;
-                            ctx->data_cnt = 0;
-                            break;
-                     case 3: /* Control */
-                            /* Nop or control */
-                            ctx->sense = 0;
-                            if (ctx->cmd == 3) {
-                                ctx->status = SNS_CHNEND|SNS_DEVEND;
-                                ctx->data_end = 1;
-                            }
-                            /* Grab a data byte */
-                            if (ctx->cmd == 0xb) {
-                                ctx->data_rdy = 1;
-                                ctx->data_cnt = 0;
-                            }
-                            /* Issue Channel end */
-                            if (ctx->cmd == 0x13) {
-                                ctx->status = SNS_CHNEND;
-                                ctx->data_end = 1;
-                                ctx->dly = 200;
-                            }
-                            break;
-                     case 4:  /* Sense */
-                            if (ctx->cmd == 0xc) { /* Read backward */
-                                ctx->sense = 0;
-                                ctx->data_cnt = 0;
-                            } else {
-                                ctx->data = ctx->sense;
-                                ctx->data_rdy = 1;
-                                ctx->data_end = 1;
-                                log_device("test Sense %02x\n", ctx->sense);
-                            }
-                            break;
-                     default:
-                            ctx->cmd = 0;
-                            ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                            ctx->sense = SENSE_CMDREJ;     /* Invalid command */
-                            break;
+                        }
+
+                        /* Clear select in, and raise operation in */
+                        *tags |= CHAN_OPR_IN;             /* Put our address on bus */
+                        *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
+                        ctx->state = STATE_INIT_SEL; /* Start initial select sequence */
+                        unit->selected = 1;
+                        ctx->busy = 0;
+                        log_device("test: %03x selected\n",unit->addr);
                      }
-                     if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
-                         ctx->cmd = 0;
-                         ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                         ctx->sense |= SENSE_BUSCHK;
-                     }
-                 }
-             }
-             break;
-
-    case STATE_CMD:
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-             *tags |= CHAN_OPR_IN;
-
-             /* If CMD out to initial select, stack the status */
-             if ((*tags & (CHAN_CMD_OUT|CHAN_STA_IN)) == (CHAN_CMD_OUT|CHAN_STA_IN)) {
-                 log_device("test stacking inital\n");
-                 *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
-                 ctx->state = STATE_STACK;
-                 ctx->stacked = 1;
-                 ctx->selected = 0;
-                 break;
-             }
-
-             /* Wait for Command out to drop */
-             if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                 log_device("test wait cmd drop stat\n");
-                 break;
-             }
-
-             /* On MPX channel select out will drop, along with command */
-             if ((*tags & (CHAN_CMD_OUT)) == 0) {
-                 *tags |= CHAN_STA_IN;                   /* Wait for acceptance of status */
-                 *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
-                 log_device("test init stat\n");
-             }
-
-             /* When we get acknowlegment, go wait for it to go away */
-             if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                 *tags &= ~CHAN_STA_IN;
-                 ctx->state = STATE_INIT_STAT;
-                 log_device("test init stat\n");
-             }
-             break;
-
-    case STATE_INIT_STAT:
-             /* If we are selected, drop select out to rest of channel */
-             if (ctx->selected) {
-                 *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-                 *tags |= CHAN_OPR_IN;
-
-                 /* Wait for Service out to drop */
-                 if ((*tags & (CHAN_SRV_OUT)) == 0) {
-                     /* If no command, or check status, go back to idle */
-                     if (ctx->cmd == 0 || (ctx->status & (SNS_UNITCHK|SNS_UNITEXP)) != 0) {
-                         *tags &= ~(CHAN_OPR_IN);      /* Clear select out and in */
-                         ctx->state = STATE_IDLE;
-                         ctx->selected = 0;
-                         log_device("test error state done\n");
-                         break;
-                     }
-
-                     /* If initial status has Channel end, go wait for device to finish */
-                     if ((ctx->status & SNS_DEVEND) != 0) {
-                         *tags &= ~(CHAN_OPR_IN);
-                         ctx->selected = 0;
-                         ctx->state = STATE_IDLE;
-                         log_device("test device end\n");
-                         break;
-                     }
-
-                     /* If initial status has Channel end, go wait for device to finish */
-                     if ((ctx->status & SNS_CHNEND) != 0) {
-                         *tags &= ~(CHAN_OPR_IN);
-                         ctx->selected = 0;
-                         ctx->status &= ~SNS_CHNEND;
-                         ctx->state = STATE_WAIT;
-                         log_device("test channel end\n");
-                         break;
-                     }
-
-                     if (ctx->burst == 0 && ctx->cmd != 0x4 && (*tags & CHAN_HLD_OUT) == 0) {
-                         *tags &= ~(CHAN_OPR_IN);  /* Clear select out and in */
-                         ctx->selected = 0;
-                     }
-                     /* Wait for device to have some data to transmit */
-                     ctx->state = STATE_OPR;
-                     log_device("test state done\n");
                      break;
                  }
-             } else {
-                 ctx->state = STATE_OPR;
-                 log_device("test state done\n");
+
+                 /* If no address out, see if we have request or stacked status */
+                 if (unit->request || unit->stacked) {
+                     *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);
+                     *tags |= CHAN_OPR_IN;      /* Put our address on bus */
+                     *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
+                     unit->selected = 1;
+                     ctx->state = STATE_INIT_SEL;
+                     log_device("test: %03x polling\n",unit->addr);
+                 }
+
              }
              break;
 
-    case STATE_OPR:
-             log_device("test opr %d r=%d e=%d\n", ctx->selected, ctx->data_rdy, ctx->data_end);
+            /* Start of initial selection sequence */
+    case STATE_INIT_SEL:
+            *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
+            *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
+            log_device("test: %03x address in\n",unit->addr);
+            /* Wait for Address out to drop */
+            if ((*tags & (CHAN_ADR_OUT)) == 0) {
+                 *tags |= CHAN_ADR_IN;
+                 ctx->state = STATE_COMMAND;
+            }
+            break;
 
-             /* If we get select out with address out, reselection */
-             if (ctx->selected == 0 &&
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
-                 (bus_out & 0xff) == ctx->addr) {
-                /* Device selected */
-                *tags &= ~(CHAN_SEL_OUT);              /* Clear select out and in */
-                *tags |= CHAN_STA_IN;                  /* Indicate busy status */
-                *bus_in = SNS_BSY;
-                ctx->selected = 1;
-                log_device("test reselect\n");
+     case STATE_COMMAND:
+            /* Wait for command or address out */
+            *tags &= ~(CHAN_SEL_OUT);
+            unit->request = 0;
+
+            log_device("test: %03x waiting command\n",unit->addr);
+            *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
+            /* we get command out, process command */
+            if ((*tags & (CHAN_CMD_OUT)) != 0) {
+                *tags &= ~(CHAN_ADR_IN);        /* Command out, drop addressin */
+                /* Check if parity error on bus */
+                if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
+                    ctx->cmd = 0;
+                    ctx->cmd_done = 0;
+                    ctx->busy = 0;
+                    ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
+                    ctx->sense[0] |= SENSE_BUSCHK;
+                    ctx->state = STATE_STATUS;
+                    break;
+                }
+                if (ctx->busy) {
+                    if (ctx->data_end || ctx->cmd_done) {
+                        ctx->state = STATE_STATUS; /* Present status out */
+                    } else {
+                        ctx->state = STATE_DATA_1;
+                    }
+                    break;
+                }
+                ctx->state = STATE_STATUS; /* Present status out */
+                if (!unit->stacked) {       /* If no stacked status, process command */
+                    device_cmd(unit, bus_out & 0xff);
+                }
                 break;
-             }
+            }
 
-             /* On Select channel, Select Out will not drop */
-             if (ctx->selected) {
-                 *tags &= ~CHAN_SEL_OUT;
-                 /* Catch halt I/O */
-                 if ((*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN))) {
-                      /* Halt I/O */
-                      /* Device selected */
-                      *tags &= ~(CHAN_OPR_IN);             /* Clear select out and in */
-                      ctx->status = (SNS_DEVEND|SNS_CHNEND);
-                      ctx->data_end = 1;
-                      ctx->data_rdy = 0;
-                      ctx->selected = 0;
-                      log_device("test Halt i/o\n");
-                      break;
-                 }
+            /* If we get Address out again, we need to halt */
+            if ((*tags & (CHAN_ADR_OUT)) != 0 && (*tags & CHAN_HLD_OUT) == 0) {
+                *tags &= ~(CHAN_ADR_IN|CHAN_OPR_IN);  /* Clear select in */
+                log_device("Halt: %03x device\n",unit->addr);
+                ctx->cmd = 0;
+                ctx->data_end = 1;
+                ctx->state = STATE_STATUS_WAIT;
+                break;
+            }
 
-                 /* Return status while waiting for Address out to drop */
-                 if (*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN)) {
-                    /* Device selected */
-                    *tags |= CHAN_STA_IN;                  /* Indicate busy status */
-                    *bus_in = SNS_BSY;
-                    log_device("test busy reply\n");
-                    break;
-                 }
+            break;
 
-                 /* When select out drops, clear selected flag */
-                 if ((*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_STA_IN) ||
-                                       *tags == (CHAN_OPR_OUT|CHAN_STA_IN))) {
-                      *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);             /* Clear select out and in */
-                      ctx->selected = 0;
-                      log_device("test deselected\n");
-                      break;
-                 }
-             }
+    /* Present initial status */
+    case STATE_STATUS:
+             /* Wait for Command out to drop */
+            log_device("test: %03x initial status\n",unit->addr);
+             *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);      /* Drop address in */
 
-
-             /* If data ready, try and get/send it */
-             if (ctx->data_rdy) {
-                 if (ctx->burst == 0 && ctx->selected && ctx->data_end == 0 && (*tags & (CHAN_HLD_OUT)) == 0) {
-                     *tags &= ~(CHAN_OPR_IN);           /* If not burst mode, drop operin */
-                     ctx->selected = 0;
-                 }
-
-                 /* Delay operations so the slow Model 30 can pass tests */
-                 if (ctx->dly > 0) {
-                    ctx->dly--;
-                    break;
-                 }
-                 ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
-                 ctx->dly = 100;
-                 break;
-             }
-
-             /* If data end, tell CPU */
              if (ctx->data_end) {
-                 if (ctx->cmd == 0x2 || ctx->cmd == 0x4 || ctx->cmd == 0x1 || ctx->cmd == 0xc) {
-                     ctx->status |= SNS_CHNEND|SNS_DEVEND;
+                 ctx->status |= SNS_CHNEND;
+             }
+
+             if (ctx->cmd_done) {
+                 ctx->status |= SNS_DEVEND;
+                 ctx->busy = 0;
+                 /* If SMS flag is set, return SMS status */
+                 if (ctx->sms) {
+                     ctx->status |= SNS_SMS;
+                     ctx->sms = 0;
                  }
-                 if ((ctx->status & SNS_CHNEND) != 0) {
-                    ctx->state = STATE_DATA_END;
-                 }
-                 if ((ctx->status & SNS_DEVEND) != 0) {
-                    ctx->state = STATE_END;
-                 }
-                 break;
-             }
-
-             if (ctx->cmd == 2 || ctx->cmd == 0xc) {
-                 log_trace("Test send data %d\n", ctx->max_data);
-                 ctx->data = ctx->buffer[ctx->data_cnt];
-                 ctx->data_cnt++;
-                 if (ctx->data_cnt > ctx->max_data) {
-                     ctx->data_end = 1;
-                 } else {
-                     ctx->data_rdy = 1;
-                 }
-                 break;
-             }
-
-             if (ctx->cmd == 1) {
-                 log_trace("Test read data %d\n", ctx->max_data);
-                 ctx->buffer[ctx->data_cnt] = ctx->data;
-                 ctx->data_cnt++;
-                 if (ctx->data_cnt >= ctx->max_data) {
-                     ctx->data_end = 1;
-                 } else {
-                     ctx->data_rdy = 1;
-                 }
-                 break;
-             }
-             break;
-
-    case STATE_REQ:   /* Data available and we are not talking on channel */
-             log_device("test Request\n");
-
-             /* If channel does polling seqence, reply with addess in */
-             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_REQ_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_REQ_IN)) {
-                 /* Put our address on the bus */
-                 *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
-                 *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
-                 *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                 ctx->addressed = 1;                          /* Mark us as addressed */
-                 log_device("test Reselect\n");
-                 break;
-             }
-
-            /* Channel asking for us */
-            if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_REQ_IN)) &&
-                 ctx->cmd_done && (bus_out & 0xff) == ctx->addr) {
-                 /* Device selected */
-                 if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                     ctx->sense |= SENSE_BUSCHK;
-                 *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);      /* Clear select out and in */
-                 *tags |= CHAN_OPR_IN;
-                 ctx->state = STATE_STACK_SEL;
-                 ctx->request = 0;
-                 ctx->addressed = 1;
-                 log_device("test request selected\n");
-                 break;
-             }
-
-             /* If we got bus, go and transfer */
-             if (ctx->addressed && (*tags & CHAN_CMD_OUT) != 0) {
-                  *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
-                  ctx->selected = 1;
-                  ctx->addressed = 0;
-                  if (ctx->data_end) {
-                      ctx->state = (ctx->status & SNS_DEVEND) ? STATE_END : STATE_DATA_END;
-                  } else {
-                      ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
-                  }
-                  log_device("test selected\n");
-                  break;
-              }
-
-              /* Put our address on the bus */
-              if (ctx->addressed) {
-                  *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
-                  *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
-                  *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                  if (ctx->request) {                          /* Drop request in */
-                     *tags &= ~CHAN_REQ_IN;
-                     ctx->request = 0;
-                  }
-                  log_device("test Address\n");
-                  break;
-              }
-
-              /* Put request in up */
-              *tags |= CHAN_REQ_IN;
-              ctx->request = 1;
-              break;
-
-    case STATE_DATA_I:    /* Request data from Channel, wait ready */
-
-             /* If we are not connected, go request bus */
-             if (ctx->selected == 0) {
-                 ctx->state = STATE_REQ;
-                 break;
-             }
-
-             /* Put request in up */
-             *tags |= CHAN_OPR_IN|CHAN_SRV_IN;
-             *tags &= ~CHAN_SEL_OUT;
-
-             /* Wait for Service out. */
-             if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                  *tags &= ~(CHAN_SRV_IN);  /* Clear select out and in */
-                  ctx->data_rdy = 0;
-                  /* Device selected */
-                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
-                      ctx->sense |= SENSE_BUSCHK;
-                      ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                      ctx->data_end = 1;
-                  } else {
-                      ctx->data = bus_out; /* Grab data */
-                  }
-                  ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
-                  break;
-             }
-
-             /* Command out to service in indicates end of data */
-             if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                  *tags &= ~(CHAN_SRV_IN);  /* Count reached zero, no more accepted */
-                  ctx->data_rdy = 0;
-                  ctx->data_end = 1;
-                  ctx->state = STATE_INIT_STAT;          /* Back to operation. */
-                  break;
-             }
-             break;
-
-    case STATE_DATA_O:    /* Request to send data to channel */
-             /* If we are not connected, go request bus */
-             if (ctx->selected == 0) {
-                 ctx->state = STATE_REQ;
-                 break;
-             }
-
-             /* Clear select out, post service in request */
-             *tags &= ~CHAN_SEL_OUT;
-             *tags |= CHAN_OPR_IN|CHAN_SRV_IN;
-             *bus_in = ctx->data | odd_parity[ctx->data];
-
-             /* Wait for data to be accepted */
-             if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                  *tags &= ~(CHAN_SRV_IN);  /* Clear select out and in */
-                  ctx->data_rdy = 0;
-                  ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
-                  log_device("test Data sent\n");
-                  break;
-             }
-
-             /* If CMD out, indicates end of data */
-             if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                  *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Count reached zero, no more accepted */
-                  ctx->data_rdy = 0;
-                  ctx->data_end = 1;
-                  ctx->state = STATE_INIT_STAT;           /* Back to operation. */
-                  log_device("test Data End\n");
-                  break;
-             }
-             break;
-
-    case STATE_DATA_END:  /* Send channel end to channel indicating end of data */
-             if (ctx->selected == 0) {      /* Request channel if we don't have it */
-                  ctx->state = STATE_REQ;
-                  break;
-             }
-
-             /* Mark channel still in use */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Service out to drop */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_STA_IN)) == (CHAN_SRV_OUT)) {
-                 break;
-             }
-
-             if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT)) == 0) {
-                 *tags |= CHAN_OPR_IN|CHAN_STA_IN;
-                 *bus_in = ctx->status | odd_parity[ctx->status];
-                 log_device("End channel status %02x %02x\n", ctx->status, ctx->cmd);
-                 break;
-             }
-
-             /* Service out indicates status was excepted. If Suppress out, then command chaining */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_CMD_OUT)) != 0) {
-                 if ((*tags & CHAN_HLD_OUT) == 0) {
-                      ctx->selected = 0;
-                 }
-                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-                 if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                    ctx->stacked = 1;
-                 }
-                 if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                     ctx->status &= ~SNS_CHNEND;
-                 }
-                 ctx->state = STATE_WAIT;              /* Wait for device to be done */
-                 log_device("test Accepted data_end\n");
-                 break;
-             }
-             break;
-
-    case STATE_END:
-             if (ctx->selected == 0) {
-                  ctx->state = STATE_REQ;
-                  break;
-             }
-
-             /* If SMS flag is set, return SMS status */
-             if (ctx->sms) {
-                 ctx->status |= SNS_SMS;
-                 ctx->sms = 0;
-             }
-
-             /* Wait for Service out to drop */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_STA_IN)) == (CHAN_SRV_OUT)) {
-                 break;
              }
 
              *bus_in = ctx->status | odd_parity[ctx->status];
+             *tags |= (CHAN_STA_IN);
+             ctx->state = STATE_STATUS_ACCEPT;    /* Wait for device to accept out status */
+             break;
 
-             /* Mark channel still in use */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Service out to drop */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_STA_IN)) == 0) {
-                 log_device("End status %02x %02x\n", ctx->status, ctx->cmd);
-                 *tags |= CHAN_STA_IN;
-                 if (ctx->sense != 0) {
-                     ctx->status |= SNS_UNITCHK;
-                 }
-                 ctx->cmd = 0;
+    /* Wait for CPU to either accept or stack status */
+    case STATE_STATUS_ACCEPT:
+             /* CPU will respond in a couple ways. */
+             *tags &= ~(CHAN_SEL_OUT);
+             *bus_in = ctx->status | odd_parity[ctx->status];
+             if ((*tags & CHAN_CMD_OUT) != 0) {      /* CPU does not want status, stack it */
+                 log_device("test: %03x status stacked\n",unit->addr);
+                 unit->stacked = 1;
+                 ctx->state = STATE_STATUS_WAIT;
+                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);
                  break;
              }
-
-             /* Service out indicates status was excepted. If Suppress out, then command chaining */
-             if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-                 log_device("test Accepted end\n");
-                 ctx->selected = 0;
-                 ctx->state = STATE_IDLE;                           /* All done, back to idle state */
-                 break;
-             }
-
-             /* Command out to status in indicates a stacking of status */
-             if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-                  log_device("test Stacked\n");
-                  ctx->selected = 0;
-                  ctx->state = STATE_STACK;                         /* Stack status */
-                  break;
-             }
-
-             log_device("Test End status ready\n");
-             break;
-
-    case STATE_STACK:
-             /* Wait until Channels asks for us */
-             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN|CHAN_SUP_OUT)) {
-
-                  if ((bus_out & 0xff) == ctx->addr) {
-                      /* Device selected */
-                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                          ctx->sense |= SENSE_BUSCHK;
-                      *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
-                      *tags |= CHAN_OPR_IN;
-                      ctx->state = STATE_STACK_SEL;
-                      ctx->addressed = 1;
-                      log_device("test stack selected\n");
-                  }
-             }
-
-             /* If stacked and cmd done, try to return status */
-             if (ctx->stacked && ctx->cmd_done && *tags == (CHAN_OPR_OUT)) {
-                 ctx->state = STATE_REQ;
-             }
-             break;
-
-    case STATE_STACK_SEL:  /* Stacked status selected */
-             /* If we are selected, drop select out to rest of channel */
-             if (ctx->addressed || ctx->selected) {
-                 *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-                 *tags |= CHAN_OPR_IN;
-             }
-
-             /* When address out drops put our address on bus in */
-             if (ctx->addressed && (*tags & (CHAN_ADR_OUT|CHAN_CMD_OUT)) == 0) {
-                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
-                  *bus_in = ctx->addr | odd_parity[ctx->addr];
-                  ctx->addressed = 0;
-                  ctx->selected = 1;         /* Mark us as selected */
-                  log_device("test address\n");
-                  break;
-             }
-
-             /* Wait for Command out to raise, give our address */
-             if (ctx->selected) {
-                  *bus_in = ctx->addr | odd_parity[ctx->addr];
-
-                 /* Can now drop address in */
-                 if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                      log_device("test stack command %02x\n", bus_out);
-                      ctx->state = STATE_STACK_CMD;
-                      *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);                 /* Clear address in */
-                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
-                          ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                          ctx->sense |= SENSE_BUSCHK;
-                      }
-                 }
-             }
-             break;
-
-    case STATE_STACK_CMD:
-             /* If we are selected, drop select out to rest of channel */
-             *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Command out to drop */
-             /* On MPX channel select out will drop, along with command */
-             if ((*tags == (CHAN_CMD_OUT)) == 0) {
-                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;     /* Wait for acceptance of status */
-                  ctx->state = STATE_STACK_STA;
-                  log_device("test stack init stat %02x\n", ctx->status);
-             }
-             break;
-
-    case STATE_STACK_STA:
-             *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Service out to raise, status accepted */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_CMD_OUT)) != 0) {
-                 *tags &= ~(CHAN_STA_IN|CHAN_SEL_OUT);
-                 if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                     ctx->stacked = 1;
-                 }
-                 if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                     ctx->stacked = 0;
-                     ctx->status &= ~SNS_CHNEND;
-                 }
-                 ctx->state = STATE_STACK_HLD;
-                 log_device("test stack init stat %02x done\n", ctx->status);
-                 break;
-             }
-             break;
-
-    case STATE_STACK_HLD:
-             /* If we are selected, drop select out to rest of channel */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Service/command out to drop */
-             if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT)) == 0) {
-                 if (ctx->stacked) {
-                     if (ctx->cmd_done) {
-                        ctx->state = STATE_STACK;
-                     } else {
-                        ctx->state = STATE_WAIT;
-                     }
+             if ((*tags & CHAN_SRV_OUT) != 0) {   /* CPU accepted the status, continue on */
+                 log_device("test: %03x status accepted\n",unit->addr);
+                 if ((*tags & CHAN_SUP_OUT) != 0) {
+                    ctx->chaining = 1;
                  } else {
-                     ctx->state = STATE_IDLE;
+                    ctx->chaining = 0;
                  }
-                 *tags &= ~CHAN_OPR_IN;
-                 ctx->selected = 0;
-                 log_device("test stack done\n");
-             }
-             break;
 
-    case STATE_WAIT:
-             /* If we get select out with address out, reselection */
-             if (!ctx->selected && (
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_ADR_OUT)) &&
-                (bus_out & 0xff) == ctx->addr) {
-                /* Device selected */
-                *tags &= ~CHAN_SEL_OUT;
-                if (ctx->stacked) {
-                    ctx->state = STATE_STACK;
+                ctx->status = 0;
+                *tags &= ~(CHAN_STA_IN);
+                /* If end of command, and status accepted, all done */
+                if (ctx->cmd_done || ctx->cmd == 0) {
+                    *tags &= ~(CHAN_OPR_IN);
+                    unit->stacked = 0;
+                    ctx->data_end = 0;
+                    ctx->cmd_done = 0;
+                    ctx->cmd = 0;
+                    ctx->busy = 0;
+                    ctx->state = STATE_STATUS_WAIT;
                     break;
                 }
-                *tags |= CHAN_STA_IN;
-                *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-                ctx->addressed = 1;
-                log_device("wait select attempt\n");
-             }
 
-             /* If selected clear status in when select out drops */
-             if (ctx->addressed) {
-                *tags &= ~(CHAN_SEL_OUT);  
-                *tags |= CHAN_STA_IN;
-                *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-                if ((*tags & (CHAN_HLD_OUT)) == 0) {
-                    /* Device selected */
-                    *tags &= ~(CHAN_STA_IN);          /* Clear status in */
-                    ctx->addressed = 0;
-                    log_device("wait deselect\n");
-                 }
-             }
-
-             /* If delay command, wait for timeout */
-             if (ctx->cmd == 0x13) {
-                 if (ctx->dly > 0) {
-                     ctx->dly--;
-                     break;
-                 }
-                 ctx->cmd_done = 1;
-                 ctx->status |= SNS_DEVEND;
-             }
-
-             /* When command is done, return status */
-             if (ctx->cmd_done) {
-                 log_device("command done %d\n", ctx->selected);
-                 ctx->state = STATE_END;
+                if (ctx->data_end) {
+                    *tags &= ~(CHAN_OPR_IN);
+                    ctx->state = STATE_STATUS_WAIT;
+                    ctx->data_end = 0;
+                    break;
+                }
+                if (ctx->burst == 0 && ctx->data_rdy == 0) {
+                    ctx->disconnect = 1;
+                }
+                ctx->state = STATE_OPR;
+                break;
              }
              break;
 
+    /* Wait for CPU to disconnect from channel */
+    case STATE_STATUS_WAIT:
+             *tags &= ~(CHAN_SEL_OUT);
+             if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT|CHAN_ADR_OUT)) == 0) {
+                 unit->selected = 0;
+                 ctx->state = STATE_IDLE;
+             }
+             break;
+
+    /* On busy, wait for channel to drop select out */
+    case STATE_BUSY:
+             *bus_in = ctx->status | odd_parity[ctx->status];
+             if ((*tags & CHAN_SEL_OUT) == 0) {
+                 *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);
+                 unit->selected = 0;
+                 ctx->state = STATE_IDLE;
+                 /* If address out, halt device */
+                 if ((*tags & CHAN_ADR_OUT) != 0) {
+                     log_device("test: %03x Halt IO\n",unit->addr);
+                     ctx->data_end = 1;
+                     ctx->data_rdy = 0;
+                     unit->request = 0;
+                     ctx->state = STATE_IDLE;
+                     break;
+                 }
+             }
+             *tags &= ~(CHAN_SEL_OUT);
+             break;
+
+    /* Present ending status to CPU */
+    case STATE_END_STATUS:
+             *tags &= ~(CHAN_SEL_OUT);
+             /* Wait for both command out and service out to drop */
+             if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT)) != 0) {
+                  break;
+             }
+             if (ctx->data_end) {
+                 ctx->status |= SNS_CHNEND;
+                 ctx->data_end = 0;
+             }
+
+             if (ctx->cmd_done) {
+                 ctx->status |= SNS_DEVEND;
+                 ctx->busy = 0;
+                 /* If SMS flag is set, return SMS status */
+                 if (ctx->sms) {
+                     ctx->status |= SNS_SMS;
+                     ctx->sms = 0;
+                 }
+             }
+
+             *bus_in = ctx->status | odd_parity[ctx->status];
+             *tags |= (CHAN_STA_IN);
+
+             log_device("test: %03x end status %d\n",unit->addr, unit->request);
+             ctx->state = STATE_END_ACCEPT;    /* Wait for CPU to accept out status */
+             break;
+
+     /* Wait for CPU to accept or stack status */
+     case STATE_END_ACCEPT:
+             *tags &= ~(CHAN_SEL_OUT);
+
+             *bus_in = ctx->status | odd_parity[ctx->status];
+             /* CPU does not want status right now. stack it */
+             if ((*tags & CHAN_CMD_OUT) != 0) {
+                 log_device("test: %03x status stacked %d\n",unit->addr, unit->request);
+                 unit->stacked = 1;
+                 ctx->state = STATE_STATUS_WAIT;
+                 *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                 break;
+             }
+
+             /* CPU accepted status */
+             if ((*tags & CHAN_SRV_OUT) != 0) {
+
+                 log_device("test: %03x status accepted %d\n",unit->addr, unit->request);
+                 ctx->status = 0;
+                 /* If end of command, and status accepted, all done */
+                 if (ctx->cmd_done) {
+                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     unit->stacked = 0;
+                     ctx->cmd = 0;
+                     ctx->cmd_done = 0;
+                     ctx->busy = 0;
+                     ctx->state = STATE_STATUS_WAIT;
+                     break;
+                 }
+
+                 if (ctx->data_end) {
+                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     ctx->state = STATE_STATUS_WAIT;
+                     break;
+                 }
+                 /* Check if on selector channel */
+                 if ((*tags & CHAN_HLD_OUT) != 0) {
+                     *tags &= ~(CHAN_STA_IN);
+                     ctx->state = STATE_WAIT_DEVEND;
+                 } else {
+                     /* Otherwise wait disconnect and let device connect when done */
+                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     ctx->state = STATE_STATUS_WAIT;
+                 }
+             }
+             break;
+
+      /* Wait on device to finish, before posting status */
+      case STATE_WAIT_DEVEND:
+             *tags &= ~(CHAN_SEL_OUT);
+             if (ctx->cmd_done) {
+                 ctx->state = STATE_STATUS;
+             }
+             break;
+
+      /* Handle normal operations */
+      case STATE_OPR:
+             log_device("test: %03x opr %d r=%d e=%d d=%d\n",unit->addr, unit->selected, ctx->data_rdy, ctx->data_end, ctx->disconnect);
+
+             unit->request = 0;
+             *tags &= ~(CHAN_SEL_OUT);
+
+             /* If address out, halt device */
+             if ((*tags & CHAN_ADR_OUT) != 0) {
+                 ctx->data_end = 1;
+                 *tags &= ~(CHAN_OPR_IN);
+                 unit->selected = 0;
+                 ctx->state = STATE_IDLE;
+                 break;
+             }
+
+             /* If data ready, try and get/send it */
+             if (ctx->data_rdy) {
+                 ctx->state = STATE_DATA_1;
+                 break;
+             }
+
+             /* If sense command advance counter */
+             if (ctx->cmd == 0x04) {
+                 ctx->disconnect = 0;
+                 if (ctx->sense_cnt < SENSE_MAX) {
+                     ctx->data = ctx->sense[++ctx->sense_cnt];
+                     ctx->data_rdy = 1;
+                 } else {
+                     ctx->data_end = 1;
+                     ctx->cmd_done = 1;
+                }
+             }
+
+             /* If at end of data or command, present status */
+             if (ctx->data_end || ctx->cmd_done) {
+                 ctx->state = STATE_END_STATUS;
+                 break;
+             }
+
+             /* If disconnect requested, and not on selector channel disconnect */
+             if (ctx->disconnect) {
+                 ctx->disconnect = 0;
+                 if ((*tags & CHAN_HLD_OUT) == 0) {
+                     *tags &= ~(CHAN_OPR_IN);
+                     unit->selected = 0;
+                     ctx->state = STATE_IDLE;
+                     break;
+                 }
+             }
+
+             break;
+
+      case STATE_DATA_1:      /* Send or recieve data from CPU */
+             *tags &= ~CHAN_SEL_OUT;
+             if ((*tags & CHAN_SRV_OUT) != 0) {
+                  /* Wait for service out to drop */
+                  break;
+             }
+             if ((*tags & CHAN_SUP_OUT) != 0) {
+                 /* If suppress out on, wait until sending request */
+                 break;
+             }
+             *tags |= CHAN_SRV_IN;   /* Request tranfer */
+             *bus_in = ctx->data | odd_parity[ctx->data];
+             ctx->state = STATE_DATA_2;
+             break;
+
+      case STATE_DATA_2:      /* Complete transfer */
+             *tags &= ~CHAN_SEL_OUT;
+             *bus_in = ctx->data | odd_parity[ctx->data];
+             if ((*tags & (CHAN_SRV_OUT|CHAN_CMD_OUT)) != 0) {
+                 /* Wait for service out or command out */
+                 *tags &= ~(CHAN_SRV_IN);   /* Clear service in request */
+                 ctx->data_rdy = 0;
+                 if ((ctx->cmd & 1) != 0) { /* Write command */
+                      /* Device selected */
+                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
+                          ctx->sense[0] |= SENSE_BUSCHK;
+                          ctx->status |= (SNS_UNITCHK);
+                          ctx->data_end = 1;
+                          ctx->cmd_done = 1;
+                      } else {
+                          ctx->data = bus_out; /* Grab data */
+                      }
+                 }
+                 ctx->state = STATE_OPR;   /* Go to process this data */
+                 if ((*tags & CHAN_CMD_OUT) != 0) {  /* CPU is done sending data */
+                     ctx->data_end = 1;
+                     ctx->cmd_done = 1;
+                 } else {
+                     if (ctx->burst) {
+                         if (ctx->burst_cnt == 0) {
+                             ctx->burst_cnt = ctx->burst_max;
+                             ctx->disconnect = 1;
+                         } else {
+                             ctx->burst_cnt--;
+                         }
+                     } else {
+                         ctx->disconnect = 1;
+                     }
+                 }
+             }
+             break;
     }
 }
 
