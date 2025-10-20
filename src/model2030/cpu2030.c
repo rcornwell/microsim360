@@ -2569,7 +2569,7 @@ chan_scan:
                  }
 
                  /* Check for stop condition */
-                 if (sel_cnt_rdy_not_zero[i] == 0 && sel_gr_full[i] == 0 &&
+                 if (sel_cnt_rdy_zero[i] != 0 && sel_gr_full[i] == 0 &&
                      (cpu_2030.GE[i] & (BIT1|BIT2|BIT3|BIT4|BIT5|BIT6)) == 0 &&
                       sel_chan_busy[i]) {
                      cpu_2030.SEL_TAGS[i] |= CHAN_CMD_OUT;

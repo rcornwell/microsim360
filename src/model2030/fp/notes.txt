@@ -1,0 +1,222 @@
+Pg 72 FT PT MPV & DVD END    WJ
+Pg 78 FT PT ADD/SUB/COMP CHAR+SIG   DD
+Pg 81 FT PT ADD/SUB/COMP    DE, DF, DG, DH
+Pg 93 FP PT HALF/STORE DJ
+Pg 165 FP PT LOADSZZ   LS
+Pg 338 FP PT MULT + DIV WA
+Pg 341 FP PT MULT + DIV WB
+Pg 344 FP PT MULT SETUP WC
+Pg 347 FP PT MULT RETURN WD
+Pg 350 FP PT MULT         WE
+Pg 353 FP PT MULT/DIV     WF
+Pg 355 FP PT DIV SETUP    WG
+Pg 358 FP PT DIV MAIN     WH
+Pg 365 FP PT Opcode decode.  XBF, XBG   QB 
+Pg 372 FP PT RX Start decode. XE        QB261
+Pg 373 FP PT RX Decode.
+        SB
+
+
+WJBA  B8E UV > MN CPU WJCA  CM = 0100   
+WJCA  B8F WR, R > I, WJFA Char in 1 
+WJBC1 B97 I-O > I, S6 = 0, WJCB CS = 1010, 
+WJBC0 B96 0-0-1 > Z, S6 = 1, WJBCB CS = 1011
+WJCB  B95 AX,X I+K8H > Z, WJDB0
+WJBD0 B9C S6,X UV > MN, V-0> V, WJCD0
+WJCD0 BA0 WR, LXL + RH > L, WJDD
+WJBE0 BA4 S6,X UV > MN, V-0 > V, S7 = 1, WJCD0
+WJCD2 BA2 WR  WJED
+WJBF  B9F AC,X G*K8H > R, WJF0
+WJCF0 BB8 X,S7 IvR > I, WJEG0
+WJCF2 BBA 0>R S6 = 1, WFBC0
+WJBJ  C83 UV > MN, 0-K7H > V WJCJ
+WJCJ  C84 WR + K11 > W, R>I, Char In 1 WJDJ
+
+WJFA  B90 IJ > MN, 0+K11H, WJGA
+WJGA  B91 WR, VH+K9L > V, WJHA
+
+      CH       CL    CM (RD) CM (WR)   CU     CD
+0000  X6=0     0     W=K*    WR        MEM    Z
+0001  X6=1     1     MN=IJ   W=K*+WR   CPU    I
+0010  S0       S3    MN=UV   BST=SVE   UCW    J
+0011  S1       S5    MN=T    OUT+WR    CPU RR T
+0100  S2       S7    MN=K*   WX=CWX           U
+0101  S4       G3    MN=HUV  WX=UV            V
+0110  S6       G7            WHR              L
+0111  G6       Z=0           blank
+1000  Carry1
+1001  Carry0
+1010  V67=0
+1011  R=BCD
+1100  Interupt
+1101  0,G5,G6
+1110  G0,G1,G2
+1111  G4,G5,G6
+
+CD
+0000 Z        0000 
+0001 I        1111
+0010 J        1110
+0011 T        1011
+0100 U        1101
+0101 V        1100
+0110 L        1001
+0111 D        1000
+1000 R        0111
+1001 S        0110
+1010 G        1010
+1011 SAB         
+1100 SCD  K         
+1101 Reset K         
+1110 R=X         
+1111 R=W         
+
+ CA
+00000 I        0000 
+00001 J        1110
+00010 T        1011
+00011 U        1101
+00100 V        1100
+00101 L        1001
+00110 D        1000
+00111 R        0111
+01000 S        0100
+01001 G        1010
+01010 F        xxxx
+01011 PI MPX      
+01100 PT MPX         
+01101 PA=K            
+01110 PB=K        
+01111 Error       
+10000 FL       xxxx 
+10001 FJ       xxxx
+10010 DCC      xxxx
+10011 HA=K     xxxx
+10100 HB=K     xxxx
+10101 V        xxxx
+10110 L        xxxx
+10111 D        xxxx
+11000 R        xxxx
+11001 S        xxxx
+11010 G        xxxx
+11011 SAB         
+11100 SCD  K         
+11101 Reset K         
+11110 R=X         
+11111 R=W         
+
+CF
+ 000 0        000 
+ 001 L        001
+ 010 H        010
+ 011 blank    011
+ 100 stop     100
+ 101 XL       101
+ 110 XH       110
+ 111 X        111
+
+      W    X        CN     CH   CL  CM  CU CD   CA   CF  CV CB CG CC  CK   P CS   N A S C S8
+DDBD0 1010 10100100 101001 0001 110 011 11 0101 0100 011 00 00 01 000 0111 1 0000 0 0 1 0 0
+             Read one byte from CPU Bump or main memory address UV, Increment V by 0111 Branch DDCC0 1,G7
+DDBD1 1010 10100101 101001 0001 110 011 11 0101 0100 011 00 00 01 000 0011 0 0000 0 1 0 0 0
+             Read one byte from CPU Bump or main memory by UV, Increment V by 0011, branch DDCC0 1,G7
+DDCC0 1010 10100110 101111 0000 101 000 00 0111 0111 011 00 11 11 000 0000 1 0001 0 1 0 1 0
+             Put memory to R, Add R to R place in D. S0 = 0, branch DDDC0 0,G3
+DDCC1 1010 10100111 101111 0000 101 000 00 0111 0111 011 00 11 11 000 0000 1 0010 0 0 1 1 0
+             Put Memory to R, Add R to R place in D. S0 = 1, branch DDDC0, 0,G3
+DDDC0 1010 10111100 110000 1001 000 100 01 0011 0010 011 00 00 01 100 0011 0 0000 1 0 1 0 0
+             Read from BUMP by T, Add T to 00000011 result to T, Carry out. Branch DDEC0 on AC,0
+DDDC1 1010 10111101 110000 1001 000 100 01 0011 0010 011 00 00 01 100 0111 1 0000 1 1 0 0 0
+             Read from BUMP by T. Add T to 00000011 result to T,carry latch. Branch DDEC0 AC,0
+DDEC0 1010 11000000 101110 0001 001 000 00 0110 0111 011 00 11 11 000 0000 1 1000 1 1 0 0 0
+             Read Memory to R, Add R to R place in L, S4,S5=0. Branch DDFC
+DDEC2 1010 11000010 110000 0000 000 111 00 1001 1000 011 00 00 10 111 1000 1 0000 1 0 0 0 0
+             Read Memory to R, delay write on cycle. Xor S with 1000000 result to S. Branch DDEC0
+DDFC  1010 10111011 110000 1001 001 000 00 0110 0101 011 01 10 11 001 0000 1 1010 1 1 1 1 0
+             Subtract D from L + 1 result to L. S6 = 1, Branch DDGC0 AC,1
+DDGC0 1010 11000001 110001 1001 111 000 00 0000 0000 000 00 00 00 000 0000 1 0000 1 0 1 1 0
+             Branch DDHE0 AC and Z = 0.
+DDGC2 1010 11000011 110001 1001 111 000 00 1001 1000 011 00 00 10 111 1000 1 0000 1 1 0 1 0
+             Xor S with 1000000 to S. Branch DDHE0 AC and Z is 0.
+DDHE0 1010 11000100 110001 0001 000 000 00 0110 0000 000 01 01 11 001 0000 1 1001 0 0 0 1 0
+             Subtract L from zero with Cin=1 Result to L. S6=0, Branch DDHE2.
+DDHE1 1010 11000101 000100 0000 000 001 00 0000 0000 000 00 00 00 000 0000 1 0000 0 1 1 0 0
+             Branch SBBA.
+DDHE2 1010 11000110 101111 0001 000 000 00 0110 0101 011 00 01 11 000 0000 1 0000 0 1 1 1 0
+             Add L to L Result L. Branch DDJF.
+DDHE3 1010 11000111 101111 0001 001 000 00 1001 1000 010 00 00 01 000 0011 0 0000 0 0 0 1 0
+             Add high S to 0000011 result to S. Branch DEDE.
+DDJF  1010 10111110 110010 1001 101 000 00 0110 0101 011 00 01 11 000 0000 1 0110 0 1 0 1 0
+             Add L to L Result L. S5 on if low four bits adder = 0, S5 off. Branch DEBH0 AC, G3
+DEBE  1010 11110111 111000 0000 001 000 00 0110 0000 000 00 00 00 000 0000 1 0000 0 0 1 1 0
+             Clear L branch to DEFE1
+DEGH0 1010 11001000 110011 1001 001 000 00 0000 0101 011 01 00 10 001 0111 1 0000 1 0 0 0 0 
+             Subtract 01110000 from L with forced CI Branch DECH0 on AC and 1
+DEBH1 1010 11001001 110011 1001 000 000 00 0000 0101 011 01 00 10 001 0011 0 0000 1 1 0 0 0
+             Subtract 00110000 from L with forced CI, Branch to DECC0 on AC and 0
+DEBH2 1010 11001010 111000 0001 000 000 00 0000 1000 011 00 00 10 100 1000 1 1100 0 1 0 1 0
+             Add S to 10000000 carry out to carry latch, S7 = 1, Branch DEEG
+DEBH3 1010 11001011 111000 0001 001 000 00 0000 1000 011 00 00 10 100 1000 1 1100 0 0 0 1 0
+             Add S to 10000000 Carry out to carry latch, S7 = 1, Branch DEED
+DECC0 1010 11001100 110100 1001 111 00 00 0110 0101 011 01 00 01 0001 1000 1 0000 0 1 1 0 0
+             Decrement L by 1000 put into L, branch to DEDC0 on AC and Z is 0.
+DECC2 1010 11001110 111000 0001 001 00 00 0000 1000 011 00 00 10 100 1000 1 11000 0 0 0 1 0
+             Add S to 10000000 Carry out to carry latch,  S7 = 1, Branch to DEED
+DECH0 1010 11001101 110110 1001 000 000 00 0110 0101 101 00 00 00 000 0000 1 0000 1 0 0 1 0
+             Move High four bits of L cross to low order L Branch DEDH0 on AC,0
+DECH2 1010 11001111 111000 0001 000 000 00 0000 1000 011 00 00 10 100 1000 1 1100 0 1 0 1 0
+             Add S register to 1000000 and carry out in carry latch, S7=1, Branch DEEG
+DEDC0 1010 11010000 110101 0000 011 000 00 0000 1000 011 00 00 10 100 1000 1 1000 1 0 0 0 0
+             Add S register to 1000000 and carry out to carry latch, S4,S5 = 0. Branch to DEEC0 0,S5
+DEDC1 1010 11010001 000100 0000 000 001 00 0000 0000 000 00 00 00 000 0000 1 0000 0 1 1 0 0
+             Branch to SBBA
+DEDC2 1010 11010010 111000 0001 001 000 00 0000 1000 011 00 00 10 100 1000 1 1100 0 1 1 1 0
+             Add S to 1000000 carry to latch, S7=1, branch to DEED
+DEDC3 1010 11010011 110101 0000 001 000 00 0000 1000 011 00 00 10 100 1000 1 0000 1 0 1 1 0
+             Add S to 1000000 carry to latch Branch DEEC1
+DEDE  1010 10111111 110101 0001 101 000 00 0000 1000 011 00 00 10 100 1000 1 0000 1 0 1 1 0
+             Add S to 1000000 carry to latch, Branch DEEF0 on 1,G3
+DEDH0 1010 11011000 110110 0110 001 000 00 0000 1000 011 00 00 10 100 1000 1 1100 1 1 0 1 0
+             Add S to 1000000 carry to latch, S7=1, Branch DEEJ0 S6,1
+DEDH2 1010 11011010 111000 0001 000 000 00 0000 1000 011 00 00 10 100 1000 1 1100 0 0 1 1 0
+             Add S to 1000000 carry to latch, S7 = 1 Branch DEEG
+DEEC0 1010 11010100 111001 0110 000 000 00 0110 0101 101 00 00 00 000 0000 1 1011 1 1 1 0 0 
+             Move High 4 bits of L crossed to lower position of L, S7 = 0, Branch DEFC0 on S6,0
+DEEC1 1010 11010101 111001 0110 000 000 00 0110 0101 101 00 00 00 000 0000 1 1100 1 0 0 1 0
+             Move high 4 bits of L crossed to lower position of L, S7 = 0. Branch DEFC0 S6,0
+DEED  1010 11100011 111101 0001 001 000 00 1000 0000 000 00 00 00 000 0000 1 0110 0 0 0 0 0
+             Turn S5 = 1 if low four bits of Adder output is all zero. Turn S5 off, Branch DEBE.
+DEEF0 1010 11010110 110111 0001 001 000 00 0110 0000 000 00 00 00 000 0000 1 0000 0 0 0 1 0
+             Clear L register, Branch DEFJ3
+DEEF1 1010 11010111 111000 0000 001 000 00 1000 0000 000 00 00 00 000 0000 1 0000 0 1 0 0 0
+             Clear R register, branch DEFE1.
+DEEG  1010 11100010 110111 0110 001 000 00 0110 0000 000 00 00 00 000 0000 1 0110 0 1 0 1 0
+             Clear L, turn S5=1 if lower Adder output == 0, else S5 = 0. Branch DEFJ1 S6,1
+DEEJ0 1010 11011001 110111 0000 011 000 00 0011 0010 011 01 01 11 001 0000 1 1000 0 0 0 0 0
+             Subract L from T Cin =1 result to T. S4,S5 = 0. Branch DEFJ2 1,S5
+DEFC0 1010 11100100 111011 0000 001 000 00 0011 0010 011 01 01 11 001 0000 1 0000 0 1 0 1 0
+             Subract L from T, Cin=1 result T. Branch DEGC
+DEFC2 1010 11100110 111011 0000 001 000 00 0101 0100 011 01 01 11 011 0000 1 0000 0 0 1 1 0
+             Subtract L from V, Cin=1 result V, Branch DEGC.
+DEFE0 1010 11100000 111011 0000 000 000 00 0110 0111 010 00 01 01 000 0000 1 0100 0 0 0 0 0
+             Add high R to Low 4 of L result to L, S2 = 0, Branch DEGE.
+DEFE1 1010 11100001 111011 0001 000 000 00 0111 0111 010 00 00 00 000 0000 1 0100 1 1 0 0 0
+             Move high R to D. S2 = 0. Branch DEHE
+DEFJ0 1010 11011100 111010 0000 001 100 01 0011 0010 011 01 00 00 000 0000 1 1011 1 0 1 0 0
+             Read from CPU Bump by T. Decrement T to T, S7 = 0. Branch DEGJ
+DEFJ1 1010 11011101 000111 0000 011 001 00 0000 0000 000 00 00 00 000 1100 1 0000 0 1 1 0 0
+             Branch DFBF0 0,S5.
+DEFJ2 1010 11011110 111010 0001 001 011 11 0101 0100 011 01 00 00 000 0000 1 1011 1 1 0 1 0
+             Read from CPU bump By UV, decrement V. S7 = 0, Branch DEGH
+DEFJ3 1010 11011111 000100 0000 011 001 00 0000 0000 000 00 00 00 000 1100 1 0000 0 0 0 0 0 
+             Branch DFBB0 0,S5.
+DEGC  1010 11101101 111001 0110 001 000 00 0110 0101 011 00 00 00 001 0000 1 0000 1 0 0 0 0
+             Increment L. Branch DEHC0 S6,1
+DEGE  1010 11101100 111011 0001 000 000 00 0111 0111 110 00 00 00 000 0000 1 0000 0 0 0 0 0
+             Move low four bit R crossed High D. Branch DEHE.
+DEGH  1010 11101011 111011 0001 001 000 00 0000 0100 011 00 00 01 010 0111 1 0110 0 1 1 1 0
+             Put from Memory R and regenerate. Test V mask 00000111. Turn S5 if low four bits adder output =0 , S5 off. Branch DEHH.
+Page 661
+
+
+
