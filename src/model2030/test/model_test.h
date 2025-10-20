@@ -88,6 +88,9 @@ uint8_t get_mem_b(int addr);
 /* Set byte into main memory */
 void set_mem_b(int addr, uint8_t data);
 
+/* Return PC */
+uint32_t get_pc();
+
 /* Get a floating point register */
 uint32_t get_fpreg_s(int num);
 

@@ -33,6 +33,7 @@
 #include "logger.h"
 #include "cpu.h"
 #include "model_test.h"
+#include "test_device.h"
 
 #define FTEST(a, b)   CTEST(a, b)
 #define DTEST(a, b)   CTEST(a, b)
@@ -130,6 +131,13 @@ set_mem_b(int addr, uint8_t data)
     uint32_t   mask = 0xff;
     M[addr>>2] &= ~(mask << offset);
     M[addr>>2] |= ((uint32_t)data << offset);
+}
+
+/* Get program counter */
+uint32_t
+get_pc()
+{
+     return cpu_2050.IA_REG;
 }
 
 /* Get a floating point register */
@@ -292,6 +300,7 @@ test_inst2()
 {
     int      max = 0;
     int      count;
+
     cpu_2050.IA_REG = 0x400;
     cpu_2050.PMASK = 0;
     cpu_2050.ROAR = 0x190;
@@ -320,17 +329,31 @@ test_io_inst(int mask)
 {
     int      max = 0;
     int      stop_flag = 0;
+    device_t *dev;
+    int      i;
+    int      flag = 0;
+
     cpu_2050.IA_REG = 0x400;
     cpu_2050.PMASK = (mask & 0xf);
     trap_flag = 0;
     cpu_2050.ROAR = 0x190;
     cpu_2050.REFETCH = 1;
-    cpu_2050.polling[3] = 1;
-    cpu_2050.ROUTINE[3] = 0;
+    for (i = 0; i < 4; i++) {
+        cpu_2050.polling[i] = 1;
+        cpu_2050.ROUTINE[i] = 0;
+    }
     cpu_2050.mem_state = 0;
     log_trace("Test IO\n");
     do {
         cycle_2050();
+        if (flag) {
+            for(i = 0; i < 4; i++) {
+                for (dev = chan[i]; dev != NULL; dev = dev->next) {
+                    test_step(dev);
+                }
+            }
+        }
+        flag = !flag;
         step_count++;
         max++;
         if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0)) {
@@ -340,7 +363,7 @@ test_io_inst(int mask)
            trap_flag = 1;
         log_trace("ROAR = [%03X]\n", cpu_2050.ROAR);
     } while (stop_flag == 0);
-
+    log_trace("Test IO Done\n");
 }
 
 void
@@ -348,34 +371,40 @@ test_io_inst2()
 {
     int      max = 0;
     int      count;
+    device_t *dev;
+    int      i;
+    int      flag = 0;
+
     cpu_2050.IA_REG = 0x400;
     cpu_2050.PMASK = 0;
     cpu_2050.ROAR = 0x190;
     cpu_2050.REFETCH = 1;
-    cpu_2050.polling[3] = 1;
-    cpu_2050.ROUTINE[3] = 0;
+    for (i = 0; i < 4; i++) {
+        cpu_2050.polling[i] = 1;
+        cpu_2050.ROUTINE[i] = 0;
+    }
     cpu_2050.mem_state = 0;
     trap_flag = 0;
     count = 0;
     do {
         cycle_2050();
+        if (flag) {
+            for(i = 0; i < 4; i++) {
+                for (dev = chan[i]; dev != NULL; dev = dev->next) {
+                    test_step(dev);
+                }
+            }
+        }
+        flag = !flag;
         step_count++;
         max++;
         log_trace("ROAR = [%03X]\n", cpu_2050.ROAR);
         if (cpu_2050.IA_REG == 0x428) {
             break;
         }
-//        if ((cpu_2050.ROAR & 0xffc) == 0x148) {
-//           if (count++ == 2) {
-//               log_trace("Count =2 \n");
-//               break;
-//           }
-//        }
-//        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
- //          break;
         if (cpu_2050.ROAR == 0x10e)
            trap_flag = 1;
-    } while (max < 8000);
+    } while (max < 20000);
     log_trace("Max = %d\n", max);
 }
 

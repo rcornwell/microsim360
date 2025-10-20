@@ -115,7 +115,7 @@ test_step(struct _device *unit)
                ctx->cmd_done = 1;
            } else {
                ctx->data_rdy = 1;
-               ctx->delay = 100;
+               ctx->delay = (ctx->burst) ? 20 : 100;
            }
            break;
     case 2: /* Read */
@@ -132,11 +132,11 @@ test_step(struct _device *unit)
                if ((ctx->cmd & 0x10) == 0) {
                    ctx->cmd_done = 1;
                } else {
-                   ctx->delay = 100;
+                   ctx->delay = (ctx->burst) ? 20 : 100;
               }
            } else {
                ctx->data_rdy = 1;
-               ctx->delay = 100;
+               ctx->delay = (ctx->burst) ? 20 : 100;
            }
            log_trace("Test: %03x read data %02x %d %d\n",unit->addr, ctx->data, ctx->data_cnt, ctx->max_data);
            break;
@@ -552,7 +552,11 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                      ctx->state = STATE_WAIT_DEVEND;
                  } else {
                      /* Otherwise wait disconnect and let device connect when done */
-                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     if (ctx->burst) {
+                         *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     } else {
+                         *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     }
                      ctx->state = STATE_STATUS_WAIT;
                  }
              }

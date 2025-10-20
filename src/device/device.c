@@ -31,13 +31,13 @@
 #include "device.h"
 
 
-char *bus_tags[] = {
+static char *bus_tags[] = {
     "SLO", "ADO", "CMD", "SRO", "SUP", "HLD", "OPO", NULL,
     "OPI", "ADI", "STI", "SVI", "RQI", NULL, NULL, NULL };
 
-char *state_tags[] = {
+static char *state_tags[] = {
     "IDLE", "BUSY", "INIT", "CMD", "STATUS", "ACCEPT", "WAIT",
-    "END", "ENDACCEPT", "DEVEND", "DATA1", "DATA2", "OPR"};
+    "END", "ENDACCEPT", "DEVEND", "OPR", "DATA1", "DATA2"};
 
 
 struct _disk *disk = NULL;       /* Disk controllers */

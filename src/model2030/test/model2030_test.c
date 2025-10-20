@@ -171,6 +171,14 @@ set_mem(int addr, uint32_t data)
     }
 }
 
+uint32_t
+get_pc()
+{
+    uint32_t pc = (cpu_2030.I_REG & 0xff) << 8;
+    pc |= (cpu_2030.J_REG & 0xff);
+    return (uint32_t)(pc - 1);
+}
+
 /* Get the memory protection key for a given address */
 uint8_t
 get_mem_key(int addr)
