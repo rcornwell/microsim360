@@ -115,7 +115,7 @@ test_step(struct _device *unit)
                ctx->cmd_done = 1;
            } else {
                ctx->data_rdy = 1;
-               ctx->delay = (ctx->burst) ? 20 : 100;
+               ctx->delay = (ctx->burst) ? 20 : 200;
            }
            break;
     case 2: /* Read */
@@ -132,7 +132,7 @@ test_step(struct _device *unit)
                if ((ctx->cmd & 0x10) == 0) {
                    ctx->cmd_done = 1;
                } else {
-                   ctx->delay = (ctx->burst) ? 20 : 100;
+                   ctx->delay = (ctx->burst) ? 20 : 200;
               }
            } else {
                ctx->data_rdy = 1;
@@ -383,7 +383,6 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
     /* Present initial status */
     case STATE_STATUS:
              /* Wait for Command out to drop */
-            log_device("test: %03x initial status\n",unit->addr);
              *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);      /* Drop address in */
 
              if (ctx->data_end) {
@@ -401,6 +400,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              }
 
              *bus_in = ctx->status | odd_parity[ctx->status];
+             log_device("test: %03x initial status %02x\n",unit->addr, ctx->status);
              *tags |= (CHAN_STA_IN);
              ctx->state = STATE_STATUS_ACCEPT;    /* Wait for device to accept out status */
              break;
@@ -507,7 +507,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              *bus_in = ctx->status | odd_parity[ctx->status];
              *tags |= (CHAN_STA_IN);
 
-             log_device("test: %03x end status %d\n",unit->addr, unit->request);
+             log_device("test: %03x %02x end status %d\n",unit->addr, ctx->status, unit->request);
              ctx->state = STATE_END_ACCEPT;    /* Wait for CPU to accept out status */
              break;
 
