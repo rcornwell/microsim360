@@ -212,6 +212,7 @@ uint32_t    IOSTAT[4];          /* I/O Status register */
  */
 uint16_t    GP_REG[4];          /* Selector General register */
 uint8_t     OP_REG[4];          /* Selector Operator register */
+uint8_t     POS_REG[4];         /* Selector Byte position count */
 uint16_t    FLAGS_REG[4];       /* Selector Flags register */
 /* CHPOS Register.
  *  Bit 0   UA Fetch
