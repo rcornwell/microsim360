@@ -42,6 +42,7 @@ struct _test_context {
     int                    data;              /* Current byte to send/recieve */
     int                    data_rdy;          /* Data is valid */
     int                    data_end;          /* Data transfer over */
+    int                    data_end_post;     /* Data end sent to CPU */
     int                    data_cnt;          /* Data counter */
     int                    disconnect;        /* Disconnect device if in operation */
     int                    delay;             /* Delay */

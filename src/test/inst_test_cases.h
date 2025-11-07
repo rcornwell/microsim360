@@ -336,17 +336,15 @@
 
   /* Test that overflow will trap */
   CTEST(instruct, add_overtrap_reg) {
-      uint32_t   psw1, psw2;
       init_cpu();
       set_mem(0x400, 0x1a120000); /* AR 1,2 */
+      set_amwp(0x4);
       set_reg(1, 0x7fffffff);
       set_reg(2, 0x00000001);
       test_inst(0x8);
-      psw1 = get_mem(0x28);
-      psw2 = get_mem(0x2c);
       ASSERT_TRUE(trap_flag);
-      ASSERT_EQUAL_X(0x8, psw1);
-      ASSERT_EQUAL_X(0x78000402, psw2);
+      ASSERT_EQUAL_X(0x00040008, get_mem(0x28));
+      ASSERT_EQUAL_X(0x78000402, get_mem(0x2c));
       ASSERT_EQUAL_X(0x80000000, get_reg(1));
       ASSERT_EQUAL(CC0, CC_REG);
   }
@@ -746,6 +744,8 @@
   /* Divide overflow */
   CTEST(instruct, div_over) {
       init_cpu();
+      set_key(4);
+      set_amwp(8);
       set_reg(2, 0x12345678);
       set_reg(3, 0x9abcdef0);
       set_reg(5, 0x100);
@@ -753,7 +753,10 @@
       set_mem(0x500, 0x23456789);
       set_mem(0x400, 0x5d256200);   /* D 2,200(5,6) */
       test_inst(0x8);
+      set_key(0);
       ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00480009, get_mem(0x28));
+      ASSERT_EQUAL_X(0xB8000404, get_mem(0x2c));
   }
 
   /* Divide memory */
@@ -797,6 +800,7 @@
   /* Make sure store half fails if unaligned */
   CTEST(instruct, sth3) {
       init_cpu();
+      set_amwp(1);
       set_reg(3, 0xaabbccdd);
       set_reg(4, 1);
       set_reg(5, 2);
@@ -804,6 +808,8 @@
       set_mem(0x400, 0x40345ffe);   /* STH 3,ffe(4,5) */
       test_inst(0x0);
       ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00010006, get_mem(0x28));
+      ASSERT_EQUAL_X(0xB0000404, get_mem(0x2c));
   }
 
   /* Test load halfword */
@@ -2769,6 +2775,23 @@ log_trace("Res = %08x\n", get_reg(7));
       ASSERT_EQUAL_X(0xd5ffffff, get_mem(0x1004));
   }
 
+  /* Unpack */
+  CTEST(instruct, unpk_ascii) {
+      /* Princ Ops p151 */
+      init_cpu();
+      set_amwp(8);
+      set_reg( 12, 0x00001000);
+      set_reg( 13, 0x00002500);
+      set_mem(0x2500, 0xaa12345d);
+      set_mem(0x1000, 0xffffffff);
+      set_mem(0x1004, 0xffffffff);
+      set_mem(0x400, 0xf342c000);
+      set_mem(0x404, 0xd0010000); /* UNPK 0(5, 12), 1(3, 13) */
+      test_inst(0x0);
+      ASSERT_EQUAL_X(0x51525354, get_mem(0x1000));
+      ASSERT_EQUAL_X(0xd5ffffff, get_mem(0x1004));
+  }
+
   /* Zap */
   DTEST(instruct, zap) {
       /* Princ Ops p150 */
@@ -2879,7 +2902,7 @@ log_trace("Res = %08x\n", get_reg(7));
       test_inst(0x0);
       ASSERT_EQUAL_X(0x01234566, get_mem(0x1300));
       ASSERT_EQUAL_X(0x0dffffff, get_mem(0x1304));
-      ASSERT_EQUAL(CC1, CC_REG);  /* Negative */
+      ASSERT_EQUAL(CC3, CC_REG);  /* Unchanged */
   }
 
   /* Divide packed */
@@ -2896,6 +2919,7 @@ log_trace("Res = %08x\n", get_reg(7));
       test_inst(0x0);
       ASSERT_EQUAL_X(0x38460d01, get_mem(0x2000));
       ASSERT_EQUAL_X(0x8cffffff, get_mem(0x2004));
+      ASSERT_EQUAL(CC3, CC_REG);  /* Unchanged */
   }
 
   /* Compare logical register */
@@ -3034,6 +3058,7 @@ log_trace("Res = %08x\n", get_reg(7));
       set_mem(0x400, 0x80ee3100); /* SSM 100(3) */
       test_inst(0xa);
       ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0xff010002, get_mem(0x28));
       set_amwp(0);  /* Privileged */
   }
 
@@ -3084,18 +3109,21 @@ log_trace("Res = %08x\n", get_reg(7));
   CTEST(instruct, ssk) {
       init_cpu();
       set_amwp(1);                /* Privileged */
+      set_mask(0xE1);
       set_reg( 1, 0x11223344);    /* Key */
       set_reg( 2, 0x00005600);    /* Address: last 4 bits must be 0 */
       set_mem_key(0x5600, 0);
       set_mem(0x400, 0x08120000); /* SSK 1,2 */
       test_inst(0x0);
       ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0xe1010002, get_mem(0x28));
   }
 
   /* Set storage key */
   CTEST(instruct, ssk2) {
       init_cpu();
       set_amwp(0);                /* Privileged */
+      set_mask(0);
       set_mem_key(0x5600, 0);
       set_reg( 1, 0x11223344);    /* Key */
       set_reg( 2, 0x00005600);    /* Address: last 4 bits must be 0 */
@@ -3110,12 +3138,25 @@ log_trace("Res = %08x\n", get_reg(7));
       set_amwp(0);                /* Privileged */
       set_mem_key(0x5600, 0);
       set_reg( 1, 0x11223344);    /* Key */
-      set_reg( 2, 0x12345674);    /* Unaligned: last 4 bits not 0 */
+      set_reg( 2, 0x00005674);    /* Unaligned: last 4 bits not 0 */
       set_mem(0x400, 0x08120000); /* SSK 1,2 */
       test_inst(0x0);
       ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00000006, get_mem(0x28));
   }
 
+  /* Set storage key outside address space */
+  CTEST(instruct, ssk4) {
+      init_cpu();
+      set_amwp(0);                /* Privileged */
+      set_mem_key(0x5600, 0);
+      set_reg( 1, 0x11223344);    /* Key */
+      set_reg( 2, 0x00085600);    /* Address: last 4 bits must be 0 */
+      set_mem(0x400, 0x08120000); /* SSK 1,2 */
+      test_inst(0x0);
+      ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00000005, get_mem(0x28));
+  }
   /* ISK reads the storage key */
   CTEST(instruct, isk) {
       init_cpu();
@@ -3139,6 +3180,7 @@ log_trace("Res = %08x\n", get_reg(7));
       set_mem(0x400, 0x09120000); /* ISK 1,2 */
       test_inst(0x0);
       ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00010002, get_mem(0x28));
   }
 
   /* ISK reads the storage key */
@@ -3151,8 +3193,21 @@ log_trace("Res = %08x\n", get_reg(7));
       set_mem(0x400, 0x09120000); /* ISK 1,2 */
       test_inst(0x0);
       ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00000006, get_mem(0x28));
   }
 
+  /* ISK reads the storage key */
+  CTEST(instruct, isk4) {
+      init_cpu();
+      set_amwp(8);                /* Unprivileged */
+      set_mem_key(0x5600, 2);
+      set_reg( 1, 0xaabbccdd);
+      set_reg( 2, 0x00085600);    /* Aligned: last 4 bits 0 */
+      set_mem(0x400, 0x09120000); /* ISK 1,2 */
+      test_inst(0x0);
+      ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00080005, get_mem(0x28));
+  }
   /* Protection check. unmatched key */
   CTEST(instruct, prot_check) {
       init_cpu();
@@ -3167,6 +3222,7 @@ log_trace("Res = %08x\n", get_reg(7));
       set_key(2);
       ASSERT_EQUAL_X(0, get_mem(0x5678)); /* Make sure memory not changed */
       ASSERT_TRUE(trap_flag);
+      ASSERT_EQUAL_X(0x00210004, get_mem(0x28));
   }
 
   /* Protection check. Keys match */

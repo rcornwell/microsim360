@@ -1,7 +1,7 @@
 /*
- * microsim360 - Test channel driver header.
+ * microsim360 - Test channel driver.
  *
- * Copyright 2023, Richard Cornwell
+ * Copyright 2025, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,13 +23,44 @@
  *
  */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include "device.h"
 
-void print_bin(struct _dasd_t *dasd, int unit);
-void print_track(struct _dasd_t *dasd, int unit);
+/* Read word from main memory */
+uint32_t get_mem(int addr);
 
-uint16_t initial_select(struct _device *dev, uint16_t *tags, int cmd);
-uint16_t read_data(struct _device *dev, uint16_t *tags, uint8_t *data, int *num, int cc);
-uint16_t write_data(struct _device *dev, uint16_t *tags, uint8_t *data, int *num, int cc);
-uint16_t wait_dev(struct _device *dev, uint16_t *tags, int cc);
+/* Set word into main memory */
+void set_mem(int addr, uint32_t data);
 
+/* Read byte from main memory */
+uint8_t get_mem_b(int addr);
+
+/* Set byte into main memory */
+void set_mem_b(int addr, uint8_t data);
+
+/**
+ * Start I/O operation.
+ *
+ * Process a chain of commands.
+ * Returns status, and flags.
+ * 0x100 no device.
+ * 0x200 device busy.
+ * 0x300 Device did not match requested.
+ * 0x4xx Length error.
+ * 0x800 Invalid sequence.
+ */
+uint16_t start_io(uint8_t device, uint16_t caw, int sel, int halt);
+/**
+ * Issue a test I/O to device.
+ */
+uint16_t test_io(uint8_t device);
+/**
+ *  Wait for device to give final status.
+ */
+uint16_t wait_dev(uint8_t  device);
+
+/**
+ * Function to advance device by one clock cycle.
+ */
+void     test_advance();

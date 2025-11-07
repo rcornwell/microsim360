@@ -37,10 +37,9 @@
  *            01234567
  *  Write     00000001
  *  Read      00000010
- *  Read      00010010    Read by delay DE after 200 cycles.
+ *  Read      00010010    Read by delay DE after 100 cycles.
  *  Nop       00000011
- *  One Byte  00001011    Read buffer size of bytes.
- *  One Byte  00011011    Read buffer size, then delay DE.
+ *  One Byte  00001011    Read one byte of option.
  *  End       00010011    Immediate channel end, device end after 100 cycles.
  *  Sense     00000100    Return one byte of sense data.
  *  Read Bk   00001100
@@ -52,6 +51,7 @@
 #define SENSE_EQUCHK    BIT3  /* Equipment check, not implemented */
 #define SENSE_DATCHK    BIT4  /* More then 1 punch in rows 1-7 */
 #define SENSE_OVRRUN    BIT5  /* Data missed */
+
 
 /* Step command by one step. */
 void
@@ -76,52 +76,31 @@ test_step(struct _device *unit)
            break;
     case 3: /* Control */
            /* Issue device end */
+           ctx->cmd_done = 1;
            unit->request = 1;
-           if (ctx->data_end || ((ctx->cmd & 0x10) != 0 && ctx->data_cnt > ctx->max_data)) {
-               ctx->cmd_done = 1;
-                   ctx->busy = 0;
-               ctx->status |= SNS_DEVEND;
-               break;
-           }
-           ctx->buffer[ctx->data_cnt] = ctx->data;
-           ctx->data_cnt++;
-           if (ctx->data_cnt >= ctx->max_data) {
-               log_trace("Test control end\n");
-               if ((ctx->cmd & 0x10) == 0) {
-                   ctx->cmd_done = 1;
-                   ctx->busy = 0;
-               ctx->status |= SNS_DEVEND;
-               } else {
-               ctx->data_end = 1;
-               ctx->status |= SNS_CHNEND;
-                   ctx->delay = 1000;
-              }
-           } else {
-               ctx->data_rdy = 1;
-               ctx->delay = 10;
-           }
            break;
     case 0xb:   /* Grab a data byte */
     case 1: /* Write */
-           log_trace("Test: %03x write data %02x %d %d\n",unit->addr, ctx->data,
-                       ctx->data_cnt, ctx->max_data);
+           log_trace("Test: %03x write data %02x %d %d\n",unit->addr, ctx->data, ctx->data_cnt, ctx->max_data);
            unit->request = 1;
            if (ctx->data_end) {
                ctx->cmd_done = 1;
-               ctx->status |= SNS_DEVEND;
                break;
            }
            ctx->buffer[ctx->data_cnt] = ctx->data;
            ctx->data_cnt++;
-           if (ctx->data_cnt >= ctx->max_data) {
+           if (ctx->data_end || ctx->data_cnt >= ctx->max_data) {
                log_trace("Test write end\n");
+               if ((ctx->cmd & 0x10) == 0 || ctx->data_end) {
+                   ctx->cmd_done = 1;
+               ctx->busy = 0;
+               } else {
+                   ctx->delay = (ctx->burst) ? 20 : 200;
+              }
                ctx->data_end = 1;
-                   ctx->busy = 0;
-               ctx->cmd_done = 1;
-               ctx->status |= SNS_CHNEND|SNS_DEVEND;
            } else {
                ctx->data_rdy = 1;
-               ctx->delay = (ctx->burst) ? 20 : 100;
+               ctx->delay = (ctx->burst) ? 20 : 200;
            }
            break;
     case 2: /* Read */
@@ -129,28 +108,23 @@ test_step(struct _device *unit)
            unit->request = 1;
            if (ctx->data_end || ((ctx->cmd & 0x10) != 0 && ctx->data_cnt > ctx->max_data)) {
                ctx->cmd_done = 1;
-                   ctx->busy = 0;
-               ctx->status |= SNS_DEVEND;
                break;
            }
            ctx->data = ctx->buffer[ctx->data_cnt];
            ctx->data_cnt++;
-           if (ctx->data_cnt > ctx->max_data) {
-               ctx->data_end = 1;
-               ctx->status |= SNS_CHNEND;
-               if ((ctx->cmd & 0x10) == 0) {
-                   ctx->busy = 0;
+           if (ctx->data_end || ctx->data_cnt > ctx->max_data) {
+               if ((ctx->cmd & 0x10) == 0 || ctx->data_end) {
                    ctx->cmd_done = 1;
-               ctx->status |= SNS_DEVEND;
+               ctx->busy = 0;
                } else {
-                   ctx->delay = 1000;
+                   ctx->delay = (ctx->burst) ? 20 : 200;
               }
+               ctx->data_end = 1;
            } else {
                ctx->data_rdy = 1;
                ctx->delay = (ctx->burst) ? 20 : 100;
            }
-           log_trace("Test: %03x read data %02x %d %d\n",unit->addr, ctx->data,
-                        ctx->data_cnt, ctx->max_data);
+           log_trace("Test: %03x read data %02x %d %d\n",unit->addr, ctx->data, ctx->data_cnt, ctx->max_data);
            break;
     default:
            break;
@@ -164,10 +138,6 @@ device_cmd(struct _device *unit, uint8_t bus_out)
     struct _test_context *ctx = (struct _test_context *)unit->dev;
 
     log_device("test: %03x command %02x\n",unit->addr, bus_out);
-    if (ctx->busy) {
-         ctx->status = SNS_BSY;
-         return;
-    }
     ctx->cmd = bus_out & 0xff;
     ctx->data_rdy = 0;
     ctx->data_cnt = 0;
@@ -175,6 +145,7 @@ device_cmd(struct _device *unit, uint8_t bus_out)
     ctx->cmd_done = 0;
     unit->stacked = 0;
     ctx->status = 0;
+    ctx->data_end_post = 0;
     ctx->busy = 1;
     ctx->burst_cnt = ctx->burst_max;
     ctx->delay = 100;
@@ -185,18 +156,15 @@ device_cmd(struct _device *unit, uint8_t bus_out)
     case 0xb:  /* Grab a data byte */
            ctx->sense[0] = 0;
            ctx->data_rdy = 1;
-           ctx->burst = 1;
+           ctx->data_cnt = 10;
            break;
     case 1: /* Write */
            ctx->sense[0] = 0;
            ctx->data_rdy = 1;
-           if ((ctx->cmd & 0xf0) != 0) {
-              goto invalid;
-           }
            break;
     case 2: /* Read */
            ctx->sense[0] = 0;
-           if ((ctx->cmd & 0xe0) != 0) {
+           if ((ctx->cmd & 0xc0) != 0) {
               goto invalid;
            }
            break;
@@ -204,19 +172,16 @@ device_cmd(struct _device *unit, uint8_t bus_out)
            /* Nop or control */
            ctx->sense[0] = 0;
            /* Issue Channel end */
-           if ((ctx->cmd & 0xe0) != 0) {
-              goto invalid;
-           }
            if (ctx->cmd == 0x13) {
                ctx->delay = 200;
                ctx->disconnect = 1;
+           } else if (ctx->cmd == 0x23) {
+               goto invalid;
            } else {
                ctx->cmd_done = 1;
-           ctx->status |= SNS_DEVEND;
                ctx->busy = 0;
            }
            ctx->data_end = 1;
-           ctx->status |= SNS_CHNEND;
            break;
     case 0xc: /* Read backward */
            ctx->sense[0] = 0;
@@ -235,7 +200,7 @@ invalid:
            ctx->cmd_done = 1;
            ctx->data_end = 1;
            ctx->busy = 0;
-           ctx->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
+           ctx->status = SNS_UNITCHK;
            ctx->sense[0] = SENSE_CMDREJ;     /* Invalid command */
            break;
     }
@@ -275,9 +240,8 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
     /* Idle wait for CPU to talk to us */
     case STATE_IDLE:
             ctx->disconnect = 0;
-            log_device("test: %03x idle r=%d s=%d e=%d p=%d b=%d cd=%d dly=%d %02x %02x\n",unit->addr,
-                unit->request, unit->stacked, ctx->data_end, ctx->data_end_post,
-                ctx->busy, ctx->cmd_done, ctx->delay, ctx->cmd, ctx->status);
+            log_device("test: %03x idle r=%d s=%d dly=%d %02x %02x\n",unit->addr, unit->request,
+                unit->stacked, ctx->delay, ctx->cmd, ctx->status);
             /* If operation out, reset device */
             if ((*tags & CHAN_OPR_OUT) == 0) {
                 break;
@@ -312,7 +276,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                             ctx->sense[0] |= SENSE_BUSCHK;
                         }
                         /* If device in operation, respond with busy status */
-                        if (ctx->busy/* && ctx->data_end == 0*/) {
+                        if (ctx->busy) {
                             *bus_in = SNS_BSY | odd_parity[SNS_BSY];
                             *tags |= CHAN_STA_IN;             /* Put Busy flag on bus */
                             ctx->state = STATE_BUSY;
@@ -325,13 +289,14 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                         *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
                         ctx->state = STATE_INIT_SEL; /* Start initial select sequence */
                         unit->selected = 1;
+                        ctx->busy = 0;
                         log_device("test: %03x selected\n",unit->addr);
                      }
                      break;
                  }
 
                  /* If no address out, see if we have request or stacked status */
-                 if ((*tags & CHAN_SUP_OUT) == 0 && (unit->request || unit->stacked)) {
+                 if (unit->request || unit->stacked) {
                      *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);
                      *tags |= CHAN_OPR_IN;      /* Put our address on bus */
                      *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
@@ -360,7 +325,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
             *tags &= ~(CHAN_SEL_OUT);
             unit->request = 0;
 
-            log_device("test: %03x waiting command %02x\n",unit->addr, ctx->status);
+            log_device("test: %03x waiting command\n",unit->addr);
             *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
             /* we get command out, process command */
             if ((*tags & (CHAN_CMD_OUT)) != 0) {
@@ -370,25 +335,21 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                     ctx->cmd = 0;
                     ctx->cmd_done = 0;
                     ctx->busy = 0;
-                    ctx->data_end = 0;
                     ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
                     ctx->sense[0] |= SENSE_BUSCHK;
                     ctx->state = STATE_STATUS;
                     break;
                 }
                 if (ctx->busy) {
-                    if (ctx->data_end == 0) {
+                    if (ctx->data_end || ctx->cmd_done) {
+                        ctx->state = STATE_STATUS; /* Present status out */
+                    } else {
                         ctx->state = STATE_DATA_1;
-                        break;
                     }
-                    if (ctx->status == 0) {
-                        ctx->status = SNS_BSY;
-                    }
-                    ctx->state = STATE_STATUS; /* Present status out */
                     break;
                 }
                 ctx->state = STATE_STATUS; /* Present status out */
-                if (!unit->stacked && ctx->status == 0) {       /* If no stacked status, process command */
+                if (!unit->stacked) {       /* If no stacked status, process command */
                     device_cmd(unit, bus_out & 0xff);
                 }
                 break;
@@ -398,10 +359,8 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
             if ((*tags & (CHAN_ADR_OUT)) != 0 && (*tags & CHAN_HLD_OUT) == 0) {
                 *tags &= ~(CHAN_ADR_IN|CHAN_OPR_IN);  /* Clear select in */
                 log_device("Halt: %03x device\n",unit->addr);
-                if (ctx->data_end == 0) {
-                    ctx->data_end = 1;
-                    ctx->status |= SNS_CHNEND;
-                }
+                ctx->cmd = 0;
+                ctx->data_end = 1;
                 ctx->state = STATE_STATUS_WAIT;
                 break;
             }
@@ -413,10 +372,19 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              /* Wait for Command out to drop */
              *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);      /* Drop address in */
 
-             /* If SMS flag is set, return SMS status */
-             if ((ctx->status & SNS_DEVEND) != 0 && ctx->sms) {
+             if (ctx->data_end && !ctx->data_end_post) {
+                 ctx->status |= SNS_CHNEND;
+                 ctx->data_end_post = 1;
+             }
+
+             if (ctx->cmd_done) {
+                 ctx->status |= SNS_DEVEND;
+                 ctx->busy = 0;
+                 /* If SMS flag is set, return SMS status */
+                 if (ctx->sms) {
                      ctx->status |= SNS_SMS;
                      ctx->sms = 0;
+                 }
              }
 
              *bus_in = ctx->status | odd_parity[ctx->status];
@@ -438,21 +406,20 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                  break;
              }
              if ((*tags & CHAN_SRV_OUT) != 0) {   /* CPU accepted the status, continue on */
-                 log_device("test: %03x status accepted\n",unit->addr);
                  if ((*tags & CHAN_SUP_OUT) != 0) {
                     ctx->chaining = 1;
                  } else {
                     ctx->chaining = 0;
                  }
+                 log_device("test: %03x status accepted chaining %d\n",unit->addr, ctx->chaining);
 
                 ctx->status = 0;
                 *tags &= ~(CHAN_STA_IN);
                 /* If end of command, and status accepted, all done */
                 if (ctx->cmd_done || ctx->cmd == 0) {
-                    *tags &= ~(CHAN_OPR_IN);
+                   *tags &= ~(CHAN_OPR_IN);
                     unit->stacked = 0;
                     ctx->data_end = 0;
-                    ctx->data_end_post = 0;
                     ctx->cmd_done = 0;
                     ctx->cmd = 0;
                     ctx->busy = 0;
@@ -461,10 +428,8 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                 }
 
                 if (ctx->data_end) {
-                    if ((*tags & CHAN_HLD_OUT) == 0) {
-                        *tags &= ~(CHAN_OPR_IN);
-                    }
                     ctx->state = STATE_STATUS_WAIT;
+                    ctx->data_end = 0;
                     break;
                 }
                 if (ctx->burst == 0 && ctx->data_rdy == 0) {
@@ -473,21 +438,19 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                 ctx->state = STATE_OPR;
                 break;
              }
-             if ((*tags & CHAN_ADR_OUT) != 0) {   /* CPU wants to talk to device */
-                 ctx->state = STATE_IDLE;
-                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);
-             }
              break;
 
     /* Wait for CPU to disconnect from channel */
     case STATE_STATUS_WAIT:
              *tags &= ~(CHAN_SEL_OUT);
              if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT|CHAN_ADR_OUT)) == 0) {
-                 if ((*tags & CHAN_HLD_OUT) == 0 || ctx->busy == 0) {
+                 if (ctx->cmd_done == 0 && (*tags & CHAN_HLD_OUT) != 0) {
+                     ctx->state = STATE_OPR;
+                 } else {
+                     *tags &= ~(CHAN_OPR_IN);
+                     ctx->cmd_done = 0;
                      unit->selected = 0;
                      ctx->state = STATE_IDLE;
-                 } else {
-                     ctx->state = STATE_WAIT_DEVEND;
                  }
              }
              break;
@@ -502,12 +465,9 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                  /* If address out, halt device */
                  if ((*tags & CHAN_ADR_OUT) != 0) {
                      log_device("test: %03x Halt IO\n",unit->addr);
-                     if (ctx->data_end == 0) {
                      ctx->data_end = 1;
-                     ctx->status |= SNS_CHNEND;
-                     }
                      ctx->data_rdy = 0;
-                     unit->request = 0;
+                     unit->request = 1;
                      ctx->state = STATE_IDLE;
                      break;
                  }
@@ -522,12 +482,21 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT)) != 0) {
                   break;
              }
+             if (ctx->data_end && !ctx->data_end_post) {
+                 ctx->status |= SNS_CHNEND;
+                 ctx->data_end_post = 1;
+             }
 
-             /* If SMS flag is set, return SMS status */
-             if ((ctx->status & SNS_DEVEND) != 0 && ctx->sms) {
+             if (ctx->cmd_done) {
+                 ctx->status |= SNS_DEVEND;
+                 ctx->busy = 0;
+                 /* If SMS flag is set, return SMS status */
+                 if (ctx->sms) {
                      ctx->status |= SNS_SMS;
                      ctx->sms = 0;
+                 }
              }
+
              *bus_in = ctx->status | odd_parity[ctx->status];
              *tags |= (CHAN_STA_IN);
 
@@ -552,14 +521,19 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              /* CPU accepted status */
              if ((*tags & CHAN_SRV_OUT) != 0) {
 
-                 log_device("test: %03x status accepted %d\n",unit->addr, unit->request);
                  ctx->status = 0;
+                 if ((*tags & CHAN_SUP_OUT) != 0) {
+                    ctx->chaining = 1;
+                 } else {
+                    ctx->chaining = 0;
+                 }
+                 log_device("test: %03x end status accepted chaining %d\n",unit->addr, ctx->chaining);
+
                  /* If end of command, and status accepted, all done */
                  if (ctx->cmd_done) {
                      *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
                      unit->stacked = 0;
                      ctx->cmd = 0;
-                     ctx->cmd_done = 0;
                      ctx->busy = 0;
                      ctx->state = STATE_STATUS_WAIT;
                      break;
@@ -588,29 +562,33 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
 
       /* Wait on device to finish, before posting status */
       case STATE_WAIT_DEVEND:
-            log_device("test: %03x wait end b=%d cd=%d dly=%d %02x %02x\n",unit->addr,
-                ctx->busy, ctx->cmd_done, ctx->delay, ctx->cmd, ctx->status);
              *tags &= ~(CHAN_SEL_OUT);
              if (ctx->cmd_done) {
-                 unit->request = 0;
                  ctx->state = STATE_STATUS;
              }
              break;
 
       /* Handle normal operations */
       case STATE_OPR:
-             log_device("test: %03x opr %d r=%d e=%d d=%d\n",unit->addr, unit->selected,
-                     ctx->data_rdy, ctx->data_end, ctx->disconnect);
+             log_device("test: %03x opr %d r=%d e=%d d=%d c=%d dly=%d\n",unit->addr, unit->selected, 
+                   ctx->data_rdy, ctx->data_end, ctx->disconnect, ctx->cmd_done, ctx->delay);
+
              unit->request = 0;
              *tags &= ~(CHAN_SEL_OUT);
 
              /* If address out, halt device */
              if ((*tags & CHAN_ADR_OUT) != 0) {
+               if ((ctx->cmd & 0x10) == 0) {
+                   ctx->cmd = 0;
+                   ctx->cmd_done = 1;
+               } else {
+                   ctx->delay = (ctx->burst) ? 20 : 200;
+              }
                  ctx->data_end = 1;
-                 ctx->status |= SNS_CHNEND;
                  *tags &= ~(CHAN_OPR_IN);
                  unit->selected = 0;
                  ctx->state = STATE_IDLE;
+                 unit->request = 1;
                  break;
              }
 
@@ -629,8 +607,6 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                  } else {
                      ctx->data_end = 1;
                      ctx->cmd_done = 1;
-                     ctx->busy = 0;
-                     ctx->status |= SNS_CHNEND|SNS_DEVEND;
                 }
              }
 
@@ -681,8 +657,6 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                           ctx->sense[0] |= SENSE_BUSCHK;
                           ctx->status |= (SNS_UNITCHK);
                           ctx->data_end = 1;
-                          ctx->status |= SNS_CHNEND|SNS_DEVEND;
-                          ctx->busy = 0;
                           ctx->cmd_done = 1;
                       } else {
                           ctx->data = bus_out; /* Grab data */
@@ -691,11 +665,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                  ctx->state = STATE_OPR;   /* Go to process this data */
                  if ((*tags & CHAN_CMD_OUT) != 0) {  /* CPU is done sending data */
                      ctx->data_end = 1;
-                     ctx->status |= SNS_CHNEND;
-                     if ((ctx->cmd & 0x10) == 0) {
-                         ctx->cmd_done = 1;
-                         ctx->status |= SNS_DEVEND;
-                     }
+                     ctx->cmd_done = 1;
                  } else {
                      if (ctx->burst) {
                          if (ctx->burst_cnt == 0) {
