@@ -143,6 +143,7 @@ struct _dasd_t
 #define FAULT      BIT1
 #define READY      BIT2
 
+#pragma pack(push, 1)
 /* Header block */
 struct dasd_header
 {
@@ -154,6 +155,7 @@ struct dasd_header
        uint16_t highcyl;       /* highest cylinder. */
        uint8_t  resv[492];     /* pad to 512 byte block */
 };
+#pragma pack(pop)
 
 /**
  *
