@@ -33,11 +33,14 @@
 #include "device.h"
 #include "logger.h"
 
+extern void init_disk_tests();
+
 int main(int argc, const char *argv[])
 {
     int result;
-    log_level = 0x3fff;
-    log_init("disk_debug.log");
+    init_disk_tests();
+//    log_level = 0xbfff;
+ //   log_init("disk_debug.log");
     result = ctest_main(argc, argv);
     return result;
 }

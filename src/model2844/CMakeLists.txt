@@ -41,7 +41,7 @@ target_sources(${PROJECT_NAME} PUBLIC panel2844.c)
 target_link_libraries(${PROJECT_NAME} PUBLIC model2844lib)
 
 if (RUN_TESTS)
-add_executable(test2844_test test/ctest_main.c test/disk_test.c)
+add_executable(test2844_test test/ctest_main.c test/disk_test.c ../test/test_chan.c)
 if (WIN32)
 set_property(TARGET test2844_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
 endif()

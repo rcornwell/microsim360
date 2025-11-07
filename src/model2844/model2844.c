@@ -815,7 +815,8 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                ctx->sta_in = 1;
                log_trace("Unit busy\n");
                ctx->addressed = 0;
-               ctx->ER_REG |= BIT3|BIT7;
+               ctx->ER_REG |= BIT3;
+               *tags &= ~(CHAN_SEL_OUT);
             } else {
                ctx->addressed = 1;
                ctx->ER_REG |= BIT1;   /* Status of address out line */
@@ -825,6 +826,9 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
             ctx->addressed = 0;
         }
     } else {
+            if ((ctx->IG_REG & BIT5) != 0) {
+               *tags &= ~CHAN_STA_IN;
+         }
         ctx->ER_REG &= ~BIT1;
     }
 
@@ -851,8 +855,38 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
         log_trace("Clear selected\n");
     }
 
+    if (ctx->addressed) {
+        /* If IG Bit 7, raise address IN with selected device */
+        if (ctx->IG_REG & BIT7) {
+            *tags |= CHAN_ADR_IN;
+            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+            ctx->opr_in = 1;
+            ctx->tr_1 = 0;
+        } else {
+            *tags &= ~CHAN_ADR_IN;
+        }
+    }
+
+    if (ctx->opr_in) {
+        /* If IG Bit 7 drops with address in high, drop address in */
+        if ((ctx->IG_REG & BIT7) == 0 && (*tags & CHAN_ADR_IN) != 0) {
+            *tags &= ~CHAN_ADR_IN;
+        }
+        /* If status latch set, present status */
+        if ((ctx->IG_REG & BIT5) != 0) {
+             log_trace("Post final status\n");
+            *tags |= CHAN_STA_IN;
+            ctx->sta_in = 1;
+            *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
+        } else {
+            *tags &= ~CHAN_STA_IN;
+            ctx->sta_in = 0;
+        }
+    }
+
     /* If Oper in flag, raise oper in */
     if (ctx->opr_in) {
+        log_trace("Raise Opr In\n");
         *tags |= CHAN_OPR_IN;
         ctx->ER_REG &= ~(BIT3);
     }
@@ -864,6 +898,7 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 
     /* If request pending, and select out, respond to request */
     if (ctx->request && (*tags & (CHAN_REQ_IN|CHAN_SEL_OUT)) == (CHAN_REQ_IN|CHAN_SEL_OUT)) {
+        log_trace("Start Request\n");
        *tags &= ~(CHAN_REQ_IN);
        *tags |= CHAN_OPR_IN;
        ctx->request = 0;
@@ -893,6 +928,7 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     if (ctx->selected == 0 && (ctx->IG_REG & BIT5) != 0) {
         /* Wait for channel to request a poll */
         if ((*tags & (CHAN_SEL_OUT|CHAN_ADR_OUT|CHAN_REQ_IN)) == (CHAN_SEL_OUT|CHAN_REQ_IN)) {
+            log_trace("Respond Poll\n");
             *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);
             *tags |= (CHAN_OPR_IN|CHAN_ADR_IN);
             /* Send address */
@@ -903,8 +939,8 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 
         /* If status in and service out, drop status in */
         if ((*tags & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN|CHAN_SRV_OUT)) {
-            *tags &= ~CHAN_STA_IN;
-            ctx->sta_in = 0;
+//            *tags &= ~CHAN_STA_IN;
+//            ctx->sta_in = 0;
             ctx->ER_REG &= ~BIT7;
         }
     }
@@ -912,16 +948,6 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     /* Process bus when selected by CPU */
     if (ctx->selected) {
          *tags &= ~(CHAN_SEL_OUT);
-
-         /* If IG Bit 7, raise address IN with selected device */
-         if (ctx->IG_REG & BIT7) {
-             *tags |= CHAN_ADR_IN;
-             *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
-             ctx->opr_in = 1;
-             ctx->tr_1 = 0;
-         } else {
-             *tags &= ~CHAN_ADR_IN;
-         }
 
          /* Make sure valid parity on data bus */
          if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
@@ -965,17 +991,6 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
              log_trace("Clear Service in\n");
          }
          ctx->tr_1 = 0;
-
-         /* If status latch set, present status */
-         if ((ctx->IG_REG & BIT5) != 0) {
-              log_trace("Post final status\n");
-             *tags |= CHAN_STA_IN;
-             ctx->sta_in = 1;
-             *bus_in = ctx->DW_REG | odd_parity[ctx->DW_REG];
-         } else {
-             *tags &= ~CHAN_STA_IN;
-             ctx->sta_in = 0;
-         }
     }
 }
 
