@@ -295,6 +295,10 @@ init_cpu()
     RATE_SW = 1;
     PROC_SW = 1;
     mem_max = 0xffff;
+    set_amwp(0);
+    set_key(0);
+    set_cc(CC3);
+    set_mask(0);
 
     /* Clear memory */
     for (i = 0; i <= 0x1000; i++) {

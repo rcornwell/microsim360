@@ -79,7 +79,7 @@ static char *ch_name[] = {
      "S1", "S2", "S4", "S6", "G0", "G2", "G4", "G6"};
 
 static char *cl_name[] = {
-     "0", "1", "CA>W", "AI", "SVI", "R=VDD", "1CB", "Z=0",
+     "0", "1", "CA>W", "AI", "SVI", "R=VDD", "1BC", "Z=0",
      "G7", "S3", "S5", "S7", "G1", "G3", "G5", "INTR" };
 
 static char *cm_name[] = {
@@ -798,6 +798,7 @@ cycle_2030()
            /* Update Q with selector memory protection */
            cpu_2030.Q_REG &= 0xf0;
            cpu_2030.Q_REG |= cpu_2030.MP[(0xE0) | (cpu_2030.M_REG >> 3)] & 0xf;
+           log_trace("Q = %02x GK=%02x\n", cpu_2030.Q_REG, cpu_2030.GK[i]);
            sel_write_cycle[i] = 1;
            sel_read_cycle[i] = 0;
        } else if (sel_write_cycle[i]) {
@@ -827,8 +828,8 @@ cycle_2030()
 
            /* Check if input */
            if (sel_gr_full[i] != 0 && ((cpu_2030.GG[i] & 3) == 2 || (cpu_2030.GG[i] & 5) == 4)) {
-               if ((cpu_2030.Q_REG & 0xf0) != 0 &&
-                         ((cpu_2030.GK[i] ^ cpu_2030.Q_REG) & 0xf) != 0) {
+               if ((cpu_2030.Q_REG & 0x0f) != 0 &&
+                         (((cpu_2030.GK[i] >> 4) ^ cpu_2030.Q_REG) & 0xf) != 0) {
                    cpu_2030.GE[i] |= BIT3;
                    cpu_2030.GR[i] = M[cpu_2030.MN_REG];
                    log_mem("Read main sel%d %04x %03x\n", i, cpu_2030.MN_REG, cpu_2030.GR[i]);
@@ -1688,7 +1689,7 @@ cycle_2030()
                   if ((cpu_2030.SEL_TI[cpu_2030.ch_sel] & (CHAN_SRV_IN|CHAN_SRV_OUT)) == (CHAN_SRV_IN))
                       cpu_2030.Abus |= BIT1;
                   /* Poll control */
-                  if (sel_poll_ctrl[cpu_2030.ch_sel])
+                  if (sel_poll_ctrl[cpu_2030.ch_sel] || sel_halt_io[cpu_2030.ch_sel])
                       cpu_2030.Abus |= BIT2;
                   /* Channel Busy */
                   if (sel_chan_busy[cpu_2030.ch_sel])
@@ -2106,11 +2107,13 @@ cycle_2030()
                    }
                    /* 0101  MPX Operation out control latch on */
                    if ((sal->CK & BIT5) != 0 && (sal->CK & BIT7) != 0)  {
+                        if (sal->PK) {
                           cpu_2030.MPX_TAGS = 0;
                           cpu_2030.MPX_TI = 0;      /* Clear inbound tags */
                           mpx_start_sel = 0;
-                          if (sal->PK)
+                       } else {
                               cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;
+                       }
                    }
                    if ((cpu_2030.MPX_TAGS & (CHAN_SEL_OUT|CHAN_ADR_OUT)) == (CHAN_SEL_OUT|CHAN_ADR_OUT) &&
                        (cpu_2030.MPX_TI & (CHAN_STA_IN)) != 0) {
@@ -2324,7 +2327,7 @@ cycle_2030()
                      /* K = 0001 sets service out line on */
                      /* K = 0010 sets command out line on */
                      /* K = 0100 sets address out line on. */
-                     /* K = 1000 sets buss out control line on. */
+                     /* K = 1000 sets bus out control line on. */
                    if (sal->CK & BIT4) {
                        sel_bus_out_ctrl[cpu_2030.ch_sel] = 1;
                    }
@@ -2519,14 +2522,17 @@ chan_scan:
                  if (cpu_2030.O_REG & BIT5)  /* Request in */
                     cpu_2030.SEL_TI[i] |= CHAN_REQ_IN;
              }
-             log_selchn("Select %d tags: b=%d p=%d i=%d f=%d %x\n",
-                    i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], sel_gr_full[i], sel_ros_req);
+             log_selchn("Select %d tags: b=%d p=%d i=%d f=%d h=%d %x\n",
+                    i, sel_chan_busy[i], sel_poll_ctrl[i], sel_intrp_lch[i], sel_gr_full[i], 
+                    sel_halt_io[i], sel_ros_req);
 
              /* If device has acknoweleged address out, drop it */
              if (cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN) ||
                  cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN) ||
                  cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
-                 cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_ADR_IN)) {
+                 cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_OPR_IN|CHAN_ADR_IN) ||
+                 cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN) ||
+                 cpu_2030.SEL_TI[i] == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_STA_IN)) {
                  cpu_2030.SEL_TAGS[i] &= ~(CHAN_ADR_OUT);
                  log_selchn("Ack Addr Out\n");
              }
@@ -2591,8 +2597,8 @@ chan_scan:
              }
 
              /* Drop select out when status in present, end of operation and device end */
-             if ((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN|CHAN_SRV_OUT) &&
-                 sel_status_stop_cond[i]) {
+             if ((cpu_2030.SEL_TI[i] & (CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_STA_IN|CHAN_SRV_OUT)/* &&
+                 sel_status_stop_cond[i]*/) {
                  if ((cpu_2030.GF[i] & (BIT1)) == (0) || (cpu_2030.GI[i] & SNS_DEVEND) != 0) {
                       cpu_2030.SEL_TAGS[i] &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                       log_selchn("Drop Select out\n");
@@ -2610,6 +2616,9 @@ chan_scan:
              /* If we have acknowledgement of command out */
              if ((cpu_2030.SEL_TI[i] & (CHAN_ADR_IN|CHAN_STA_IN|CHAN_SRV_IN)) == 0) {
                  cpu_2030.SEL_TAGS[i] &= ~(CHAN_CMD_OUT|CHAN_SRV_OUT);
+                 if ((cpu_2030.SEL_TI[i] & CHAN_OPR_IN) != 0) {
+                     cpu_2030.SEL_TAGS[i] &= ~(CHAN_SUP_OUT);
+                 }
                  log_selchn("Drop service out %d\n", sel_status_stop_cond[i]);
              }
 
@@ -2688,11 +2697,12 @@ chan_scan:
              /* Set poll control if halt I/O and not chaining requests */
              if (sel_halt_io[i] && sel_chain_req[i] == 0 && sel_intrp_lch[i] == 0) {
                  sel_poll_ctrl[cpu_2030.ch_sel] = 1;
+                 cpu_2030.SEL_TAGS[i] &= ~(CHAN_ADR_OUT);  /* Drop address out */
              }
 
              /* When we loss operator IN, the device has disconnected, signal clear address out */
              if (sel_halt_io[i] && (cpu_2030.SEL_TI[i] & (CHAN_ADR_OUT|CHAN_OPR_IN)) == CHAN_ADR_OUT) {
-                 cpu_2030.SEL_TAGS[cpu_2030.ch_sel] &= ~(CHAN_ADR_OUT);
+                 cpu_2030.SEL_TAGS[i] &= ~(CHAN_ADR_OUT);
                  sel_halt_io[i] = 0;
                  log_selchn("Halt acknowledge\n");
              }
