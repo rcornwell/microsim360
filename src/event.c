@@ -43,7 +43,13 @@ add_event(struct _device *dev, _callback func, int time, void *arg, int iarg)
     struct _event *new_event;
     struct _event *ptr_event;
 
-    log_trace("Add event %d: %x %d\n", time, arg, iarg);
+    log_event("Add event %d: %x %d\n", time, arg, iarg);
+    /* If event time is zero, generate callback immediately */
+    if (time == 0) {
+         (*func)(dev, arg, iarg);
+         return 0;
+    }
+
     if ((new_event = (struct _event *)malloc(sizeof(struct _event))) == NULL) {
         return 1;
     }
@@ -98,7 +104,7 @@ cancel_event(struct _device *dev, _callback func)
     struct _event *ptr_event;
     struct _event *nxt_event;
 
-    log_trace("Cancel event\n");
+    log_event("Cancel event\n");
     ptr_event = event_head;
     if (ptr_event == NULL)   /* No events, just return */
         return;
@@ -141,7 +147,7 @@ advance()
     ptr_event = event_head;
     if (ptr_event == NULL)
         return;
-    log_trace("Advance event %d\n", ptr_event->time);
+    log_event("Advance event %d\n", ptr_event->time);
     ptr_event->time--;
     while (ptr_event != NULL && ptr_event->time == 0) {
          (*ptr_event->func)(ptr_event->dev, ptr_event->arg, ptr_event->iarg);
