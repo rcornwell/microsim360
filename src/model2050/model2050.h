@@ -226,6 +226,7 @@ uint16_t    FLAGS_REG[4];       /* Selector Flags register */
  *  Bit 8   Irpt.
  */
 uint8_t     inst_latch;
+uint8_t     IO_KEY;             /* Key for last I/O operation */
 uint8_t     D1[4];              /* Channel flag D1 */
 uint8_t     D2[4];              /* Channel flag D2 */
 uint8_t     C1[4];              /* Channel flag C1 */
@@ -247,6 +248,7 @@ uint16_t    TAGS_IN[4];         /* Channel tags in. */
 uint16_t    CHPOS[4];           /* Channel position register */
 uint16_t    CHREQ[4];           /* Channel position request register */
 uint16_t    CHCLK[4];           /* Channel clock register */
+uint8_t     EOR[4];             /* End of record on channel */
 uint8_t     BCHI;               /* Interrupt pending */
 
 } cpu_2050;

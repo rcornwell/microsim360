@@ -252,17 +252,18 @@ randfloat(int powRange)
 void
 init_cpu()
 {
-    SYS_RST = 0;
+    SYS_RST = 1;
     CHK_SW = 2;
     RATE_SW = 1;
     PROC_SW = 1;
-    set_amwp(0);
-#if 0
+        log_trace("Reset CPU\n");
     do {
-        cycle();
-        step_count++;
-    } while (cpu_2030.ROAR != 0x328);
-#endif
+        cycle_2050();
+    } while (cpu_2050.ROAR != 0x150);
+    set_amwp(0);
+    set_key(0);
+    set_cc(0);
+    set_mask(0);
 }
 
 int trap_flag;
@@ -282,7 +283,7 @@ test_inst(int mask)
         cycle_2050();
         step_count++;
         max++;
-        if ((cpu_2050.ROAR & 0xffc) == 0x148)
+         if ((cpu_2050.ROAR & 0xffc) == 0x148)
            break;
         if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
            break;
@@ -302,7 +303,8 @@ test_inst2()
     int      count;
 
     cpu_2050.IA_REG = 0x400;
-    cpu_2050.PMASK = 0;
+ //   cpu_2050.PMASK = 0;
+    START = 1;
     cpu_2050.ROAR = 0x190;
     cpu_2050.REFETCH = 1;
     cpu_2050.mem_state = 0;
@@ -317,11 +319,11 @@ test_inst2()
            if (count++ == 2)
                break;
         }
-        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0))
+        if ((cpu_2050.ROAR == 0x182) && (cpu_2050.SDR_REG == 0))
            break;
         if (cpu_2050.ROAR == 0x10e)
            trap_flag = 1;
-    } while (max < 500);
+    } while (max < 1000);
 }
 
 void
@@ -335,14 +337,15 @@ test_io_inst(int mask)
 
     cpu_2050.IA_REG = 0x400;
     cpu_2050.PMASK = (mask & 0xf);
+    START = 1;
     trap_flag = 0;
-    cpu_2050.ROAR = 0x190;
-    cpu_2050.REFETCH = 1;
-    for (i = 0; i < 4; i++) {
-        cpu_2050.polling[i] = 1;
-        cpu_2050.ROUTINE[i] = 0;
-    }
-    cpu_2050.mem_state = 0;
+//    cpu_2050.ROAR = 0x190;
+//    cpu_2050.REFETCH = 1;
+//    for (i = 0; i < 4; i++) {
+//        cpu_2050.polling[i] = 1;
+//        cpu_2050.ROUTINE[i] = 0;
+//    }
+ //   cpu_2050.mem_state = 0;
     log_trace("Test IO\n");
     do {
         cycle_2050();
@@ -377,13 +380,13 @@ test_io_inst2()
 
     cpu_2050.IA_REG = 0x400;
     cpu_2050.PMASK = 0;
-    cpu_2050.ROAR = 0x190;
-    cpu_2050.REFETCH = 1;
-    for (i = 0; i < 4; i++) {
-        cpu_2050.polling[i] = 1;
-        cpu_2050.ROUTINE[i] = 0;
-    }
-    cpu_2050.mem_state = 0;
+//    cpu_2050.ROAR = 0x190;
+//    cpu_2050.REFETCH = 1;
+//    for (i = 0; i < 4; i++) {
+//        cpu_2050.polling[i] = 1;
+//        cpu_2050.ROUTINE[i] = 0;
+//    }
+//    cpu_2050.mem_state = 0;
     trap_flag = 0;
     count = 0;
     do {

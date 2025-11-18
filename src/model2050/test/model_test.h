@@ -60,6 +60,9 @@ void set_amwp(int num);
 /* Set key */
 void set_key(int num);
 
+/* Get current program counter */
+uint32_t get_pc();
+
 /* Read register */
 uint32_t get_reg(int num);
 
