@@ -41,19 +41,19 @@ target_sources(${PROJECT_NAME} PUBLIC panel2844.c)
 target_link_libraries(${PROJECT_NAME} PUBLIC model2844lib)
 
 if (RUN_TESTS)
-add_executable(test2844_test test/ctest_main.c test/disk_test.c ../test/test_chan.c)
+add_executable(model2844_test ../test/ctest_main.c test/disk_test.c ../test/test_chan.c)
 if (WIN32)
-set_property(TARGET test2844_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
+set_property(TARGET model2844_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
 endif()
-target_link_libraries(test2844_test model2844lib)
-target_link_libraries(test2844_test devicelib)
-target_link_libraries(test2844_test toplib)
+target_link_libraries(model2844_test model2844lib)
+target_link_libraries(model2844_test devicelib)
+target_link_libraries(model2844_test toplib)
 #add_dependencies(test2844_test model2844_ros.h)
-add_custom_command(TARGET test2844_test
-            COMMAND test2844_test
+add_custom_command(TARGET model2844_test
+            COMMAND model2844_test
             COMMENT "Test instructions for 2844"
             VERBATIM)
-target_include_directories(test2844_test PRIVATE
+target_include_directories(model2844_test PRIVATE
                                 ${SDL2_INCLUDE_DIRS}
                                 ${CMAKE_CURRENT_SOURCE_DIR}
                                 ${CMAKE_CURRENT_BINARY_DIR}
@@ -61,6 +61,6 @@ target_include_directories(test2844_test PRIVATE
                                 ${CMAKE_CURRENT_BINARY_DIR}/..
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../test
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device )
-add_test(NAME test2844_test COMMAND test2844_test )
+add_test(NAME model2844_test COMMAND model2844_test )
 endif()
 

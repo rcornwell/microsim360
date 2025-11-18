@@ -40,16 +40,30 @@
 #include "model2844.h"
 
 uint64_t   step_count = 0;
+int        verbose = 0;
+char       *test_log_file = "model2844_debug.log";
+char       *test_log_level = "info warn error trace device disk dmicro dreg";
+
+/* Panel display functions */
+void
+model2314_draw(struct _device *unit, void *rend)
+{
+}
+
+struct _popup *
+model2314_control(struct _device *unit, int hd, int wd, int u)
+{
+     return NULL;
+}
+
 
 void
-init_disk_tests()
+init_tests()
 {
     device_t *dev;
     struct _2844_context *ctx;
     int i;
 
-    log_level = LOG_INFO|LOG_WARN|LOG_ERROR|LOG_TRACE|LOG_DEVICE|LOG_DISK|LOG_DMICRO|LOG_DREG;
-    log_init("disk_debug.log");
     init_event();
     disk = NULL;
     dev = model2844_init(NULL, 0x90);
@@ -109,7 +123,7 @@ print_track(struct _device *dev, int unit)
             log_trace("End\n");
             end = 1;
             klen = dlen = 0;
-         } 
+         }
          if (klen == 0 && dlen == 0) {
             log_trace("EOF\n");
             end = 1;
@@ -180,7 +194,10 @@ CTEST2(disk_test, sense) {
      set_mem(0x600, 0xffffffff);
      set_mem(0x604, 0xffffffff);
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+        printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600),
+                get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -191,7 +208,7 @@ CTEST2(disk_test, sense) {
 /* Try to send Set file mask to controller */
 CTEST2(disk_test, setmask) {
      uint16_t status;
-    
+
      /* Test valid mask */
      log_trace("Set Mask\n");
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
@@ -203,21 +220,30 @@ CTEST2(disk_test, setmask) {
      set_mem(0x600, 0xc0000000);
      set_mem(0x604, 0xffffffff);
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600),
+             get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
      /* Test Invalid mask */
      set_mem(0x600, 0xf0000000);
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+          printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600),
+                get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK, status);
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0e000000, get_mem(0x44));
      set_mem(0x600, 0xffffffff);
      set_mem(0x604, 0xffffffff);
      status = start_io(data->addr, 0x510, 1, 0);
-     printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600),
+                get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -244,7 +270,10 @@ CTEST2(disk_test, seek) {
      set_mem(0x614, 0xffffffff);
 
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600),
+              get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x08000000, get_mem(0x44));
@@ -257,7 +286,10 @@ CTEST2(disk_test, seek) {
      ASSERT_EQUAL(0x10, ctx->disk[1]->cyl);
 
      status = start_io(data->addr, 0x510, 1, 0);
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+                 get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -285,7 +317,10 @@ CTEST2(disk_test, restore) {
      set_mem(0x614, 0xffffffff);
 
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x 0x40=%08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000001, get_mem(0x44));
@@ -293,7 +328,10 @@ CTEST2(disk_test, restore) {
      set_mem(0x44, 0xffffffff);
 
      status = start_io(data->addr, 0x510, 1, 0);
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+              get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -324,7 +362,10 @@ CTEST2(disk_test, readHA) {
      set_mem(0x624, 0xffffffff);
 
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+                 get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000510, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -334,7 +375,10 @@ CTEST2(disk_test, readHA) {
      set_mem(0x44, 0xffffffff);
 
      status = start_io(data->addr, 0x510, 1, 0);
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620),
+                get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -363,10 +407,12 @@ CTEST2(disk_test, readR0) {
      set_mem(0x624, 0xffffffff);
 
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("610=%08x 614=%08x ", get_mem(0x610), get_mem(0x614));
-     printf("618=%08x 61c=%08x ", get_mem(0x618), get_mem(0x61c));
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("610=%08x 614=%08x ", get_mem(0x610), get_mem(0x614));
+         printf("618=%08x 61c=%08x ", get_mem(0x618), get_mem(0x61c));
+         printf("620=%08x 624=%08x ", get_mem(0x620), get_mem(0x624));
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000510, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -377,7 +423,10 @@ CTEST2(disk_test, readR0) {
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
      status = start_io(data->addr, 0x510, 1, 0);
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620),
+                  get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -410,9 +459,12 @@ CTEST2(disk_test, read_ipl) {
      set_mem(0x624, 0xffffffff);
 
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
-     printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
+         printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+               get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -424,7 +476,10 @@ CTEST2(disk_test, read_ipl) {
      set_mem(0x44, 0xffffffff);
 
      status = start_io(data->addr, 0x510, 1, 0);
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620),
+                get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -464,9 +519,12 @@ CTEST2(disk_test, writeHA) {
           set_mem_b(0x610 + i, wha[i]);
      }
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
-     printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
+         printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+                      get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -478,7 +536,10 @@ CTEST2(disk_test, writeHA) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x520, 1, 0);
      }
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620),
+                get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -496,7 +557,10 @@ CTEST2(disk_test, writeHA) {
      set_mem(0x624, 0xffffffff);
 
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620),
+                get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000510, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -510,7 +574,10 @@ CTEST2(disk_test, writeHA) {
      }
 
      status = start_io(data->addr, 0x520, 1, 0);
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620),
+                 get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -533,9 +600,12 @@ CTEST2(disk_test, writeHA) {
           set_mem_b(0x610 + i, orig[i]);
      }
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
-     printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+        printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
+        printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
+        printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+                   get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -544,7 +614,10 @@ CTEST2(disk_test, writeHA) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x520, 1, 0);
      }
-     printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620), get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("620=%08x 624=%08x 0x40=%08x %08x\n", get_mem(0x620),
+                get_mem(0x624), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -595,9 +668,12 @@ CTEST2(disk_test, writeR0) {
 
      /* Should result in sequence error */
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
-     printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
+         printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+              get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_UNITCHK, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x02000010, get_mem(0x44));
@@ -609,7 +685,10 @@ CTEST2(disk_test, writeR0) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630), get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630),
+                 get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -629,9 +708,12 @@ CTEST2(disk_test, writeR0) {
 
      /* Try again to write it correctly */
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
-     printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
+         printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+               get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000520, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -643,7 +725,10 @@ CTEST2(disk_test, writeR0) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630), get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630),
+             get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -657,9 +742,12 @@ CTEST2(disk_test, writeR0) {
      set_mem(0x51c, sizeof(orig));
 
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
-     printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
+         printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+                get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000520, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -671,7 +759,10 @@ CTEST2(disk_test, writeR0) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630), get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630),
+                get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -732,9 +823,12 @@ CTEST2(disk_test, write_track_one) {
 
      /* Try again to write it correctly */
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
-     printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
-     printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610), get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x 604=%08x ", get_mem(0x600), get_mem(0x604));
+         printf("608=%08x 60c=%08x ", get_mem(0x608), get_mem(0x60c));
+         printf("610=%08x 614=%08x 0x40=%08x %08x\n", get_mem(0x610),
+                get_mem(0x614), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -746,7 +840,10 @@ CTEST2(disk_test, write_track_one) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630), get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630),
+                 get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -779,7 +876,9 @@ CTEST2(disk_test, search_ha) {
 
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_SMS|SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x4c000000, get_mem(0x44));
@@ -791,7 +890,10 @@ CTEST2(disk_test, search_ha) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630), get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630),
+               get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -801,7 +903,9 @@ CTEST2(disk_test, search_ha) {
      /* Set incorrect HA */
      set_mem(0x610, 0x00110004);
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -813,7 +917,10 @@ CTEST2(disk_test, search_ha) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630), get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630),
+                  get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -848,7 +955,9 @@ CTEST2(disk_test, search_ha_mt) {
 
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000001, get_mem(0x44));
@@ -860,7 +969,10 @@ CTEST2(disk_test, search_ha_mt) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630), get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630),
+                  get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -870,7 +982,9 @@ CTEST2(disk_test, search_ha_mt) {
      /* Set incorrect HA */
      set_mem(0x610, 0x00110004);
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND|SNS_UNITCHK, status);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0e400004, get_mem(0x44));
@@ -882,7 +996,10 @@ CTEST2(disk_test, search_ha_mt) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630), get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("630=%08x 634=%08x 0x40=%08x %08x\n", get_mem(0x630),
+                   get_mem(0x634), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -933,10 +1050,12 @@ CTEST2(disk_test, read_ckd) {
      set_mem(0x524, sizeof(hdr) + 0x20);
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     for (i = 0; i < 0x30; i+= 4) {
-         printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+     if (verbose) {
+         for (i = 0; i < 0x30; i+= 4) {
+             printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+         }
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      }
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -948,7 +1067,10 @@ CTEST2(disk_test, read_ckd) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700), get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                 get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1010,10 +1132,12 @@ CTEST2(disk_test, read_kd) {
      set_mem(0x524, sizeof(hdr) + 0x20 - 8);
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     for (i = 0; i < 0x30; i+= 4) {
-         printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+     if (verbose) {
+         for (i = 0; i < 0x30; i+= 4) {
+             printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+         }
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      }
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1025,7 +1149,10 @@ CTEST2(disk_test, read_kd) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700), get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                  get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1050,8 +1177,7 @@ CTEST2(disk_test, read_d) {
      static uint8_t  hdr[] = { 0x00, 0x10, 0x00, 0x05, 0x01, 0x08, 0x00, 0x20,
                                0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7};
      uint16_t status;
-     int sz;
-     int i;
+     int      i;
 
      log_trace("Read record\n");
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
@@ -1088,10 +1214,12 @@ CTEST2(disk_test, read_d) {
      set_mem(0x524, 0x20);
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     for (i = 0; i < 0x30; i+= 4) {
-         printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+     if (verbose) {
+         for (i = 0; i < 0x30; i+= 4) {
+            printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+         }
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      }
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1103,7 +1231,10 @@ CTEST2(disk_test, read_d) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700), get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                  get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1116,7 +1247,6 @@ CTEST2(disk_test, read_d) {
         log_trace("Read %d: %02x\n", i-sizeof(hdr), get_mem_b(0x640+i));
      }
      /* Compare with original */
-     sz = get_mem_b(0x647) + sizeof(hdr);
      for (i = sizeof(hdr); i < (sizeof(hdr) + 0x20); i++) {
         ASSERT_EQUAL_X(i, get_mem_b(0x630+i));
         log_trace("Read %d: %02x\n", i, get_mem_b(0x630+i));
@@ -1166,7 +1296,9 @@ CTEST2(disk_test, write_d) {
      }
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1178,7 +1310,10 @@ CTEST2(disk_test, write_d) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700), get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700),
+              get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1220,10 +1355,12 @@ CTEST2(disk_test, write_d) {
      set_mem(0x524, sizeof(hdr) + 0x20);
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     for (i = 0; i < 0x30; i+= 4) {
-         printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+     if (verbose) {
+         for (i = 0; i < 0x30; i+= 4) {
+             printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+         }
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      }
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1235,7 +1372,10 @@ CTEST2(disk_test, write_d) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700), get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1296,7 +1436,9 @@ CTEST2(disk_test, write_kd) {
      }
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1308,7 +1450,10 @@ CTEST2(disk_test, write_kd) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700), get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1350,10 +1495,12 @@ CTEST2(disk_test, write_kd) {
      set_mem(0x524, sizeof(hdr) + 0x20);
      /* Try to find it. */
      status = start_io(data->addr, 0x500, 1, 0);
-     for (i = 0; i < 0x30; i+= 4) {
-         printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+     if (verbose) {
+         for (i = 0; i < 0x30; i+= 4) {
+             printf("%04x=%08x ", i + 0x640, get_mem(0x640 + i));
+         }
+         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      }
-     printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1365,7 +1512,10 @@ CTEST2(disk_test, write_kd) {
          status = wait_dev(data->addr & 0xf0);
          status = start_io(data->addr, 0x530, 1, 0);
      }
-     printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700), get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("700=%08x 704=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                get_mem(0x704), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000538, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -1642,7 +1792,7 @@ CTEST2(disk_data, readCylinder) {
         ASSERT_EQUAL_X(0x100, status);
         num = 256+8+8;
         status = read_data(data->dev, &tags, &work[0], &num, 1);
-        printf("disk %02x %d h=%d -> %02x %02x %02x %02x %02x %02x %02x\n", status, num, 
+        printf("disk %02x %d h=%d -> %02x %02x %02x %02x %02x %02x %02x\n", status, num,
                 ctx->disk[1]->head, work[7], work[8], work[9], work[10], work[11], work[12],
                 work[13]);
         if (status != 0x10c)

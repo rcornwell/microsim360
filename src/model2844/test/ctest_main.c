@@ -33,15 +33,34 @@
 #include "device.h"
 #include "logger.h"
 
-extern void init_disk_tests();
+extern void init_tests();
 
-int main(int argc, const char *argv[])
+extern void init_log();
+
+extern int       verbose = 0;
+
+int
+main(int argc, const char *argv[])
 {
-    int result;
-    init_disk_tests();
-//    log_level = 0xbfff;
- //   log_init("disk_debug.log");
-    result = ctest_main(argc, argv);
+    int          i;
+    const char  *args[2];
+    int          arg_cnt;
+    int          result;
+    args[0] = argv[0];
+    arg_cnt = 1;
+    for (i = 1; i < argc; i++) {
+       if (strcmp(argv[i], "-d") == 0) {
+           init_log();
+       } else if (strcmp(argv[i], "-v") == 0) {
+           verbose = 1;
+       } else {
+           arg_cnt = 2;
+           args[1] = argv[i];
+       }
+    }
+
+    init_tests();
+    result = ctest_main(arg_cnt, args);
     return result;
 }
 
