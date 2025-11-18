@@ -250,7 +250,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
 
     if (last_tags != *tags || unit->selected) {
         print_tags("Test", ctx->state, *tags, bus_out);
-        last_tags = *tags;
+        last_tags = 0; // *tags;
     }
 
     /* Reset device if OPER OUT is dropped */
@@ -280,6 +280,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                 ctx->busy, ctx->cmd_done, ctx->delay, ctx->cmd, ctx->status);
             /* If operation out, reset device */
             if ((*tags & CHAN_OPR_OUT) == 0) {
+                            log_device("test: %03x oper dropped\n",unit->addr);
                 break;
             }
 
@@ -294,6 +295,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
         print_tags("Test", ctx->state, *tags, bus_out);
             /* If we have request and suppress out is down, post request */
             if (unit->request || unit->stacked) {
+                            log_device("test: %03x port request\n",unit->addr);
                 if ((*tags & CHAN_SUP_OUT) == 0) {
                     *tags |= CHAN_REQ_IN;
                 } else {
@@ -485,6 +487,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT|CHAN_ADR_OUT)) == 0) {
                  if ((*tags & CHAN_HLD_OUT) == 0 || ctx->busy == 0) {
                      unit->selected = 0;
+                     *tags &= ~(CHAN_OPR_IN);
                      ctx->state = STATE_IDLE;
                  } else {
                      ctx->state = STATE_WAIT_DEVEND;

@@ -32,9 +32,42 @@
 #define CTEST_NO_COLORS
 
 #include "ctest.h"
+#include "conf.h"
+#include "logger.h"
 
-int main(int argc, const char *argv[])
+extern void init_tests();
+
+extern char *test_log_file;
+extern char *test_log_level;
+
+extern int       verbose;
+
+int
+main(int argc, const char *argv[])
 {
-    int result = ctest_main(argc, argv);
+    int          i;
+    const char  *args[2];
+    int          arg_cnt;
+    int          result;
+    char         buffer[1024];
+    args[0] = argv[0];
+    arg_cnt = 1;
+    for (i = 1; i < argc; i++) {
+       if (strcmp(argv[i], "-d") == 0) {
+           log_init(test_log_file);
+           sprintf(buffer, "loglevel %s\n", test_log_level);
+           load_line(buffer);
+       } else if (strcmp(argv[i], "-v") == 0) {
+           verbose = 1;
+       } else {
+           arg_cnt = 2;
+           args[1] = argv[i];
+       }
+    }
+
+    init_tests();
+    result = ctest_main(arg_cnt, args);
     return result;
 }
+
+

@@ -29,25 +29,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "ctest.h"
 #include "logger.h"
 #include "device.h"
 #include "test_chan.h"
 #include "test_device.h"
 
-#define CTEST_MAIN
-#define CTEST_NO_COLORS
-
-#include "ctest.h"
-
 uint64_t  step_count;
 
-int
-main(int argc, const char *argv[])
+int       verbose = 0;
+
+char     *test_log_file = "debug_device.log";
+char     *test_log_level = "info warn error trace device";
+
+void
+init_tests()
 {
-    log_level = LOG_INFO|LOG_WARN|LOG_ERROR|LOG_TRACE|LOG_DEVICE  ;
-    log_init("debug_device.log");
-    int result = ctest_main(argc, argv);
-    return result;
 }
 
 void
@@ -134,8 +131,10 @@ CTEST2(dev_test, write) {
      set_mem(0x60C, 0xCFDFEFFF);
 
      status = start_io(data->dev.addr, 0x500, 0, 0);
-     for (i = 0; i < 0x10; i++) {
-         printf(" %02x", data->test_ctx.buffer[i]);
+     if (verbose) {
+         for (i = 0; i < 0x10; i++) {
+             printf(" %02x", data->test_ctx.buffer[i]);
+         }
      }
 
      for (i = 0; i < 0x10; i++) {
@@ -157,7 +156,10 @@ CTEST2(dev_test, sense1) {
      set_mem(0x504, 0x00000001);
      set_mem(0x600, 0xffffffff);
      status = start_io(data->dev.addr, 0x500, 0, 0);
-     printf("600=%08x  0x40=%08x %08x\n", get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("600=%08x  0x40=%08x %08x\n", get_mem(0x600),
+                 get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
@@ -185,9 +187,11 @@ CTEST2(dev_test, read_back) {
      set_mem(0x610, 0x55555555);
 
      status = start_io(data->dev.addr, 0x500, 0, 0);
-     printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+             get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x600 + i));
      }
@@ -435,7 +439,7 @@ CTEST2(dev_test, cda_read_skip) {
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
 }
 
-CTEST2(dev_test, sio_read_ce) {
+CTEST2(dev_test, read_ce) {
      int i;
      uint16_t status;
      for (i = 0; i < 0x10; i++) {
@@ -455,10 +459,12 @@ CTEST2(dev_test, sio_read_ce) {
      set_mem(0x610, 0x55555555);
 
      status = start_io(data->dev.addr, 0x500, 0, 0);
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+             get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x600 + i));
      }
@@ -581,7 +587,7 @@ CTEST2(dev_test, cmd_chain_short) {
 }
 
 /* Test nop instruction with chaining */
-CTEST2(dev_test, sio_nop_cc) {
+CTEST2(dev_test, nop_cc) {
      uint16_t status;
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
@@ -597,7 +603,7 @@ CTEST2(dev_test, sio_nop_cc) {
 }
 
 /* Test Command and CDA chaining */
-CTEST2(dev_test, sio_cda_cc) {
+CTEST2(dev_test, cda_cc) {
      int i;
      uint16_t status;
      for (i = 0; i < 0x20; i++) {
@@ -738,13 +744,17 @@ CTEST2(dev_test, halt_io) {
      set_mem(0x700, 0xffffffff);
 
      status = start_io(data->dev.addr, 0x500, 0, 1);
-     printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44), get_mem(0x700));
-     printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
-             get_mem(0x61c), get_mem(0x620));
-     printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
-             get_mem(0x62c), get_mem(0x630));
+     if (verbose) {
+         printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44),
+                  get_mem(0x700));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608),
+                 get_mem(0x60c), get_mem(0x610));
+         printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
+                 get_mem(0x61c), get_mem(0x620));
+         printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
+                 get_mem(0x62c), get_mem(0x630));
+     }
      ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44) & 0xffbf0000);  /* Ignore Length error */
      ASSERT_EQUAL_X(0xffffffff, get_mem(0x700));
@@ -775,14 +785,16 @@ CTEST2(dev_test, halt_io_2) {
      set_mem(0x700, 0xffffffff);
 
      status = start_io(data->dev.addr, 0x500, 0, 1);
-     printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44), get_mem(0x700));
-     printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
+     if (verbose) {
+         printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44),
+             get_mem(0x700));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+             get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
              get_mem(0x61c), get_mem(0x620));
-     printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
+         printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
              get_mem(0x62c), get_mem(0x630));
-
+     }
      ASSERT_EQUAL_X(SNS_CHNEND, status);
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x08000000, get_mem(0x44));
