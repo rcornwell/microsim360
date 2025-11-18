@@ -350,6 +350,7 @@ test_inst2()
     cpu_2030.LS[0x7BB] = 0x100;
     set_cc(CC3);
     cpu_2030.WX = 0x102;
+    trap_flag = 0;
     START = 1;
     cpu_2030.I_REG = 0x4;
     cpu_2030.J_REG = 0x100;
