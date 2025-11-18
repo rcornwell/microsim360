@@ -39,7 +39,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC model2050lib)
 
 if (RUN_TESTS)
 add_executable(inst2050_test test/ctest_main.c test/model2050_test.c
-               ../test/io_test.c ../test/test_device.c)
+               ../test/io_test.c ../test/sel_test.c ../test/mul_io_test.c ../test/test_device.c)
 if (WIN32)
 set_property(TARGET inst2050_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
 endif()
