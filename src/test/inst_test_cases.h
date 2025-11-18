@@ -174,6 +174,7 @@
       init_cpu();
       set_cc(CC3);
       set_mem(0x400, 0x18310000);  /* LR 3,1 */
+      set_mem(0x404, 0);
       set_reg(1, 0x12345678);
       test_inst(0);
       ASSERT_EQUAL_X(0x12345678, get_reg(3));
@@ -184,6 +185,7 @@
   CTEST(instruct, loadtest_reg) {
       init_cpu();
       set_mem(0x400, 0x12340000);  /* LTR 3,4 */
+      set_mem(0x404, 0);
       /* Test negative number */
       set_reg(4, 0xcdef1234);
       test_inst(0);
@@ -205,6 +207,7 @@
   CTEST(instruct, loadcom_reg) {
       init_cpu();
       set_mem(0x400, 0x13340000); /* LCR 3,4 */
+      set_mem(0x404, 0);
       /* Test positive number */
       set_reg(4, 0x00001000);
       test_inst(0);
@@ -212,6 +215,7 @@
       ASSERT_EQUAL(CC1, CC_REG);
       /* Test negative number */
       set_reg(4, 0xffffffff);
+      set_mem(0x404, 0);
       test_inst(0);
       ASSERT_EQUAL_X(0x1, get_reg(3));
       ASSERT_EQUAL(CC2, CC_REG);
@@ -231,6 +235,7 @@
   CTEST(instruct, loadpos_reg) {
       init_cpu();
       set_mem(0x400, 0x10340000);  /* LPR 3,4 */
+      set_mem(0x404, 0);
       set_reg(4, 0xffffffff);
       test_inst(0);
       ASSERT_EQUAL_X(0x00000001, get_reg(3));
@@ -256,6 +261,7 @@
   CTEST(instruct, loadneg_reg) {
       init_cpu();
       set_mem(0x400, 0x11340000);  /* LNR 3,4 */
+      set_mem(0x404, 0);
       set_reg(4, 0xffffffff);
       test_inst(0);
       ASSERT_EQUAL_X(0xffffffff, get_reg(3));
@@ -281,6 +287,7 @@
   CTEST(instruct, add_reg) {
       init_cpu(0);
       set_mem(0x400, 0x1a120000);  /* AR 1,2 */
+      set_mem(0x404, 0);
       set_reg(1, 0x12345678);
       set_reg(2, 0x00000005);
       test_inst(0);
@@ -292,6 +299,7 @@
   CTEST(instruct, twoadd_reg) {
       init_cpu();
       set_mem(0x400, 0x1a121a31); /* AR 1,2; AR 3,1 */
+      set_mem(0x404, 0);
       set_reg(1, 0x12345678);
       set_reg(2, 0x00000001);
       set_reg(3, 0x00000010);
@@ -305,6 +313,7 @@
   CTEST(instruct, add_neg_reg) {
       init_cpu();
       set_mem(0x400, 0x1a120000);  /* AR 1,2 */
+      set_mem(0x404, 0);
       set_reg(1, 0x81234567);
       set_reg(2, 0x00000001);
       test_inst(0);
@@ -316,6 +325,7 @@
   CTEST(instruct, add_zero_reg) {
       init_cpu();
       set_mem(0x400, 0x1a120000); /* AR 1,2 */
+      set_mem(0x404, 0);
       set_reg(1, 0x00000002);
       set_reg(2, 0xfffffffe);
       test_inst(0);
@@ -327,6 +337,7 @@
   CTEST(instruct, add_over_reg) {
       init_cpu();
       set_mem(0x400, 0x1a120000);  /* AR 1,2 */
+      set_mem(0x404, 0);
       set_reg(1, 0x7fffffff);
       set_reg(2, 0x00000001);
       test_inst(0);
@@ -338,6 +349,7 @@
   CTEST(instruct, add_overtrap_reg) {
       init_cpu();
       set_mem(0x400, 0x1a120000); /* AR 1,2 */
+      set_mem(0x404, 0);
       set_amwp(0x4);
       set_reg(1, 0x7fffffff);
       set_reg(2, 0x00000001);
@@ -353,6 +365,7 @@
   CTEST(instruct, add) {
       init_cpu();
       set_mem(0x400, 0x5a156200); /* A 1,200(5,6) */
+      set_mem(0x404, 0);
       set_reg(1, 0x12345678);
       set_reg(5, 0x00000100);
       set_reg(6, 0x00000200);
@@ -366,6 +379,7 @@
   CTEST(instruct, add_half) {
       init_cpu();
       set_mem(0x400, 0x4a156200);  /* AH 1,200(5,6) */
+      set_mem(0x404, 0);
       set_reg(1, 0x12345678);
       set_reg(5, 0x00000100);
       set_reg(6, 0x00000202);
@@ -379,6 +393,7 @@
   CTEST(instruct, add_half_ext) {
       init_cpu();
       set_mem(0x400, 0x4a156200);  /* AH 1,200(5,6) */
+      set_mem(0x404, 0);
       set_reg(1, 1);
       set_reg(5, 0x00000100);
       set_reg(6, 0x00000200);
@@ -392,6 +407,7 @@
   CTEST(instruct, add_logic_zero) {
       init_cpu();
       set_mem(0x400, 0x1e120000);   /* ALR 1,2 */
+      set_mem(0x404, 0);
       set_reg(1, 0);
       set_reg(2, 0);
       test_inst(0x0);
@@ -403,6 +419,7 @@
   CTEST(instruct, add_logic_nonzero) {
       init_cpu();
       set_mem(0x400, 0x1e120000);   /* ALR 1,2 */
+      set_mem(0x404, 0);
       set_reg(1, 0xffff0000);
       set_reg(2, 0x00000002);
       test_inst(0x0);
@@ -414,6 +431,7 @@
   CTEST( instruct, add_logic_zero_carry) {
       init_cpu();
       set_mem(0x400, 0x1e120000);   /* ALR 1,2 */
+      set_mem(0x404, 0);
       set_reg(1, 0xfffffffe);
       set_reg(2, 0x00000002);
       test_inst(0x0);
@@ -425,6 +443,7 @@
   CTEST( instruct, add_logic_nonzero_carry) {
       init_cpu();
       set_mem(0x400, 0x1e120000);   /* ALR 1,2 */
+      set_mem(0x404, 0);
       set_reg(1, 0xfffffffe);
       set_reg(2, 0x00000003);
       test_inst(0x0);
@@ -436,6 +455,7 @@
   CTEST(instruct, add_logic2) {
       init_cpu();
       set_mem(0x400, 0x5e156200);  /* AL 1,200(5,6) */
+      set_mem(0x404, 0);
       set_reg(1, 0x12345678);
       set_reg(5, 0x00000100);
       set_reg(6, 0x00000200);
@@ -744,6 +764,7 @@
   /* Divide overflow */
   CTEST(instruct, div_over) {
       init_cpu();
+      set_cc(CC3);
       set_key(4);
       set_amwp(8);
       set_reg(2, 0x12345678);
@@ -800,6 +821,7 @@
   /* Make sure store half fails if unaligned */
   CTEST(instruct, sth3) {
       init_cpu();
+      set_cc(CC3);
       set_amwp(1);
       set_reg(3, 0xaabbccdd);
       set_reg(4, 1);
@@ -956,6 +978,7 @@
 
   /* Subtract halfword */
   CTEST(instruct, sh) {
+      init_cpu();
       set_reg(3, 0x12345678);
       set_mem(0x200, 0x1234eeee);
       set_mem(0x400, 0x4b300200); /* SH 3,200(0,0) */
@@ -1008,8 +1031,8 @@
       int  i;
       int  shift;
       uint32_t  desired;
-      init_cpu();
 
+      init_cpu();
       for (i = 0; i < 4; i++) { /* Test all 4 offsets */
           set_reg(5, 0xffffff12); /* Only 12 used */
           set_reg(1, i);
@@ -1090,8 +1113,8 @@
   /* Test branch on condition with all values of CC */
   CTEST(instruct, bc) {
       int i, j;
-      init_cpu();
       set_mem(0x100, 0);
+      init_cpu();
       for (i = 0; i < 16; i++) {
           for (j = 0; j < 4; j++) {
               uint32_t op = 0x47000100 | (i << 20);  /* BC i,100 */
@@ -1342,24 +1365,24 @@
     srand(42);
     init_cpu();
     for (i = 0; i < testcycles; i++) {
-      int n1 = rand();
-      int n2 = rand();
-      int sum = (n1) + (n2);
-      set_reg(1, n1);
-      set_mem(0x100, n2);
-      set_mem(0x400, 0x5a100100);  /* A 1,100(0,0) */
-      test_inst(0x0);
-      if (sum >= 0x80000000 || sum < -(long int)0x80000000) {
-        ASSERT_EQUAL(CC3, CC_REG); /* Overflow */
-        continue;
-      } else if (sum == 0) {
-        ASSERT_EQUAL(CC0, CC_REG); /* Zero */
-      } else if (sum > 0) {
-        ASSERT_EQUAL(CC2, CC_REG); /* Positive */
-      } else {
-        ASSERT_EQUAL(CC1, CC_REG); /* Negative */
-      }
-      ASSERT_EQUAL(sum, (int32_t)(get_reg(1)));
+        int n1 = rand();
+        int n2 = rand();
+        int sum = (n1) + (n2);
+        set_reg(1, n1);
+        set_mem(0x100, n2);
+        set_mem(0x400, 0x5a100100);  /* A 1,100(0,0) */
+        test_inst(0x0);
+        if (sum >= 0x80000000 || sum < -(long int)0x80000000) {
+          ASSERT_EQUAL(CC3, CC_REG); /* Overflow */
+          continue;
+        } else if (sum == 0) {
+          ASSERT_EQUAL(CC0, CC_REG); /* Zero */
+        } else if (sum > 0) {
+          ASSERT_EQUAL(CC2, CC_REG); /* Positive */
+        } else {
+          ASSERT_EQUAL(CC1, CC_REG); /* Negative */
+        }
+        ASSERT_EQUAL(sum, (int32_t)(get_reg(1)));
     }
   }
 
@@ -1369,24 +1392,24 @@
     srand(123);
     init_cpu();
     for (i = 0; i < testcycles; i++) {
-      int n1 = rand();
-      int n2 = rand();
-      int result = (n1) - (n2);
-      set_reg(1, n1);
-      set_mem(0x100, n2);
-      set_mem(0x400, 0x5b100100);  /* S 1,100(0,0) */
-      test_inst(0x0);
-      if (result >= (long int)0x80000000 || result < -(long int)0x80000000) {
-        ASSERT_EQUAL(CC3, CC_REG); /* Overflow */
-        continue;
-      } else if (result == 0) {
-        ASSERT_EQUAL(CC0, CC_REG); /* Zero */
-      } else if (result > 0) {
-        ASSERT_EQUAL(CC2, CC_REG); /* Positive */
-      } else {
-        ASSERT_EQUAL(CC1, CC_REG); /* Negative */
-      }
-      ASSERT_EQUAL(result, (int32_t)(get_reg(1)));
+         int n1 = rand();
+         int n2 = rand();
+         int result = (n1) - (n2);
+         set_reg(1, n1);
+         set_mem(0x100, n2);
+         set_mem(0x400, 0x5b100100);  /* S 1,100(0,0) */
+         test_inst(0x0);
+         if (result >= (long int)0x80000000 || result < -(long int)0x80000000) {
+           ASSERT_EQUAL(CC3, CC_REG); /* Overflow */
+           continue;
+         } else if (result == 0) {
+           ASSERT_EQUAL(CC0, CC_REG); /* Zero */
+         } else if (result > 0) {
+           ASSERT_EQUAL(CC2, CC_REG); /* Positive */
+         } else {
+           ASSERT_EQUAL(CC1, CC_REG); /* Negative */
+         }
+         ASSERT_EQUAL(result, (int32_t)(get_reg(1)));
     }
   }
 
@@ -1396,19 +1419,19 @@
       srand(42);
       init_cpu();
       for (i = 0; i < testcycles; i++) {
-        int n1 = rand();
-        int n2 = rand();
-        int64_t desired = (int64_t)(n1) * (int64_t)(n2);
-        int64_t result;
-        set_reg(3, n1); /* Note: multiplicand in reg 3 but reg 2 specified. */
-        set_mem(0x100, n2);
-        set_mem(0x400, 0x5c200100);  /* M 2,100(0,0) */
-        test_inst(0x0);
-        result = (int64_t)(((uint64_t)get_reg(2) << 32) + ((uint64_t)get_reg(3)));
-        ASSERT_EQUAL(desired, result);
-        if (result != desired)
-            break;
-        /* No condition code */
+          int n1 = rand();
+          int n2 = rand();
+          int64_t desired = (int64_t)(n1) * (int64_t)(n2);
+          int64_t result;
+          set_reg(3, n1); /* Note: multiplicand in reg 3 but reg 2 specified. */
+          set_mem(0x100, n2);
+          set_mem(0x400, 0x5c200100);  /* M 2,100(0,0) */
+          test_inst(0x0);
+          result = (int64_t)(((uint64_t)get_reg(2) << 32) + ((uint64_t)get_reg(3)));
+          ASSERT_EQUAL(desired, result);
+          if (result != desired)
+              break;
+          /* No condition code */
       }
   }
 
@@ -2892,6 +2915,7 @@ log_trace("Res = %08x\n", get_reg(7));
   DTEST(instruct, mp) {
       /* PrincOps p 151 */
       init_cpu();
+      set_cc(CC3);
       set_reg( 4, 0x00001200);
       set_reg( 6, 0x00000500);
       set_mem(0x1300, 0x00003846);
@@ -2909,6 +2933,7 @@ log_trace("Res = %08x\n", get_reg(7));
   DTEST(instruct, dp) {
       /* PrincOps p 151 */
       init_cpu();
+      set_cc(CC3);
       set_reg( 12, 0x00002000);
       set_reg( 13, 0x00003000);
       set_mem(0x2000, 0x01234567);
@@ -3211,31 +3236,43 @@ log_trace("Res = %08x\n", get_reg(7));
   /* Protection check. unmatched key */
   CTEST(instruct, prot_check) {
       init_cpu();
-      set_amwp(1);                /* unpriv */
-      set_key(2);
+//      set_amwp(1);                /* unpriv */
+//      set_key(2);
       set_reg( 1, 0x11223344);
       set_reg( 2, 0x00005670);
       set_mem( 0x5678, 0x0);
       set_mem_key(0x5600, 4);
-      set_mem(0x400, 0x50102008); /* st 1,0(2) */
-      test_inst(0x0);
+      set_mem(0x68,  0x00000000);
+      set_mem(0x6c,  0x00000420);
+      set_mem(0x400, 0x82000410); /* LPSW 410 */
+      set_mem(0x404, 0x50102008); /* st 1,0(2) */
+      set_mem(0x410, 0x00210000);  /* Wait PSW */
+      set_mem(0x414, 0x00000404);
+
+      test_io_inst(0x0);
       set_key(2);
       ASSERT_EQUAL_X(0, get_mem(0x5678)); /* Make sure memory not changed */
       ASSERT_TRUE(trap_flag);
       ASSERT_EQUAL_X(0x00210004, get_mem(0x28));
+      ASSERT_EQUAL_X(0x420, get_pc());
   }
 
   /* Protection check. Keys match */
   CTEST(instruct, prot_check2) {
       init_cpu();
-      set_amwp(1);                 /* unpriv */
-      set_key(4);
+//      set_amwp(1);                 /* unpriv */
+ //     set_key(4);
       set_reg( 1, 0x11223344);
       set_reg( 2, 0x00005670);
       set_mem( 0x5678, 0x0);
       set_mem_key(0x5600, 4);
-      set_mem(0x400, 0x50102008); /* st 1,0(2) */
-      test_inst(0x0);
+      set_mem(0x68,  0x00000000);
+      set_mem(0x6c,  0x00000420);
+      set_mem(0x400, 0x82000410); /* LPSW 410 */
+      set_mem(0x404, 0x50102008); /* st 1,0(2) */
+      set_mem(0x410, 0x00410000);  /* Wait PSW */
+      set_mem(0x414, 0x00000404);
+      test_io_inst(0x0);
       set_key(4);
       ASSERT_EQUAL_X(0x11223344, get_mem(0x5678)); /* Make sure updated */
   }
@@ -3243,48 +3280,66 @@ log_trace("Res = %08x\n", get_reg(7));
   /* Protection check. Keys mismatch, read */
   CTEST(instruct, prot_check3) {
       init_cpu();
-      set_amwp(1);                 /* unpriv */
-      set_key(2);
+//      set_amwp(1);                 /* unpriv */
+ //     set_key(2);
       set_reg( 1, 0x11223344);
       set_reg( 2, 0x00005670);
       set_mem( 0x5678, 0x12345678);
       set_mem_key(0x5600, 4);
-      set_mem(0x400, 0x58102008); /* l 1,0(2) */
-      test_inst(0x0);
+      set_mem(0x68,  0x00000000);
+      set_mem(0x6c,  0x00000420);
+      set_mem(0x400, 0x82000410); /* LPSW 410 */
+      set_mem(0x404, 0x58102008); /* l 1,0(2) */
+      set_mem(0x410, 0x00210000);  /* Wait PSW */
+      set_mem(0x414, 0x00000404);
+      test_io_inst(0x0);
       set_key(2);
       ASSERT_EQUAL_X(0x12345678, get_reg(1)); /* Read should work */
       ASSERT_FALSE(trap_flag);
+      ASSERT_EQUAL_X(0x408, get_pc());
   }
 
   /* Protection check. Keys match, read */
   CTEST(instruct, prot_check4) {
       init_cpu();
-      set_amwp(1);                /* unpriv */
-      set_key(4);
+//      set_amwp(1);                /* unpriv */
+ //     set_key(4);
       set_reg( 1, 0x11223344);
       set_reg( 2, 0x00005670);
       set_mem( 0x5678, 0x12345678);
       set_mem_key(0x5600, 4);
-      set_mem(0x400, 0x58102008); /* l 1,0(2) */
-      test_inst(0x0);
+      set_mem(0x68,  0x00000000);
+      set_mem(0x6c,  0x00000420);
+      set_mem(0x400, 0x82000410); /* LPSW 410 */
+      set_mem(0x404, 0x58102008); /* l 1,0(2) */
+      set_mem(0x410, 0x00410000);  /* Wait PSW */
+      set_mem(0x414, 0x00000404);
+      test_io_inst(0x0);
       set_key(0);
       ASSERT_EQUAL_X(0x12345678, get_reg(1));
       ASSERT_FALSE(trap_flag);
+      ASSERT_EQUAL_X(0x408, get_pc());
   }
 
   /* Protection check. CPU zero, memory not zero */
   CTEST(instruct, prot_check5) {
       init_cpu();
-      set_amwp(1);                 /* unpriv */
-      set_key(4);
+  //    set_amwp(1);                 /* unpriv */
+   //   set_key(4);
       set_reg( 1, 0x11223344);
       set_reg( 2, 0x00005670);
       set_mem( 0x5678, 0x0);
       set_mem_key(0x5600, 4);
-      set_mem(0x400, 0x50102008); /* st 1,0(2) */
-      test_inst(0x0);
+      set_mem(0x68,  0x00000000);
+      set_mem(0x6c,  0x00000420);
+      set_mem(0x400, 0x82000410); /* LPSW 410 */
+      set_mem(0x404, 0x50102008); /* st 1,0(2) */
+      set_mem(0x410, 0x00410000);  /* Wait PSW */
+      set_mem(0x414, 0x00000404);
+      test_io_inst(0x0);
       set_key(0);
       ASSERT_EQUAL_X(0x11223344, get_mem(0x5678)); /* Make sure updated */
+      ASSERT_EQUAL_X(0x408, get_pc());
   }
 
   /* Test and set */
@@ -4060,6 +4115,7 @@ printf("Trap ex %d %d=%d\n", trap_flag, get_mem(0x28), test->ex);
       double ratio;
       int did = 0;
       srand(1);
+      init_cpu();
       for (i = 0; i < 100; i++) {
           f1 = randfloat(200);
           f2 = randfloat(200);
@@ -4379,6 +4435,7 @@ printf("Trap ex %d %d=%d\n", trap_flag, get_mem(0x28), test->ex);
       double ratio;
       int did = 0;
       srand(5);
+      init_cpu();
       for (i = 0; i < testcycles; i++) {
           f1 = randfloat(200);
           f2 = randfloat(200);

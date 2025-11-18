@@ -20,7 +20,7 @@
 
 
 if (RUN_TESTS)
-add_executable(dev_test dev_test.c test_chan.c test_device.c)
+add_executable(dev_test ctest_main.c dev_test.c test_chan.c test_device.c)
 if (WIN32)
 set_property(TARGET dev_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
 endif()

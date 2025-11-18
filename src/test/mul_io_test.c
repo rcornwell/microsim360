@@ -154,6 +154,17 @@ CTEST2(io_test2, stacked) {
      set_mem(0x4d0, 0);           /*        */
 
      test_io_inst(0);
+     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+     printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44), get_mem(0x700));
+     printf(" R0=%08x R1=%08x", get_reg(0), get_reg(1));
+     printf(" R2=%08x R3=%08x", get_reg(2), get_reg(3));
+     printf(" R4=%08x\n", get_reg(4));
+     printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
+              get_mem(0x60c), get_mem(0x610));
+     printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
+              get_mem(0x61c), get_mem(0x620));
+     printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
+              get_mem(0x62c), get_mem(0x630));
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xe0 + i, get_mem_b(0x600 + i));
           ASSERT_EQUAL_X(0xc0 + i, get_mem_b(0x700 + i));
@@ -284,8 +295,10 @@ CTEST2(io_test2, halt_io_mpx2) {
      set_mem(0x410, 0x50100048);  /* ST 1,48 */
      set_mem(0x414, 0x9c00000e);  /* SIO 0e */
      set_mem(0x418, 0x47700490);  /* BC  7,490 */
-     set_mem(0x41c, 0x82000458);  /* LPSW 458 */   /* Wait for second device to */
+     set_mem(0x41c, 0x82000428);  /* LPSW 428 */   /* Wait for second device to */
      set_mem(0x420, 0xffffffff);                   /* send some data */
+     set_mem(0x428, 0xff060000);  /* Wait device 2 */
+     set_mem(0x42c, 0x12000450);
      set_mem(0x430, 0x58400040);  /* L 4,40 */     /* Save PCI status */
      set_mem(0x434, 0x58500044);  /* L 5,44 */
      set_mem(0x438, 0x58600038);  /* L 6,38 */
@@ -296,9 +309,7 @@ CTEST2(io_test2, halt_io_mpx2) {
      set_mem(0x44c, 0x50100044);  /* ST 1,44 set CSW */
      set_mem(0x450, 0x50100038);  /* ST 1,38 set CSW */
      set_mem(0x454, 0x9e00000f);  /* HIO 00f */    /* Halt first device */
-     set_mem(0x458, 0x82000458);  /* LPSW 458 */
-     set_mem(0x45c, 0xff060000);  /* Wait device 2 */
-     set_mem(0x460, 0x12000450);
+     set_mem(0x458, 0x82000428);  /* LPSW 428 */
      set_mem(0x464, 0x58800040);  /* L 8,40 */     /* Save next status */
      set_mem(0x468, 0x58900044);  /* L 9,44 */
      set_mem(0x46c, 0x58a00038);  /* L 10,38 */
@@ -308,7 +319,7 @@ CTEST2(io_test2, halt_io_mpx2) {
      set_mem(0x47c, 0x50100040);  /* ST 1,40 set CSW */
      set_mem(0x480, 0x50100044);  /* ST 1,44 set CSW */
      set_mem(0x484, 0x50100038);  /* ST 1,38 set CSW */
-     set_mem(0x488, 0x82000458);  /* LPSW 458 */   /* Wait for second device to finish */
+     set_mem(0x488, 0x82000428);  /* LPSW 428 */   /* Wait for second device to finish */
      set_mem(0x48c, 0x58c00040);  /* L 12,40 */
      set_mem(0x490, 0x58d00044);  /* L 13,44 */
      set_mem(0x494, 0x58e00038);  /* L 14,38 */
@@ -336,13 +347,13 @@ CTEST2(io_test2, halt_io_mpx2) {
      ASSERT_EQUAL_X(0x04000000, get_reg(3));
      ASSERT_EQUAL_X(0x00000518, get_reg(4));
      ASSERT_EQUAL_X(0x00800000, get_reg(5) & 0xffbf0000);  /* Look at PCI */
-     ASSERT_EQUAL_X(0x8200000e, get_reg(6));
+     ASSERT_EQUAL_X(0xff06000e, get_reg(6));
      ASSERT_EQUAL_X(0x00000508, get_reg(8));
      ASSERT_EQUAL_X(0x08000000, get_reg(9));
-     ASSERT_EQUAL_X(0x8200000f, get_reg(10));
+     ASSERT_EQUAL_X(0xff06000f, get_reg(10));
      ASSERT_EQUAL_X(0x00000518, get_reg(12));
      ASSERT_EQUAL_X(0x08000000, get_reg(13));
-     ASSERT_EQUAL_X(0x8200000e, get_reg(14));
+     ASSERT_EQUAL_X(0xff06000e, get_reg(14));
 }
 
 CTEST_DATA(io_test3) {
