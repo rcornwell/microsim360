@@ -58,6 +58,23 @@
 #define     CMD_TIC       0x8                 /* Transfer in channel */
 #define     CMD_RDBWD     0xc                 /* Read backward */
 
+/* CCW flags */
+#define     CHAN_CD_FLAG   BIT0        /* Chain data */
+#define     CHAN_CC_FLAG   BIT1        /* Chain command */
+#define     CHAN_SLI_FLAG  BIT2        /* Supress length error */
+#define     CHAN_SKIP_FLAG BIT3        /* Don't transfer on read */
+#define     CHAN_PCI_FLAG  BIT4        /* Issue PCI interrupt after first transfer */
+
+/* Channel check flags */
+#define     CHAN_PCI       BIT0        /* PCI interrupt. */
+#define     CHAN_LENGTH    BIT1        /* Incorrect length */
+#define     CHAN_PROG      BIT2        /* Program check error */
+#define     CHAN_PROT      BIT3        /* Protection error */
+#define     CHAN_DATA      BIT4        /* Data check */
+#define     CHAN_CTRL      BIT5        /* Channel controller check */
+#define     CHAN_INTER     BIT6        /* Channel interface check */
+#define     CHAN_CHAIN     BIT7        /* Chaining check */
+
 
 /* Channel tag controls. */
 #define CHAN_SEL_OUT    0x8000        /* Channel select out signal */
