@@ -40,7 +40,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC model2030lib)
 
 
 if (RUN_TESTS)
-add_executable(inst2030_test test/ctest_main.c test/model2030_test.c
+add_executable(inst2030_test ../test/ctest_main.c test/model2030_test.c
            ../test/io_test.c ../test/sel_test.c ../test/mul_io_test.c ../test/test_device.c)
 target_link_libraries(inst2030_test model2030lib)
 target_link_libraries(inst2030_test devicelib)
@@ -52,7 +52,7 @@ if (UNIX)
 target_link_libraries(inst2030_test m)
 endif()
 add_custom_command(TARGET inst2030_test
-            COMMAND inst2030_test
+            COMMAND inst2030_test -v -d
             COMMENT "Test instructions for 2030"
             VERBATIM)
 target_include_directories(inst2030_test PRIVATE ${includes}
