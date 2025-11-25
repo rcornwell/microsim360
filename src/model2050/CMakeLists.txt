@@ -38,7 +38,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/im
 target_link_libraries(${PROJECT_NAME} PUBLIC model2050lib)
 
 if (RUN_TESTS)
-add_executable(inst2050_test test/ctest_main.c test/model2050_test.c
+add_executable(inst2050_test ../test/ctest_main.c test/model2050_test.c
                ../test/io_test.c ../test/sel_test.c ../test/mul_io_test.c ../test/test_device.c)
 if (WIN32)
 set_property(TARGET inst2050_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
@@ -50,7 +50,7 @@ if (UNIX)
 target_link_libraries(inst2050_test m)
 endif()
 add_custom_command(TARGET inst2050_test
-            COMMAND inst2050_test
+            COMMAND inst2050_test -v -d
             COMMENT "Test instructions for 2050"
             VERBATIM)
 target_include_directories(inst2050_test PRIVATE ${includes}

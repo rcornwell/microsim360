@@ -97,7 +97,7 @@ extern struct ROS_2050 {
 extern struct CPU_2050 {
 int         count;
 uint32_t    LS[64];             /* Local storage */
-uint32_t    BUMP[1024];         /* Bump storage */
+uint32_t    BUMP[4096];         /* Bump storage */
 uint8_t     MP[256];            /* Storage protection flags */
 uint8_t     mem_state;          /* Storage cycle state */
 

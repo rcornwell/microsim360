@@ -47,6 +47,7 @@
 
 extern uint64_t         step_count;
 extern int              testcycles;
+extern int              verbose;
 
 /* Set MASK */
 void set_mask(uint8_t mask);

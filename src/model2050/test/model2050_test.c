@@ -27,20 +27,95 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "ctest.h"
-#include "xlat.h"
+#include "device.h"
 #include "logger.h"
+#include "ctest.h"
 #include "cpu.h"
+#include "conf.h"
+#include "model2050.h"
+#include "xlat.h"
 #include "model_test.h"
 #include "test_device.h"
+
+
+int SYS_RST;
+int ROAR_RST;
+int START;
+int SET_IC;
+int CHECK_RST;
+int STOP;
+int INT_TMR;
+int STORE;
+int DISPLAY;
+int LAMP_TEST;
+int POWER;
+int INTR;
+int LOAD;
+int timer_event;
+uint32_t ADR_CMP;
+uint32_t INST_REP;
+uint32_t ROS_CMP;
+uint32_t ROS_REP;
+uint32_t SAR_CMP;
+uint32_t FORC_IND;
+uint32_t FLT_MODE;
+uint32_t CHN_MODE;
+uint8_t  SEL_SW;
+int      SEL_ENTER;
+uint8_t  A_SW;
+uint8_t  B_SW;
+uint8_t  C_SW;
+uint8_t  D_SW;
+uint8_t  E_SW;
+uint8_t  F_SW;
+uint8_t  G_SW;
+uint8_t  H_SW;
+uint8_t  J_SW;
+
+uint8_t  PROC_SW;
+uint8_t  RATE_SW;
+uint8_t  CHK_SW;
+uint8_t  MATCH_SW;
+uint8_t  STORE_SW;
+
+uint16_t end_of_e_cycle;
+uint16_t store;
+uint16_t allow_write;
+uint16_t match;
+uint16_t t_request;
+uint8_t  allow_man_operation;
+uint8_t  wait;
+uint8_t  test_mode;
+uint8_t  clock_start_lch;
+uint8_t  load_mode;
+
+int       verbose = 0;
+
+char     *test_log_file = "debug.log";
+char     *test_log_level = "info warn error trace itrace micro reg mem mpxchn selchn device";
+
+
+void
+init_tests()
+{
+    load_line("2050F");
+    RATE_SW = 1;
+}
+
+
+void
+setup_fp2050(void *rend)
+{
+}
 
 #define FTEST(a, b)   CTEST(a, b)
 #define DTEST(a, b)   CTEST(a, b)
 #define MTEST(a, b)   CTEST(a, b)
 
-uint64_t         step_count;
-int              testcycles = 100;
+uint64_t         step_count;         /** Current step number */
+int              testcycles = 100;   /** Number of test cycles for random tests */
+int              trap_flag;          /** Indicates if CPU traped */
+
 
 /* Set MASK */
 void set_mask(uint8_t mask)
@@ -58,6 +133,7 @@ uint8_t get_mask()
     return cpu_2050.MASK;
 }
 
+/* Set AMWP mask */
 void
 set_amwp(int n) {
    /* Set backup AMWP flags */
@@ -67,6 +143,7 @@ set_amwp(int n) {
    cpu_2050.AMWP = n;
 }
 
+/* Set storage Key */
 void
 set_key(int n) {
     cpu_2050.LS[0x17] = (cpu_2050.MASK << 24) | (n << 20);
@@ -249,6 +326,11 @@ randfloat(int powRange)
     return f;
 }
 
+/** Initialize CPU before testing.
+ *
+ * Issue reset to CPU wait for it to get to
+ * fetching first instruction.
+ */
 void
 init_cpu()
 {
@@ -256,7 +338,7 @@ init_cpu()
     CHK_SW = 2;
     RATE_SW = 1;
     PROC_SW = 1;
-        log_trace("Reset CPU\n");
+    log_trace("Reset CPU\n");
     do {
         cycle_2050();
     } while (cpu_2050.ROAR != 0x150);
@@ -266,8 +348,12 @@ init_cpu()
     set_mask(0);
 }
 
-int trap_flag;
-
+/** Test run of one instruction.
+ *
+ * Test running one instruction. Stop on fetch of next,
+ * attempt to execute 00 instruction. 
+ * Set trap flag if CPU traps
+ */
 void
 test_inst(int mask)
 {
@@ -296,20 +382,23 @@ test_inst(int mask)
 
 }
 
+/** Run several instructions.
+ *
+ * Run instructions until 00 opcode is executed.
+ * Set trap flag if CPU traps.
+ */
 void
 test_inst2()
 {
     int      max = 0;
-    int      count;
+    int      count = 0;
 
     cpu_2050.IA_REG = 0x400;
- //   cpu_2050.PMASK = 0;
     START = 1;
     cpu_2050.ROAR = 0x190;
     cpu_2050.REFETCH = 1;
     cpu_2050.mem_state = 0;
     trap_flag = 0;
-    count = 0;
     do {
         cycle_2050();
         step_count++;
@@ -326,6 +415,10 @@ test_inst2()
     } while (max < 1000);
 }
 
+/** Run CPU and channels until 00 instruction.
+ *
+ * Run CPU and channel devices, set trap flag if CPU traps.
+ */
 void
 test_io_inst(int mask)
 {
@@ -339,13 +432,6 @@ test_io_inst(int mask)
     cpu_2050.PMASK = (mask & 0xf);
     START = 1;
     trap_flag = 0;
-//    cpu_2050.ROAR = 0x190;
-//    cpu_2050.REFETCH = 1;
-//    for (i = 0; i < 4; i++) {
-//        cpu_2050.polling[i] = 1;
-//        cpu_2050.ROUTINE[i] = 0;
-//    }
- //   cpu_2050.mem_state = 0;
     log_trace("Test IO\n");
     do {
         cycle_2050();
@@ -369,26 +455,19 @@ test_io_inst(int mask)
     log_trace("Test IO Done\n");
 }
 
+/** Run I/O instruction for at most 20000 microcycles.
+ */
 void
 test_io_inst2()
 {
     int      max = 0;
-    int      count;
     device_t *dev;
     int      i;
     int      flag = 0;
 
     cpu_2050.IA_REG = 0x400;
     cpu_2050.PMASK = 0;
-//    cpu_2050.ROAR = 0x190;
-//    cpu_2050.REFETCH = 1;
-//    for (i = 0; i < 4; i++) {
-//        cpu_2050.polling[i] = 1;
-//        cpu_2050.ROUTINE[i] = 0;
-//    }
-//    cpu_2050.mem_state = 0;
     trap_flag = 0;
-    count = 0;
     do {
         cycle_2050();
         if (flag) {
