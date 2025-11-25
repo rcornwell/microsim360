@@ -1245,7 +1245,6 @@
       set_mem(0x1200, 0);          /* Clear branch location */
       test_inst(0x0);
       log_trace("IAR = %08x\n", IAR);
-      printf("IAR = %08x\n", IAR);
       ASSERT_EQUAL_X(0x12345677, get_reg(1));
       ASSERT_EQUAL_X(0x1200, IAR); /* Branch taken */
   }
@@ -3745,9 +3744,7 @@ struct _dec_case {
                }
           }
           result[i] = '\0';
-printf("DEC %x %s , %s => %s\n", test->op, test->i1, test->i2, result);
           if (test->ex) {
-printf("Trap ex %d %d=%d\n", trap_flag, get_mem(0x28), test->ex);
               ASSERT_TRUE(trap_flag);
               ASSERT_EQUAL_X(test->ex, get_mem(0x28) & 0xffff);
           } else {

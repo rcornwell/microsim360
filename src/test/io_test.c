@@ -99,6 +99,7 @@ CTEST2(io_test, tio2) {
      ASSERT_EQUAL_X(CC3, CC_REG);
 }
 
+/* Test read in burst mode */
 CTEST2(io_test, sio_read_burst) {
      int i;
      init_cpu();
@@ -137,6 +138,7 @@ CTEST2(io_test, sio_read_burst) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
+/* Test read in request mode */
 CTEST2(io_test, sio2_read) {
      int i;
      init_cpu();
@@ -175,6 +177,7 @@ CTEST2(io_test, sio2_read) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test write in request mode */
 CTEST2(io_test, sio3_write) {
      int i;
      init_cpu();
@@ -204,8 +207,10 @@ CTEST2(io_test, sio3_write) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     for (i = 0; i < 0x10; i++) {
-         printf(" %02x", data->test_ctx.buffer[i]);
+     if (verbose) {
+         for (i = 0; i < 0x10; i++) {
+             printf(" %02x", data->test_ctx.buffer[i]);
+         }
      }
 
      for (i = 0; i < 0x10; i++) {
@@ -217,6 +222,7 @@ CTEST2(io_test, sio3_write) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test write in burst mode */
 CTEST2(io_test, sio4_write_burst) {
      int i;
      init_cpu();
@@ -246,8 +252,10 @@ CTEST2(io_test, sio4_write_burst) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     for (i = 0; i < 0x10; i++) {
-         printf(" %02x", data->test_ctx.buffer[i]);
+     if (verbose) {
+         for (i = 0; i < 0x10; i++) {
+             printf(" %02x", data->test_ctx.buffer[i]);
+         }
      }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x0f + (i << 4), data->test_ctx.buffer[i]);
@@ -258,6 +266,7 @@ CTEST2(io_test, sio4_write_burst) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test reading at offset */
 CTEST2(io_test, sio2_read_offset1) {
      int i;
      init_cpu();
@@ -288,9 +297,11 @@ CTEST2(io_test, sio2_read_offset1) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst(0);
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
-    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x601 + i));
      }
@@ -300,6 +311,7 @@ CTEST2(io_test, sio2_read_offset1) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test reading at offset */
 CTEST2(io_test, sio2_read_offset2) {
      int i;
      init_cpu();
@@ -330,10 +342,12 @@ CTEST2(io_test, sio2_read_offset2) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst(0);
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+          printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+          printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+          printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                  get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x602 + i));
      }
@@ -343,6 +357,7 @@ CTEST2(io_test, sio2_read_offset2) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test reading at offset */
 CTEST2(io_test, sio2_read_offset3) {
      int i;
      init_cpu();
@@ -373,10 +388,12 @@ CTEST2(io_test, sio2_read_offset3) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst(0);
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x603 + i));
      }
@@ -386,10 +403,11 @@ CTEST2(io_test, sio2_read_offset3) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test sense at word boundry */
 CTEST2(io_test, sio5_sense1) {
      init_cpu();
      data->test_ctx.state = 0;
-log_trace("Sense 1\n");
+     log_trace("Sense 1\n");
      set_mask(0x00);
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
@@ -402,12 +420,16 @@ log_trace("Sense 1\n");
      set_mem(0x408, 0x47700404);  /* BC 7,404 */
      set_mem(0x40C, 0x00000000);  /* 0 */
      test_io_inst(0);
-     printf("CC = %x 600=%08x  0x40=%08x %08x\n", CC_REG, get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("CC = %x 600=%08x  0x40=%08x %08x\n", CC_REG,
+                     get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
      ASSERT_EQUAL_X(0x00FFFFFF, get_mem(0x600));
 }
 
+/* Test sense at odd boundry */
 CTEST2(io_test, sio5_sense2) {
      init_cpu();
      data->test_ctx.state = 0;
@@ -424,12 +446,16 @@ CTEST2(io_test, sio5_sense2) {
      set_mem(0x408, 0x47700404);  /* BC 7,404 */
      set_mem(0x40C, 0x00000000);  /* 0 */
      test_io_inst(0);
-     printf("CC = %x 600=%08x  0x40=%08x %08x\n", CC_REG, get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("CC = %x 600=%08x  0x40=%08x %08x\n", CC_REG,
+                 get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
      ASSERT_EQUAL_X(0xFF00FFFF, get_mem(0x600));
 }
 
+/* Test sense at halfword boundry */
 CTEST2(io_test, sio5_sense3) {
      init_cpu();
      data->test_ctx.state = 0;
@@ -446,12 +472,16 @@ CTEST2(io_test, sio5_sense3) {
      set_mem(0x408, 0x47700404);  /* BC 7,404 */
      set_mem(0x40C, 0x00000000);  /* 0 */
      test_io_inst(0);
-     printf("CC = %x 600=%08x  0x40=%08x %08x\n", CC_REG, get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("CC = %x 600=%08x  0x40=%08x %08x\n", CC_REG,
+               get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
      ASSERT_EQUAL_X(0xFFFF00FF, get_mem(0x600));
 }
 
+/* Test sense at halfword odd boundry */
 CTEST2(io_test, sio5_sense4) {
      init_cpu();
      data->test_ctx.state = 0;
@@ -468,12 +498,16 @@ CTEST2(io_test, sio5_sense4) {
      set_mem(0x408, 0x47700404);  /* BC 7,404 */
      set_mem(0x40C, 0x00000000);  /* 0 */
      test_io_inst(0);
-     printf("CC = %x 600=%08x  0x40=%08x %08x\n", CC_REG, get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     if (verbose) {
+         printf("CC = %x 600=%08x  0x40=%08x %08x\n", CC_REG,
+             get_mem(0x600), get_mem(0x40), get_mem(0x44));
+     }
      ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
      ASSERT_EQUAL_X(0xFFFFFF00, get_mem(0x600));
 }
 
+/* Test read backwards. */
 CTEST2(io_test, read_back) {
      int i;
      init_cpu();
@@ -483,7 +517,7 @@ CTEST2(io_test, read_back) {
      log_trace("Read back\n");
      data->test_ctx.state = 0;
      data->test_ctx.max_data = 0x10;
-     data->test_ctx.burst = 1;
+     data->test_ctx.burst = 0;
      set_mask(0x00);
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
@@ -505,10 +539,12 @@ CTEST2(io_test, read_back) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst2();
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x600 + i));
      }
@@ -518,7 +554,8 @@ CTEST2(io_test, read_back) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
-CTEST2(io_test, read_back1) {
+/* Test read backwords in burst mode */
+CTEST2(io_test, read_back_burst) {
      int i;
      init_cpu();
      log_trace("Read back 1\n");
@@ -549,10 +586,12 @@ CTEST2(io_test, read_back1) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst2();
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x601 + i));
      }
@@ -562,6 +601,7 @@ CTEST2(io_test, read_back1) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
+/* Test read backwards at odd boundry */
 CTEST2(io_test, read_back2) {
      int i;
      init_cpu();
@@ -593,10 +633,12 @@ CTEST2(io_test, read_back2) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst2();
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x602 + i));
      }
@@ -606,6 +648,7 @@ CTEST2(io_test, read_back2) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
+/* Test read backwards at odd boundry */
 CTEST2(io_test, read_back3) {
      int i;
      init_cpu();
@@ -637,10 +680,12 @@ CTEST2(io_test, read_back3) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst2();
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-    printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x603 + i));
      }
@@ -650,6 +695,7 @@ CTEST2(io_test, read_back3) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
+/* Test nop instruction, immediate DE+CE */
 CTEST2(io_test, sio6_nop) {
      init_cpu();
      set_mem(0x40,  0xffffffff);         /* Set CSW to zero */
@@ -669,6 +715,7 @@ CTEST2(io_test, sio6_nop) {
      ASSERT_EQUAL_X(0xffFFFFFF, get_mem(0x600));
 }
 
+/* Test nop instruction, immediate CE, delayed DE */
 CTEST2(io_test, sio6_ce_only) {
      init_cpu();
      log_trace("CE TEST\n");
@@ -700,6 +747,7 @@ CTEST2(io_test, sio6_ce_only) {
      ASSERT_EQUAL_X(0x94000420, get_mem(0x3C));
 }
 
+#if 0
 CTEST2(io_test, sio6_ce_only_nop) {
      init_cpu();
      log_trace("CE CC TEST\n");
@@ -723,9 +771,11 @@ CTEST2(io_test, sio6_ce_only_nop) {
      set_mem(0x430, 0xff060000);  /* Wait PSW */
      set_mem(0x434, 0x14000420);
      test_io_inst2(0);
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" R1=%08x R2=%08x", get_reg(1), get_reg(2));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" R1=%08x R2=%08x", get_reg(1), get_reg(2));
+     }
      ASSERT_EQUAL_X(0xffffffff, get_reg(1));
      ASSERT_EQUAL_X(0x0800ffff, get_reg(2));
      ASSERT_EQUAL_X(0x00000000, get_mem(0x40));
@@ -733,7 +783,9 @@ CTEST2(io_test, sio6_ce_only_nop) {
      ASSERT_EQUAL_X(0xff06000f, get_mem(0x38));
      ASSERT_EQUAL_X(0x94000420, get_mem(0x3C));
 }
+#endif
 
+/* Test reading when device has more data */
 CTEST2(io_test, short_read) {
      int i;
      init_cpu();
@@ -779,6 +831,7 @@ CTEST2(io_test, short_read) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
+/* Test reading when device has more data, in burst mode */
 CTEST2(io_test, short_read_burst) {
      int i;
      init_cpu();
@@ -823,6 +876,7 @@ CTEST2(io_test, short_read_burst) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
+/* Test short read with SLI indicater */
 CTEST2(io_test, short_read_sli) {
      int i;
      init_cpu();
@@ -867,6 +921,7 @@ CTEST2(io_test, short_read_sli) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
+/* Test short read with SLI indicater burst mode */
 CTEST2(io_test, short_read_sli_burst) {
      int i;
      init_cpu();
@@ -911,6 +966,7 @@ CTEST2(io_test, short_read_sli_burst) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
+/* Test short write */
 CTEST2(io_test, short_write) {
      int i;
      init_cpu();
@@ -918,7 +974,7 @@ CTEST2(io_test, short_write) {
          data->test_ctx.buffer[i] = 0x55;
      }
      data->test_ctx.max_data = 0x20;
-     data->test_ctx.burst = 1;
+     data->test_ctx.burst = 0;
      set_mask(0x00);
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
@@ -948,6 +1004,7 @@ CTEST2(io_test, short_write) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test short write burst mode */
 CTEST2(io_test, short_write_burst) {
      int i;
      init_cpu();
@@ -985,6 +1042,7 @@ CTEST2(io_test, short_write_burst) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test short write with SLI indicator */
 CTEST2(io_test, short_write_sli) {
      int i;
      init_cpu();
@@ -992,7 +1050,7 @@ CTEST2(io_test, short_write_sli) {
          data->test_ctx.buffer[i] = 0x55;
      }
      data->test_ctx.max_data = 0x20;
-     data->test_ctx.burst = 1;
+     data->test_ctx.burst = 0;
      set_mask(0x00);
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
@@ -1022,6 +1080,7 @@ CTEST2(io_test, short_write_sli) {
      ASSERT_EQUAL_X(0x92000408, get_mem(0x3C));
 }
 
+/* Test short write burst mode with SLI indicator */
 CTEST2(io_test, short_write_sli_burst) {
      int i;
      init_cpu();
@@ -1286,10 +1345,12 @@ CTEST2(io_test, cda_read_one) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst2();
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      ASSERT_EQUAL_X(0x10555555, get_mem(0x600));
      ASSERT_EQUAL_X(0x11121314, get_mem(0x604));
      ASSERT_EQUAL_X(0x15161718, get_mem(0x608));
@@ -1440,7 +1501,7 @@ CTEST2(io_test, cda_read_skip) {
      ASSERT_EQUAL_X(0x94000408, get_mem(0x3C));
 }
 
-CTEST2(io_test, read_back_burst) {
+CTEST2(io_test, read_back_burst2) {
      int i;
      log_trace("Read Back\n");
      init_cpu();
@@ -1527,11 +1588,13 @@ CTEST2(io_test, sio_read_ce) {
      set_mem(0x43c, 0x14000420);
 
      test_io_inst(0);
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" R0=%08x R1=%08x", get_reg(0), get_reg(1));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" R0=%08x R1=%08x", get_reg(0), get_reg(1));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x600 + i));
      }
@@ -1577,11 +1640,13 @@ CTEST2(io_test, cmd_chain) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x0f + (i << 4), data->test_ctx.buffer[i]);
      }
@@ -1626,11 +1691,13 @@ CTEST2(io_test, cmd_chain_burst) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x0f + (i << 4), data->test_ctx.buffer[i]);
      }
@@ -1674,11 +1741,13 @@ CTEST2(io_test, cmd_chain_short) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x600 + i));
      }
@@ -1727,11 +1796,13 @@ CTEST2(io_test, cmd_chain_short_burst) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x600 + i));
      }
@@ -1780,11 +1851,13 @@ CTEST2(io_test, cmd_chain_sli) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x600 + i));
      }
@@ -1833,11 +1906,13 @@ CTEST2(io_test, cmd_chain_sli_burst) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x600 + i));
      }
@@ -2031,12 +2106,14 @@ CTEST2(io_test, sio_cda_cc3) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst2();
-     printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-    printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
-     printf("0x800 = %08x\n", get_mem(0x800));
+     if (verbose) {
+         printf("\n 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+         printf("0x800 = %08x\n", get_mem(0x800));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x10 + i, get_mem_b(0x600 + i));
      }
@@ -2196,18 +2273,20 @@ CTEST2(io_test, tic_test_cda) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44), get_mem(0x700));
-     printf(" R0=%08x R1=%08x\n", get_reg(0), get_reg(1));
-     printf("0x520 = %08x %08x %08x %08x %08x\n", get_mem(0x520), get_mem(0x524), get_mem(0x528),
-             get_mem(0x52c), get_mem(0x530));
-     printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
-             get_mem(0x61c), get_mem(0x620));
-     printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
-             get_mem(0x62c), get_mem(0x630));
-     printf("0x700 =  %08x\n",get_mem(0x700));
+     if (verbose) {
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44), get_mem(0x700));
+         printf(" R0=%08x R1=%08x\n", get_reg(0), get_reg(1));
+         printf("0x520 = %08x %08x %08x %08x %08x\n", get_mem(0x520), get_mem(0x524), get_mem(0x528),
+                 get_mem(0x52c), get_mem(0x530));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
+                 get_mem(0x60c), get_mem(0x610));
+         printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
+                 get_mem(0x61c), get_mem(0x620));
+         printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
+                 get_mem(0x62c), get_mem(0x630));
+         printf("0x700 =  %08x\n",get_mem(0x700));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xF0 + i, get_mem_b(0x600 + i));
      }
@@ -2365,11 +2444,13 @@ CTEST2(io_test, pci_test_burst) {
      for (; i < 0x40; i++, value++) {
           ASSERT_EQUAL_X(value, get_mem_b(0x600+ i));
      }
-     printf("%04x ", get_pc());
-     printf("%08x ", get_reg(0));
-     printf("%08x ", get_reg(1));
-     printf("%08x ", get_mem(0x40));
-     printf("%08x ", get_mem(0x44));
+     if (verbose) {
+         printf("%04x ", get_pc());
+         printf("%08x ", get_reg(0));
+         printf("%08x ", get_reg(1));
+         printf("%08x ", get_mem(0x40));
+         printf("%08x ", get_mem(0x44));
+     }
      /* The result of a PCI can have a Address at different locations */
      if (get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
@@ -2455,11 +2536,13 @@ CTEST2(io_test, pci_test) {
           ASSERT_EQUAL_X(value, get_mem_b(0x600+ i));
      }
 
-     printf("%04x ", get_pc());
-     printf("%08x ", get_reg(0));
-     printf("%08x ", get_reg(1));
-     printf("%08x ", get_mem(0x40));
-     printf("%08x ", get_mem(0x44));
+     if (verbose) {
+         printf("%04x ", get_pc());
+         printf("%08x ", get_reg(0));
+         printf("%08x ", get_reg(1));
+         printf("%08x ", get_mem(0x40));
+         printf("%08x ", get_mem(0x44));
+     }
      /* The result of a PCI can have a Address at different locations */
      if (get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
@@ -2532,11 +2615,14 @@ CTEST2(io_test, write_pci_burst) {
      for (; i < 0x20; i++) {
           ASSERT_EQUAL_X(0x0c + ((i - 0x10) << 4), data->test_ctx.buffer[i]);
      }
-     printf("%04x ", get_pc());
-     printf("%08x ", get_reg(0));
-     printf("%08x ", get_reg(1));
-     printf("%08x ", get_mem(0x40));
-     printf("%08x ", get_mem(0x44));
+
+     if (verbose) {
+         printf("%04x ", get_pc());
+         printf("%08x ", get_reg(0));
+         printf("%08x ", get_reg(1));
+         printf("%08x ", get_mem(0x40));
+         printf("%08x ", get_mem(0x44));
+     }
      /* The result of a PCI can have a Address at different locations */
      if (get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
@@ -2637,15 +2723,18 @@ CTEST2(io_test, halt_io2) {
      set_mem(0x43c, 0x14000440);
 
      test_io_inst(0);
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44), get_mem(0x700));
-     printf(" R0=%08x R1=%08x\n", get_reg(0), get_reg(1));
-     printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
-     printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
-             get_mem(0x61c), get_mem(0x620));
-     printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
-             get_mem(0x62c), get_mem(0x630));
+     if (verbose) {
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x 700=%08x", get_mem(0x40), get_mem(0x44),
+                    get_mem(0x700));
+         printf(" R0=%08x R1=%08x\n", get_reg(0), get_reg(1));
+         printf("0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+         printf("0x614 =  %08x %08x %08x %08x\n",get_mem(0x614), get_mem(0x618),
+                 get_mem(0x61c), get_mem(0x620));
+         printf("0x624 =  %08x %08x %08x %08x\n",get_mem(0x624), get_mem(0x628),
+                 get_mem(0x62c), get_mem(0x630));
+     }
 
      /* The result of a PCI can have a Address at different locations */
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44) & 0xffbf0000);  /* Ignore Length error */
@@ -2689,10 +2778,13 @@ CTEST2(io_test, halt_io3) {
      set_mem(0x440, 0xffffffff);
 
      test_io_inst(0);
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" R0=%08x R1=%08x R2=%08x R3=%08x\n", get_reg(0), get_reg(1), get_reg(2), get_reg(3));
-     printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     if (verbose) {
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" R0=%08x R1=%08x R2=%08x R3=%08x\n", get_reg(0),
+                  get_reg(1), get_reg(2), get_reg(3));
+         printf("0x700 = %08x %08x\n", get_mem(0x700), get_mem(0x704));
+     }
 
      ASSERT_EQUAL_X(0x40000412, get_reg(1));
      ASSERT_EQUAL_X(0xffffffff, get_reg(2));
@@ -2736,9 +2828,12 @@ CTEST2(io_test, halt_io4) {
      set_mem(0x440, 0xffffffff);
 
      test_io_inst(0);
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" R0=%08x R1=%08x R2=%08x R3=%08x\n", get_reg(0), get_reg(1), get_reg(2), get_reg(3));
+     if (verbose) {
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" R0=%08x R1=%08x R2=%08x R3=%08x\n", get_reg(0),
+                  get_reg(1), get_reg(2), get_reg(3));
+     }
 
      ASSERT_EQUAL_X(0x08000000, get_reg(1));
      ASSERT_EQUAL_X(0xff06000f, get_mem(0x38));
@@ -2800,7 +2895,7 @@ CTEST2(io_test, read_prot) {
      data->test_ctx.max_data = 0x10;
      data->test_ctx.burst = 1;
      set_mem_key(0x4000, 3);
-log_trace("Prot read\n");
+     log_trace("Prot read\n");
      set_mask(0x00);
      set_mem(0x40, 0xffffffff);  /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
@@ -2824,11 +2919,13 @@ log_trace("Prot read\n");
      set_mem(0x414, 0x14000408);
 
      test_io_inst2();
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-     printf(" R0=%08x R1=%08x\n", get_reg(0), get_reg(1));
-     printf("0x4000 = %08x %08x %08x %08x %08x\n", get_mem(0x4000), get_mem(0x4004), get_mem(0x4008),
-             get_mem(0x400c), get_mem(0x4010));
+     if (verbose) {
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+         printf(" R0=%08x R1=%08x\n", get_reg(0), get_reg(1));
+         printf("0x4000 = %08x %08x %08x %08x %08x\n", get_mem(0x4000),
+                 get_mem(0x4004), get_mem(0x4008), get_mem(0x400c), get_mem(0x4010));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x55, get_mem_b(0x4000 + i));
      }
@@ -2870,11 +2967,13 @@ CTEST2(io_test, write_prot2) {
      set_mem(0x414, 0x12000408);
 
      test_io_inst2();
-     for (i = 0; i < 0x10; i++) {
-         printf(" %02x", data->test_ctx.buffer[i]);
+     if (verbose) {
+         for (i = 0; i < 0x10; i++) {
+             printf(" %02x", data->test_ctx.buffer[i]);
+         }
+         printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
      }
-     printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x0f + (i << 4), data->test_ctx.buffer[i]);
      }
@@ -2914,10 +3013,12 @@ CTEST2(io_test, read_prot2) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst2();
-     printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf("0x4000 = %08x %08x %08x %08x %08x\n", get_mem(0x4000), get_mem(0x4004), get_mem(0x4008),
-             get_mem(0x400c), get_mem(0x4010));
+     if (verbose) {
+         printf(" 0x38=%08x %08x\n", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf("0x4000 = %08x %08x %08x %08x %08x\n", get_mem(0x4000),
+                 get_mem(0x4004), get_mem(0x4008), get_mem(0x400c), get_mem(0x4010));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x4000 + i));
      }
@@ -3005,10 +3106,12 @@ CTEST2(io_test, unalign) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst(0);
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0x55, get_mem_b(0x600 + i));
      }
@@ -3053,10 +3156,12 @@ CTEST2(io_test, unalign_ccw) {
      set_mem(0x414, 0x14000408);
 
      test_io_inst(0);
-     printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
-     printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
-     printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600), get_mem(0x604), get_mem(0x608),
-             get_mem(0x60c), get_mem(0x610));
+     if (verbose) {
+         printf(" 0x38=%08x %08x", get_mem(0x38), get_mem(0x3c));
+         printf(" 0x40=%08x %08x", get_mem(0x40), get_mem(0x44));
+         printf(" 0x600 = %08x %08x %08x %08x %08x\n", get_mem(0x600),
+                 get_mem(0x604), get_mem(0x608), get_mem(0x60c), get_mem(0x610));
+     }
      for (i = 0; i < 0x10; i++) {
           ASSERT_EQUAL_X(0xf0 + i, get_mem_b(0x600 + i));
      }

@@ -280,7 +280,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                 ctx->busy, ctx->cmd_done, ctx->delay, ctx->cmd, ctx->status);
             /* If operation out, reset device */
             if ((*tags & CHAN_OPR_OUT) == 0) {
-                            log_device("test: %03x oper dropped\n",unit->addr);
+                log_device("test: %03x oper dropped\n",unit->addr);
                 break;
             }
 
@@ -292,11 +292,10 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                 break;
             }
 
-        print_tags("Test", ctx->state, *tags, bus_out);
             /* If we have request and suppress out is down, post request */
             if (unit->request || unit->stacked) {
-                            log_device("test: %03x port request\n",unit->addr);
-                if ((*tags & CHAN_SUP_OUT) == 0) {
+                log_device("test: %03x port request\n",unit->addr);
+                if ((*tags & (CHAN_SUP_OUT|CHAN_ADR_OUT)) == 0) {
                     *tags |= CHAN_REQ_IN;
                 } else {
                     *tags &= ~CHAN_REQ_IN;
@@ -497,7 +496,7 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
 
     /* On busy, wait for channel to drop select out */
     case STATE_BUSY:
-             *bus_in = ctx->status | odd_parity[ctx->status];
+             *bus_in = SNS_BSY | odd_parity[SNS_BSY];
              if ((*tags & CHAN_SEL_OUT) == 0) {
                  *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);
                  unit->selected = 0;
@@ -506,13 +505,17 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
                  if ((*tags & CHAN_ADR_OUT) != 0) {
                      log_device("test: %03x Halt IO\n",unit->addr);
                      if (ctx->data_end == 0) {
-                     ctx->data_end = 1;
-                     ctx->status |= SNS_CHNEND;
+                         ctx->data_rdy = 0;
+                         ctx->data_end = 1;
+                         ctx->status |= SNS_CHNEND;
+                         if ((ctx->cmd & 0x10) != 0) {
+                            ctx->delay = 1000;
+                         } else {
+                            ctx->status |= SNS_DEVEND;
+                            ctx->cmd_done = 1;
+                         }
+                         unit->request = 1;
                      }
-                     ctx->data_rdy = 0;
-                     unit->request = 0;
-                     ctx->state = STATE_IDLE;
-                     break;
                  }
              }
              *tags &= ~(CHAN_SEL_OUT);
@@ -610,10 +613,16 @@ test_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_i
              /* If address out, halt device */
              if ((*tags & CHAN_ADR_OUT) != 0) {
                  ctx->data_end = 1;
+                 ctx->data_rdy = 0;
                  ctx->status |= SNS_CHNEND;
                  *tags &= ~(CHAN_OPR_IN);
                  unit->selected = 0;
-                 ctx->state = STATE_IDLE;
+                 if ((ctx->cmd & 0x10) != 0) {
+                    ctx->delay = 1000;
+                    ctx->state = STATE_END_STATUS;
+                 } else {
+                    ctx->state = STATE_IDLE;
+                 }
                  break;
              }
 

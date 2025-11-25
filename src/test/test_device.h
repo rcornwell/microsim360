@@ -35,7 +35,7 @@ struct _test_context {
     int                    sense[SENSE_MAX];  /* Current sense value */
     int                    sense_cnt;         /* Sense counter */
     int                    cmd;               /* Current command */
-    int                    cmd_done;          /* Command finished */
+    int                    cmd_done;          /* Command finished, per device */
     int                    chaining;          /* Command chaining */
     int                    busy;              /* Device in operation */
     int                    status;            /* Current bus status */
