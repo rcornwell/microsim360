@@ -133,6 +133,9 @@ int stack_card(struct card_context *card_ctx, uint16_t (*image)[80]);
 /* Save deck on file */
 int save_deck(struct card_context *card_ctx, char *file_name);
 
+/* Close file */
+int close_deck(struct card_context *card_ctx);
+
 /* Initialize a card reader context */
 struct card_context *init_card_context();
 

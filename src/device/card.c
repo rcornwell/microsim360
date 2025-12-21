@@ -533,7 +533,7 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
     default:
     case MODE_TEXT:
         /* Scan each column */
-        log_card_s("text: [");
+        log_card_s("punch text: [");
         for (i = 0; i < 80; i++, outp++) {
             out[outp] = hol_to_ascii_table[(*image)[i]];
             if (out[outp] == 0xff) {
@@ -549,7 +549,7 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
         break;
 
     case MODE_OCTAL:
-        log_card_s("octal: [");
+        log_card_s("punch octal: [");
         out[outp++] = '~';
         for (i = 79; i >= 0; i--) {
             if ((*image)[i] != 0)
@@ -594,7 +594,7 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
 
 
     case MODE_BIN:
-        log_card( "bin\n");
+        log_card( "punch bin\n");
         for (i = 0; i < 80; i++) {
             uint16_t      col = (*image)[i];
             out[outp++] = (col & 0x00f) << 4;
@@ -603,7 +603,7 @@ _punch_card(struct card_context *card_ctx, uint16_t (*image)[80])
         break;
 
     case MODE_EBCDIC:
-        log_card( "ebcdic\n");
+        log_card( "punch ebcdic\n");
         /* Fill buffer */
         for (i = 0; i < 80; i++, outp++) {
             uint16_t      col = (*image)[i];
@@ -840,6 +840,23 @@ save_deck(struct card_context *card_ctx, char *file_name)
         _punch_card(card_ctx, &(*card_ctx->images)[card_ctx->hopper_pos]);
     }
     fflush(card_ctx->file);
+	return 0;
+}
+
+/*
+ * Close card file.
+ */
+int
+close_deck(struct card_context *card_ctx)
+{
+    if (card_ctx->file) {
+        fflush(card_ctx->file);
+        fclose(card_ctx->file);
+        card_ctx->file = NULL;
+    }
+    free(card_ctx->file_name);
+    card_ctx->file_name = NULL;
+
 	return 0;
 }
 
