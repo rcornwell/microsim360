@@ -118,6 +118,7 @@ start_io(uint8_t device, uint16_t caw, int sel, int halt)
 {
     int         chan_clk = 0;
     int         dly = 50;
+    int         chan_end;
     device_t    *dev;
     uint8_t     cmd;
     uint32_t    word;
@@ -138,6 +139,7 @@ start_io(uint8_t device, uint16_t caw, int sel, int halt)
     cmd_addr += 8;
     tags = CHAN_OPR_OUT;
     opr = (cmd & 1) | ((!(cmd & 1)) << 2);
+    chan_end = 0;
     if ((cmd & 0xf) == 0xc) {
         opr |= 2;
     }
@@ -254,7 +256,7 @@ start_io(uint8_t device, uint16_t caw, int sel, int halt)
                      chan_clk = 19;
                      break;
                  }
-                 /* On device end, either return, of chain */
+                 /* On device end, either return, or chain */
                  if ((status & (SNS_DEVEND)) != 0) {
                      tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                      if ((flags & 0x40) == 0) {  /* Check if command chain */
@@ -268,15 +270,16 @@ start_io(uint8_t device, uint16_t caw, int sel, int halt)
                      break;
                  }
 
-                 /* On channel end, either return, of chain */
+                 /* On channel end, either return or wait if chaining */
                  if ((status & (SNS_CHNEND)) != 0) {
+                     chan_end = 1;
                      if ((flags & 0x40) == 0) {  /* Check if command chain */
                          tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                          set_mem(0x40, cmd_addr);
                          set_mem(0x44, ((status & 0xff) << 24) | ((flags & 1) << 22)| data_cnt);
-                     status &= 0xff;
-                     chan_clk = 19;
-                     break;
+                         status &= 0xff;
+                         chan_clk = 19;
+                         break;
                      }
                      opr = 0;
                      if (!sel) {  /* Hold select out up until final status */
@@ -291,6 +294,9 @@ start_io(uint8_t device, uint16_t caw, int sel, int halt)
                  /* If oper in drops, go to polling mode */
                  if ((tags_in & CHAN_OPR_IN) == 0) {
                      tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT);
+                     if (sel == 0) {
+                        tags &= ~(CHAN_SUP_OUT);
+                     }
                      chan_clk = 9;
                      break;
                  }
@@ -366,7 +372,7 @@ start_io(uint8_t device, uint16_t caw, int sel, int halt)
                      break;
                  }
                  tags &= ~(CHAN_SRV_OUT|CHAN_CMD_OUT); /* Acknowlege data */
-                 if (data_cnt != 0 && (flags & 0x20) == 0) {
+                 if (chan_end == 0 && data_cnt != 0 && (flags & 0x20) == 0) {
                      flags |= 1;
                  }
 
@@ -421,7 +427,6 @@ start_io(uint8_t device, uint16_t caw, int sel, int halt)
                      if (!sel) {  /* Hold select out up until final status */
                          tags &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
                      }
-                     tags |= CHAN_SUP_OUT;
                      opr = 0;
                      chan_clk = 6;  /* Go wait final status */
                  }
@@ -752,7 +757,7 @@ wait_dev(uint8_t  device)
                  }
                  /* Check for status in */
                  if ((tags_in & CHAN_STA_IN) != 0) {
-                    status = bus_in;
+                    status = bus_in & 0xff;
                     tags |= CHAN_SRV_OUT; /* Acknowlege it */
                     chan_clk = 8;  /* Go validate status */
                  }

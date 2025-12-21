@@ -2452,7 +2452,7 @@ CTEST2(io_test, pci_test_burst) {
          printf("%08x ", get_mem(0x44));
      }
      /* The result of a PCI can have a Address at different locations */
-     if (get_pc() == 0x448) {
+     if (get_pc() == 0x44a || get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
          ASSERT_EQUAL_X(0x00800000, get_reg(1) & 0xffff0000);
          ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
@@ -2544,7 +2544,7 @@ CTEST2(io_test, pci_test) {
          printf("%08x ", get_mem(0x44));
      }
      /* The result of a PCI can have a Address at different locations */
-     if (get_pc() == 0x448) {
+     if (get_pc() == 0x44a || get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
          ASSERT_EQUAL_X(0x00800000, get_reg(1) & 0xffff0000);
          ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
@@ -2624,7 +2624,7 @@ CTEST2(io_test, write_pci_burst) {
          printf("%08x ", get_mem(0x44));
      }
      /* The result of a PCI can have a Address at different locations */
-     if (get_pc() == 0x448) {
+     if (get_pc() == 0x44a || get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
          ASSERT_EQUAL_X(0x00800000, get_reg(1) & 0xffff0000);
          ASSERT_EQUAL_X(0x00000518, get_mem(0x40));

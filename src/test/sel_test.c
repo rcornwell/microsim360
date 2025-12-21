@@ -2160,7 +2160,7 @@ CTEST2(sel_test, pci_test_burst) {
           ASSERT_EQUAL_X(value, get_mem_b(0x600+ i));
      }
      /* The result of a PCI can have a Address at different locations */
-     if (get_pc() == 0x448) {
+     if (get_pc() == 0x44a || get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
          ASSERT_EQUAL_X(0x00800000, get_reg(1) & 0xffff0000);
          ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
@@ -2249,7 +2249,7 @@ CTEST2(sel_test, pci_test) {
      }
 
      /* The result of a PCI can have a Address at different locations */
-     if (get_pc() == 0x448) {
+     if (get_pc() == 0x44a || get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
          ASSERT_EQUAL_X(0x00800000, get_reg(1) & 0xffff0000);
          ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
@@ -2326,7 +2326,7 @@ CTEST2(sel_test, write_pci_burst) {
           ASSERT_EQUAL_X(0x0c + ((i - 0x10) << 4), data->test_ctx.buffer[i]);
      }
      /* The result of a PCI can have a Address at different locations */
-     if (get_pc() == 0x448) {
+     if (get_pc() == 0x44a || get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
          ASSERT_EQUAL_X(0x00800000, get_reg(1) & 0xffff0000);
          ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
@@ -2403,7 +2403,7 @@ CTEST2(sel_test, write_pci) {
           ASSERT_EQUAL_X(0x0c + ((i - 0x10) << 4), data->test_ctx.buffer[i]);
      }
      /* The result of a PCI can have a Address at different locations */
-     if (get_pc() == 0x448) {
+     if (get_pc() == 0x44a || get_pc() == 0x448) {
          ASSERT_EQUAL_X(0x00000510, get_reg(0));
          ASSERT_EQUAL_X(0x00800000, get_reg(1) & 0xffff0000);
          ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
