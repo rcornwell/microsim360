@@ -420,10 +420,9 @@ load_line(char *line)
     int            fnd;
 
     line_ptr = line;
-/*    fprintf(stderr, "line=%s", line_buffer); */
     fnd = 0;
     if (get_model(&opt)) {
-        for (devlist = dev_list(); devlist->magic == DEV_LIST_MAGIC; devlist++) {
+        for (devlist = dev_list(); devlist->magic == DEV_LIST_MAGIC && fnd == 0; devlist++) {
             if (strcmp(opt.opt, devlist->name) == 0) {
                 fnd = 1;
                 switch(devlist->type) {
@@ -434,21 +433,18 @@ load_line(char *line)
                 case UNIT_TYPE:
                           if (get_addr(&opt) == 0) {
                              fprintf(stderr, "Missing address on %s\n", opt.opt);
-                             fclose(config);
                              return 0;
                           }
                           /* Fall through */
                 case CPU_TYPE:
                           if ((devlist->create)(&opt) == 0) {
                              fprintf(stderr, "Unable to create device %s\n", opt.opt);
-                             fclose(config);
                              return 0;
                           }
                           break;
                 case LOG_TYPE:
                           if ((devlist->create)(&opt) == 0) {
                              fprintf(stderr, "Unable to set log %s\n", opt.opt);
-                             fclose(config);
                              return 0;
                           }
                           break;

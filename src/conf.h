@@ -51,7 +51,7 @@ struct _option {
 #define NUM_MOD      2
 #define NUM_OPT      4
 
-#define DEV_LIST_MAGIC   0xdeadbeef
+#define DEV_LIST_MAGIC   0xdeadbee0
 
 #if defined(_MSC_VER)
 #pragma section(".devlist", read, shared)
