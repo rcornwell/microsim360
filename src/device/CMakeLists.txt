@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_library(devicelib card.c disassem.c device.c tape.c xlat.c dasd.c panel.c)
+add_library(devicelib card.c disassem.c device.c tape.c xlat.c dasd.c)
 target_include_directories(devicelib PUBLIC ${includes}
                                             ${SDL2_INCLUDE_DIRS}
                                             ${SDL2_IMAGE_INCLUDE_DIRS}
@@ -26,14 +26,14 @@ target_include_directories(devicelib PUBLIC ${includes}
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(${PROJECT_NAME} PUBLIC devicelib)
+#target_link_libraries(${PROJECT_NAME} PUBLIC devicelib)
 
 if (RUN_TESTS)
 add_executable(device_test)
 if (WIN32)
 set_property(TARGET device_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
 endif()
-target_sources(device_test PUBLIC test/ctest_main.c test/card_test.c test/tape_test.c)
+target_sources(device_test PUBLIC ../test/ctest_main.c test/device_test.c test/card_test.c test/tape_test.c)
 target_link_libraries(device_test PUBLIC devicelib)
 target_link_libraries(device_test PUBLIC toplib)
 target_include_directories(device_test PUBLIC ${includes})
@@ -43,4 +43,5 @@ add_custom_command(TARGET device_test
             VERBATIM)
 add_test(NAME device_test COMMAND device_test )
 endif()
+
 
