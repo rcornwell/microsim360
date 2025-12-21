@@ -52,7 +52,7 @@ if (UNIX)
 target_link_libraries(inst2030_test m)
 endif()
 add_custom_command(TARGET inst2030_test
-            COMMAND inst2030_test -v -d
+            COMMAND inst2030_test
             COMMENT "Test instructions for 2030"
             VERBATIM)
 target_include_directories(inst2030_test PRIVATE ${includes}

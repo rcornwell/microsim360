@@ -422,6 +422,12 @@ cycle_2030()
           M[i] = odd_parity[M[i]&0xff] | (M[i]&0xff);
       for (i = 0; i < 2048; i++)
           cpu_2030.LS[i] = odd_parity[cpu_2030.LS[i]&0xff] | (cpu_2030.LS[i]&0xff);
+      /* Reset MPX channel */
+      cpu_2030.MPX_TAGS = 0;
+      cpu_2030.MPX_TI = 0;
+      for (dev = chan[0]; dev != NULL; dev = dev->next) {
+           dev->bus_func(dev, &cpu_2030.MPX_TI, cpu_2030.O_REG, &cpu_2030.FI);
+      }
       /* Reset selector channels */
       for (i = 0; i < 2; i++) {
          cpu_2030.SEL_TAGS[i] = 0;
@@ -828,7 +834,7 @@ cycle_2030()
 
            /* Check if input */
            if (sel_gr_full[i] != 0 && ((cpu_2030.GG[i] & 3) == 2 || (cpu_2030.GG[i] & 5) == 4)) {
-               if ((cpu_2030.Q_REG & 0x0f) != 0 &&
+               if ((cpu_2030.GK[i] & 0xf0) != 0 &&
                          (((cpu_2030.GK[i] >> 4) ^ cpu_2030.Q_REG) & 0xf) != 0) {
                    cpu_2030.GE[i] |= BIT3;
                    cpu_2030.GR[i] = M[cpu_2030.MN_REG];
@@ -879,15 +885,22 @@ cycle_2030()
 
           /* Print instruction and registers */
           if (cpu_2030.WX == 0x109 && (log_level & LOG_ITRACE) != 0) {
+             int        cc = 0;
              uint8_t    mem[6];
 
              for (i = 0; i < 6; i++) {
                  mem[i] = M[cpu_2030.MN_REG + i] & 0xff;
              }
+
              print_inst(mem);
-             log_itrace_c(" IC=%02x%02x CC=%02x MSK=%02x AMWP=%x MC=%02x", cpu_2030.I_REG & 0xff,
-                      cpu_2030.J_REG & 0xff, cpu_2030.LS[0x7BB], cpu_2030.MASK,
-                      cpu_2030.LS[0x7b9] & 0x0f, cpu_2030.MC_REG);
+             switch(cpu_2030.LS[0x7BB] & 0xf) {
+             case 0x40:  cc = 1; break;
+             case 0x20:  cc = 2; break;
+             case 0x10:  cc = 3; break;
+             default:    cc = 0;
+             }
+             log_itrace_c(" IC=%02x%02x CC=%d MSK=%02x AMWP=%x MC=%02x", cpu_2030.I_REG & 0xff,
+                      cpu_2030.J_REG & 0xff, cc, cpu_2030.MASK, cpu_2030.LS[0x7b9] & 0x0f, cpu_2030.MC_REG);
              log_itrace("\n");
 
              log_itrace_s(" ");
@@ -2097,22 +2110,22 @@ cycle_2030()
                    }
                    /* 0110  MPX Operation latch on */
                    if ((sal->CK & BIT5) != 0 && (sal->CK & BIT6) != 0)  {
-                          cpu_2030.FT &= ~BIT2;
-                          if (sal->PK)
-                              cpu_2030.FT |= BIT2;
+                       cpu_2030.FT &= ~BIT2;
+                       if (sal->PK)
+                           cpu_2030.FT |= BIT2;
                    }
                    /* 1010  MPX Suppress out latch on */
                    if ((sal->CK & BIT4) != 0 && (sal->CK & BIT6) != 0)  {
-                          mpx_supr_out_lch = sal->PK;
+                        mpx_supr_out_lch = sal->PK;
                    }
                    /* 0101  MPX Operation out control latch on */
                    if ((sal->CK & BIT5) != 0 && (sal->CK & BIT7) != 0)  {
                         if (sal->PK) {
-                          cpu_2030.MPX_TAGS = 0;
-                          cpu_2030.MPX_TI = 0;      /* Clear inbound tags */
-                          mpx_start_sel = 0;
+                           cpu_2030.MPX_TAGS = 0;
+                           cpu_2030.MPX_TI = 0;      /* Clear inbound tags */
+                           mpx_start_sel = 0;
                        } else {
-                              cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;
+                           cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;
                        }
                    }
                    if ((cpu_2030.MPX_TAGS & (CHAN_SEL_OUT|CHAN_ADR_OUT)) == (CHAN_SEL_OUT|CHAN_ADR_OUT) &&
@@ -2507,6 +2520,7 @@ chan_scan:
              for (dev = chan[i+1]; dev != NULL; dev = dev->next) {
                   dev->bus_func(dev, &cpu_2030.SEL_TI[i], cpu_2030.GO[i], &cpu_2030.GI[i]);
              }
+             print_tags("Select", 0, cpu_2030.SEL_TI[i], cpu_2030.GO[i]);
              if (sel_diag_tag_ctrl[i]) {
                  cpu_2030.SEL_TI[i] = cpu_2030.SEL_TAGS[i];
                  if (cpu_2030.O_REG & BIT0)  /* Select In */

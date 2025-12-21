@@ -36,7 +36,10 @@
 #endif
 #include <fcntl.h>
 
-#include "panel.h"
+#include "widgets.h"
+#include "area.h"
+#include "line.h"
+#include "label.h"
 #include "cpu.h"
 #include "logger.h"
 #include "model2030.h"
@@ -241,22 +244,23 @@ log_trace("Initialize panel\n");
     wb = (strlen(row1) + 2) * (3 * f1_wd);
 
     /* Draw top of display */
-    ADD_AREA(0, 0, 975, 1100, &cc);
+    add_area(cpu_panel, 0, 0, 975, 1100, &cc);
 
     /* Draw bottom switch panel */
-    ADD_AREA(0, (66 * h2) - (f1_hd/4), (31 * h2), 1100, &cl);
+    add_area(cpu_panel, 0, (66 * h2) - (f1_hd/4), (31 * h2), 1100, &cl);
 
     /* Draw top box */
-    ADD_AREA(10, 10, h2 + 10, wb + 40, &cb);
+    add_area(cpu_panel, 10, 10, h2 + 10, wb + 40, &cb);
 
-    ADD_AREA(10, 10 + h2, (h2 * 12) + 10, 10, &cb);
+    add_area(cpu_panel, 10, 10 + h2, (h2 * 12) + 10, 10, &cb);
 
-    ADD_AREA(10+(wb+30), 10 + h2, (h2 * 12) + 10, 10, &cb);
-    ADD_LABEL(10, 10 + (h2/2), wb, "READ ONLY STORAGE", c, cb)
+    add_area(cpu_panel, 10+(wb+30), 10 + h2, (h2 * 12) + 10, 10, &cb);
+    add_label_center(cpu_panel, 10, 10 + (h2/2), wb, "READ ONLY STORAGE", 
+                font1, &c, &cb);
 
     /* Draw ROS boxes */
-    ADD_AREA(30, 10 + (h2 * 2), h2 * 4, wb, &cl);
-    ADD_LINE(30, 10 + (h2 * 3), wb, c);
+    add_area(cpu_panel, 30, 10 + (h2 * 2), h2 * 4, wb, &cl);
+    add_line(cpu_panel, 30, 10 + (h2 * 3), wb, &c);
     rect.x = 50 + f1_wd;
     rect.y = 15 + (h2 * 3);
     rect.h = f1_hd;
@@ -323,22 +327,22 @@ next_row1:
     ADD_LABEL1(pos1[9] - f1_wd, 10 + (h2 * 2), "ADR");
     ADD_LABEL1(pos1[14] - f1_wd, 10 + (h2 * 2), "W REGISTER");
     ADD_LABEL1(pos1[23] + f1_wd, 10 + (h2 * 2), "X REGISTER");
-    ADD_MARK(pos1[1] - f1_wd, rect.y, f1_hd*2, c);
-    ADD_MARK(pos1[7], rect.y, f1_hd*2, c);
-    ADD_MARK(pos1[11] - f1_wd, rect.y, f1_hd*2, c);
-    ADD_MARK(pos1[12] - f1_wd, rect.y, f1_hd*2, c);
-    ADD_MARK(pos1[14] - f1_wd, rect.y, f1_hd*2, c);
-    ADD_MARK(pos1[19] - f1_wd, rect.y, f1_hd*2, c);
-    ADD_MARK(pos1[22] - f1_wd, rect.y, f1_hd*2, c);
-    ADD_MARK(pos1[26] - f1_wd, rect.y, f1_hd*2, c);
-    ADD_MARK(pos1[7], rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos1[11] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos1[12] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos1[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
+    add_mark(cpu_panel, pos1[1] - f1_wd, rect.y, f1_hd*2, &c);
+    add_mark(cpu_panel, pos1[7], rect.y, f1_hd*2, &c);
+    add_mark(cpu_panel, pos1[11] - f1_wd, rect.y, f1_hd*2, &c);
+    add_mark(cpu_panel, pos1[12] - f1_wd, rect.y, f1_hd*2, &c);
+    add_mark(cpu_panel, pos1[14] - f1_wd, rect.y, f1_hd*2, &c);
+    add_mark(cpu_panel, pos1[19] - f1_wd, rect.y, f1_hd*2, &c);
+    add_mark(cpu_panel, pos1[22] - f1_wd, rect.y, f1_hd*2, &c);
+    add_mark(cpu_panel, pos1[26] - f1_wd, rect.y, f1_hd*2, &c);
+    add_mark(cpu_panel, pos1[7], rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos1[11] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos1[12] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos1[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
 
     /* Second ROS row */
-    ADD_AREA(30, 10 +(h2 * 7), h2 * 3, wb, &cl);
-    ADD_LINE(30, 10 + (h2 * 8), wb, c);
+    add_area(cpu_panel, 30, 10 +(h2 * 7), h2 * 3, wb, &cl);
+    add_line(cpu_panel, 30, 10 + (h2 * 8), wb, &c);
 
     rect.x = 30 + f1_wd;
     rect.y = 15 + (h2 * 8);
@@ -387,27 +391,27 @@ next_row1:
     ADD_LABEL1(pos2[22] + f1_wd, 10 + (h2 * 7), "CU");
     ADD_LABEL1(pos2[26] + f1_wd, 10 + (h2 * 7), "CK");
 
-    ADD_MARK(pos2[1] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos2[5] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos2[10] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos2[16],  rect.y, f1_hd, c);
-    ADD_MARK(pos2[19] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos2[22] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos2[24] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos2[25] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos2[26] - f1_wd, rect.y, f1_hd, c);
+    add_mark(cpu_panel, pos2[1] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos2[5] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos2[10] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos2[16],  rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos2[19] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos2[22] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos2[24] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos2[25] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos2[26] - f1_wd, rect.y, f1_hd, &c);
 
-    ADD_MARK(pos2[1] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos2[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos2[10] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos2[16], rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos2[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos2[22] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos2[24] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
+    add_mark(cpu_panel, pos2[1] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos2[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos2[10] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos2[16], rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos2[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos2[22] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos2[24] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
 
     /* 3rd ROS Row */
-    ADD_AREA(30, 10 + (h2 * 11), h2 * 3, wb , &cl);
-    ADD_LINE(30, 10 + (h2 * 12), wb, c);
+    add_area(cpu_panel, 30, 10 + (h2 * 11), h2 * 3, wb , &cl);
+    add_line(cpu_panel, 30, 10 + (h2 * 12), wb, &c);
 
     rect.x = 30 + f1_wd;
     rect.y = 15 + (h2 * 12);
@@ -451,26 +455,26 @@ next_row1:
     ADD_LABEL1(pos3[23] - f1_wd, 10 + (h2 * 11), "CC");
     ADD_LABEL1(pos3[27] - f1_wd, 10 + (h2 * 11), "CS");
 
-    ADD_MARK(pos3[1] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos3[6] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos3[11] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos3[16] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos3[19] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos3[22] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos3[25] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos3[1] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos3[6] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos3[11] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos3[16] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos3[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos3[22] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos3[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
+    add_mark(cpu_panel, pos3[1] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos3[6] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos3[11] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos3[16] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos3[19] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos3[22] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos3[25] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos3[1] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos3[6] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos3[11] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos3[16] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos3[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos3[22] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos3[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
 
     /* Count register */
-    ADD_AREA(30, 10 + (h2 * 15), h2 * 4, wb, &cl);
+    add_area(cpu_panel, 30, 10 + (h2 * 15), h2 * 4, wb, &cl);
     /* Draw Count title */
-    ADD_LABEL(30, 15 + (h2 * 14) + (h2/2), wb, "COUNT REGISTER", c, cl);
-    ADD_LINE(30, 10 + (h2 * 16), wb, c);
+    add_label_center(cpu_panel, 30, 15 + (h2 * 14) + (h2/2), wb, "COUNT REGISTER", font1, &c, &cl);
+    add_line(cpu_panel, 30, 10 + (h2 * 16), wb, &c);
     rect.x = 30 + f1_wd;
     rect.y = 15 + (h2 * 16);
     rect.h = f1_hd;
@@ -525,25 +529,25 @@ next_row1:
         ctl_ptr++;
     }
 
-    ADD_MARK(pos_cnt[6] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_cnt[10] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_cnt[14] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_cnt[16] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_cnt[20] - f1_wd, rect.y, f1_hd * 2, c);
+    add_mark(cpu_panel, pos_cnt[6] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_cnt[10] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_cnt[14] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_cnt[16] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_cnt[20] - f1_wd, rect.y, f1_hd * 2, &c);
 
 
 
     /* Channel number one */
-    ADD_AREA(10, 10 + (h2 * 20), h2 + 10, wb + 40, &cb);
-    ADD_AREA(10, 10 + (h2 * 21), (h2 * 10), 10, &cb);
-    ADD_AREA(10 + (wb + 30), 10 + (h2 * 21), (h2 * 10), 10, &cb);
+    add_area(cpu_panel, 10, 10 + (h2 * 20), h2 + 10, wb + 40, &cb);
+    add_area(cpu_panel, 10, 10 + (h2 * 21), (h2 * 10), 10, &cb);
+    add_area(cpu_panel, 10 + (wb + 30), 10 + (h2 * 21), (h2 * 10), 10, &cb);
 
     /* Channel one title */
-    ADD_LABEL(10, 10 + (h2 * 20) + (h2 /2), wb, "CHANNEL NUMBER ONE", c, cb);
+    add_label_center(cpu_panel, 10, 10 + (h2 * 20) + (h2 /2), wb, "CHANNEL NUMBER ONE", font1, &c, &cb);
 
     /* Channel one register */
-    ADD_AREA(30, 10 + (h2 * 22), h2 * 4, wb, &cl);
-    ADD_LINE(30, 10 + (h2 * 23), wb, c);
+    add_area(cpu_panel, 30, 10 + (h2 * 22), h2 * 4, wb, &cl);
+    add_line(cpu_panel, 30, 10 + (h2 * 23), wb, &c);
 
     rect.x = 20 + f1_wd;
     rect.y = 15 + (h2 * 23);
@@ -606,21 +610,21 @@ next_row1:
     ADD_LABEL1(pos_chan1[8] - (f1_wd / 2), 10 + (h2 * 22), "DATA REGISTER");
     ADD_LABEL1(pos_chan1[17] - f1_wd, 10 + (h2 * 22), "KEY");
     ADD_LABEL1(pos_chan1[22], 10 + (h2 * 22), "COMMAND");
-    ADD_MARK(pos_chan1[5] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[6] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[10] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[14] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[16] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[20] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[25] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos_chan1[14] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos_chan1[20] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos_chan1[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
+    add_mark(cpu_panel, pos_chan1[5] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[6] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[10] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[14] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[16] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[20] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[25] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos_chan1[14] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos_chan1[20] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos_chan1[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
 
     /* Channel one Status */
-    ADD_AREA(30, 10 + (h2 * 26) + (f1_hd/4), h2 * 6, wb, &cl);
-    ADD_LINE(30, 15 + (h2 * 27) + (f1_hd/4), wb, c);
+    add_area(cpu_panel, 30, 10 + (h2 * 26) + (f1_hd/4), h2 * 6, wb, &cl);
+    add_line(cpu_panel, 30, 15 + (h2 * 27) + (f1_hd/4), wb, &c);
     rect.x = 30 + f1_wd;
     rect.y = 15 + (h2 * 28);
     rect.h = f1_hd;
@@ -685,20 +689,20 @@ next_row1:
     ADD_LABEL1(pos_chan2[2], 15 + (h2 * 26), "FLAGS");
     ADD_LABEL1(pos_chan2[7], 15 + (h2 * 26), "TAGS");
     ADD_LABEL1(pos_chan2[11], 15 + (h2 * 26), "CHECKS");
-    ADD_MARK(pos_chan2[5] - f1_wd, rect.y - (h2/2), f1_hd * 4, c);
-    ADD_MARK(pos_chan2[9] - f1_wd, rect.y - (h2/2), f1_hd * 4, c);
-    ADD_MARK(pos_chan2[5] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), c);
-    ADD_MARK(pos_chan2[9] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), c);
+    add_mark(cpu_panel, pos_chan2[5] - f1_wd, rect.y - (h2/2), f1_hd * 4, &c);
+    add_mark(cpu_panel, pos_chan2[9] - f1_wd, rect.y - (h2/2), f1_hd * 4, &c);
+    add_mark(cpu_panel, pos_chan2[5] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos_chan2[9] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), &c);
 
     /* Channel number two */
-    ADD_AREA(10, 10 + (h2 * 33), h2 + 10, wb + 40, &cb);
-    ADD_AREA(10, 10 + (h2 * 34), (h2 * 10), 10, &cb);
-    ADD_AREA(10 + (wb + 30), 10 + (h2 * 34), (h2 * 10), 10, &cb);
+    add_area(cpu_panel, 10, 10 + (h2 * 33), h2 + 10, wb + 40, &cb);
+    add_area(cpu_panel, 10, 10 + (h2 * 34), (h2 * 10), 10, &cb);
+    add_area(cpu_panel, 10 + (wb + 30), 10 + (h2 * 34), (h2 * 10), 10, &cb);
 
     /* Channel two title */
-    ADD_LABEL(10, 10 + (h2 * 33) + (h2 /2), wb, "CHANNEL NUMBER TWO", c, cb);
-    ADD_AREA(30, 10 + (h2 * 35), (h2 * 4), wb, &cl);
-    ADD_LINE(30, 10 + (h2 * 36), wb, c);
+    add_label_center(cpu_panel, 10, 10 + (h2 * 33) + (h2 /2), wb, "CHANNEL NUMBER TWO", font1, &c, &cb);
+    add_area(cpu_panel, 30, 10 + (h2 * 35), (h2 * 4), wb, &cl);
+    add_line(cpu_panel, 30, 10 + (h2 * 36), wb, &c);
 
     rect.y = 15 + (h2 * 36);
     rect.h = f1_hd;
@@ -760,21 +764,21 @@ next_row1:
     ADD_LABEL1(pos_chan1[8] - (f1_wd / 2), 10 + (h2 * 35), "DATA REGISTER");
     ADD_LABEL1(pos_chan1[17] - f1_wd, 10 + (h2 * 35), "KEY");
     ADD_LABEL1(pos_chan1[22], 10 + (h2 * 35), "COMMAND");
-    ADD_MARK(pos_chan1[5] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[6] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[10] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[14] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[16] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[20] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[25] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_chan1[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos_chan1[14] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos_chan1[20] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
-    ADD_MARK(pos_chan1[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), c);
+    add_mark(cpu_panel, pos_chan1[5] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[6] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[10] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[14] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[16] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[20] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[25] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_chan1[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos_chan1[14] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos_chan1[20] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos_chan1[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
 
     /* Channel Status */
-    ADD_AREA(30, 10 + (h2 * 39) + (f1_hd/4), h2 * 6, wb, &cl);
-    ADD_LINE(30, 15 + (h2 * 40) + (f1_hd/4), wb, c);
+    add_area(cpu_panel, 30, 10 + (h2 * 39) + (f1_hd/4), h2 * 6, wb, &cl);
+    add_line(cpu_panel, 30, 15 + (h2 * 40) + (f1_hd/4), wb, &c);
     rect.x = 30 + f1_wd;
     rect.y = 10 + (h2 * 41) + (f1_hd/2);
     rect.h = f1_hd;
@@ -831,14 +835,14 @@ next_row1:
     ADD_LABEL1(pos_chan2[2], 15 + (h2 * 39), "FLAGS");
     ADD_LABEL1(pos_chan2[7], 15 + (h2 * 39), "TAGS");
     ADD_LABEL1(pos_chan2[11], 15 + (h2 * 39), "CHECKS");
-    ADD_MARK(pos_chan2[5] - f1_wd, rect.y - (h2/2), f1_hd * 4, c);
-    ADD_MARK(pos_chan2[9] - f1_wd, rect.y - (h2/2), f1_hd * 4, c);
-    ADD_MARK(pos_chan2[5] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), c);
-    ADD_MARK(pos_chan2[9] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), c);
+    add_mark(cpu_panel, pos_chan2[5] - f1_wd, rect.y - (h2/2), f1_hd * 4, &c);
+    add_mark(cpu_panel, pos_chan2[9] - f1_wd, rect.y - (h2/2), f1_hd * 4, &c);
+    add_mark(cpu_panel, pos_chan2[5] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), &c);
+    add_mark(cpu_panel, pos_chan2[9] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), &c);
 
     /* MPX register */
-    ADD_AREA(30, 10 + (h2 * 46) + (f1_hd/4), h2 * 4, wb, &cl);
-    ADD_LINE(30, 15 + (h2 * 47) + (f1_hd/4), wb, c);
+    add_area(cpu_panel, 30, 10 + (h2 * 46) + (f1_hd/4), h2 * 4, wb, &cl);
+    add_line(cpu_panel, 30, 15 + (h2 * 47) + (f1_hd/4), wb, &c);
     rect.x = 30 + f1_wd;
     rect.y = 15 + (h2 * 48);
     rect.h = f1_hd;
@@ -916,12 +920,12 @@ next_row1:
     }
     ADD_LABEL1(pos_mpx[3], 15 + (h2 * 46), "MPX CHANNEL TAGS");
     ADD_LABEL1(pos_mpx[15], 15 + (h2 * 46), "MPX CHANNEL BUS-OUT REGISTER");
-    ADD_MARK(pos_mpx[9] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_mpx[9] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (f1_hd/4), c);
+    add_mark(cpu_panel, pos_mpx[9] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_mpx[9] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (f1_hd/4), &c);
 
     /* Seperator */
-    ADD_AREA(30, 15 + (h2 * 50) + 4, f1_hd * 4, wb, &cl);
-    ADD_LINE(30, 15 + (h2 * 51) + 4, wb, c);
+    add_area(cpu_panel, 30, 15 + (h2 * 50) + 4, f1_hd * 4, wb, &cl);
+    add_line(cpu_panel, 30, 15 + (h2 * 51) + 4, wb, &c);
     rect.x = 30 + f1_wd;
     rect.y = 10 + (h2 * 52) + (f1_hd/4);
     rect.h = f1_hd;
@@ -981,16 +985,16 @@ next_row1:
     shf--;
     (void)add_led(&labels[39], &store, 1, rect.x + f1_wd, 10 + rect.y + f1_hd - 5, 39);
     ADD_LABEL1(pos_store[11] - f1_wd, 15 + (h2 * 50) + 4, "MAIN STORAGE ADDRESS REGISTER");
-    ADD_MARK(pos_store[1] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, c);
-    ADD_MARK(pos_store[5] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, c);
-    ADD_MARK(pos_store[9] - f1_wd, rect.y - h2, f1_hd * 3, c);
-    ADD_MARK(pos_store[11] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, c);
-    ADD_MARK(pos_store[15] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, c);
-    ADD_MARK(pos_store[19] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, c);
+    add_mark(cpu_panel, pos_store[1] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_store[5] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_store[9] - f1_wd, rect.y - h2, f1_hd * 3, &c);
+    add_mark(cpu_panel, pos_store[11] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_store[15] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_store[19] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
 
     /* Seperator */
-    ADD_AREA(30, 10 + (h2 * 55), h2 * 4, f1_wd * 59, &cl);
-    ADD_LINE(30, 15 + (h2 * 56), f1_wd * 59, c);
+    add_area(cpu_panel, 30, 10 + (h2 * 55), h2 * 4, f1_wd * 59, &cl);
+    add_line(cpu_panel, 30, 15 + (h2 * 56), f1_wd * 59, &c);
     rect.x = 40 + f1_wd;
     rect.y = 10 + (h2 * 57) + (f1_hd/2);
     rect.h = f1_hd;
@@ -1026,14 +1030,14 @@ next_row1:
     }
     ADD_LABEL1(pos_data[0] + f1_wd, 15 + (h2 * 55), "MAIN STORAGE DATA REGISTER");
     ADD_LABEL1(pos_data[13] - f1_wd, 15 + (h2 * 55), "ALU OUTPUT");
-    ADD_MARK(pos_data[1] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos_data[5] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos_data[9] - f1_wd, rect.y - (h2 * 2) - (h2/4), f1_hd, c);
-    ADD_MARK(pos_data[9] - f1_wd, rect.y - h2, f1_hd * 2, c);
-    ADD_MARK(pos_data[11] - f1_wd, rect.y, f1_hd, c);
-    ADD_MARK(pos_data[15] - f1_wd, rect.y, f1_hd, c);
-    ADD_AREA(30, 10 + (h2 * 60) - (f1_hd/2), (h2 * 4) + f1_hd, f1_wd * 59, &cl);
-    ADD_LINE(30, 15 + (h2 * 61), f1_wd * 59, c);
+    add_mark(cpu_panel, pos_data[1] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos_data[5] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos_data[9] - f1_wd, rect.y - (h2 * 2) - (h2/4), f1_hd, &c);
+    add_mark(cpu_panel, pos_data[9] - f1_wd, rect.y - h2, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_data[11] - f1_wd, rect.y, f1_hd, &c);
+    add_mark(cpu_panel, pos_data[15] - f1_wd, rect.y, f1_hd, &c);
+    add_area(cpu_panel, 30, 10 + (h2 * 60) - (f1_hd/2), (h2 * 4) + f1_hd, f1_wd * 59, &cl);
+    add_line(cpu_panel, 30, 15 + (h2 * 61), f1_wd * 59, &c);
     rect.x = 30 + f1_wd;
     rect.y = 15 + (h2 * 62);
     rect.h = f1_hd;
@@ -1089,20 +1093,20 @@ next_row1:
     }
     ADD_LABEL1(pos_breg[3] + f1_wd, 15 + (h2 * 60) - (f1_hd/2), "B REGISTER");
     ADD_LABEL1(pos_breg[13] - f1_wd, 15 + (h2 * 60) - (f1_hd/2), "A REGISTER");
-    ADD_MARK(pos_breg[1] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_breg[5] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_breg[9] - f1_wd, rect.y - (h2 * 2) - (h2/4), f1_hd, c);
-    ADD_MARK(pos_breg[9] - f1_wd, rect.y - h2, f1_hd * 3, c);
-    ADD_MARK(pos_breg[11] - f1_wd, rect.y, f1_hd * 2, c);
-    ADD_MARK(pos_breg[15] - f1_wd, rect.y, f1_hd * 2, c);
+    add_mark(cpu_panel, pos_breg[1] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_breg[5] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_breg[9] - f1_wd, rect.y - (h2 * 2) - (h2/4), f1_hd, &c);
+    add_mark(cpu_panel, pos_breg[9] - f1_wd, rect.y - h2, f1_hd * 3, &c);
+    add_mark(cpu_panel, pos_breg[11] - f1_wd, rect.y, f1_hd * 2, &c);
+    add_mark(cpu_panel, pos_breg[15] - f1_wd, rect.y, f1_hd * 2, &c);
 
     rect.x = 40 + pos_data[17];
     rect.y = 10 + (h2 * 55);
     rect.h = (h2 * 9) + (h2/2);
     rect.w = (30 + wb) - rect.x;
-    ADD_AREA(rect.x, rect.y, rect.h, rect.w, &cl);
+    add_area_rect(cpu_panel, &rect, &cl);
     rect.y = 15 + (h2 * 56);
-    ADD_LINE(rect.x, 15 + (h2 * 56), rect.w, c);
+    add_line(cpu_panel, rect.x, 15 + (h2 * 56), rect.w, &c);
     ADD_LABEL1(rect.x + (f1_wd * 3), 15 + (h2 * 55), "CPU STATUS");
     rect.x += f1_wd;
     pos_data[18] = rect.x;
@@ -1129,7 +1133,7 @@ next_row1:
     pos_data[19] = rect.x;
     rect.y = 15 + (h2 * 57);
     ADD_LABEL1(rect.x + (f1_wd*2), 15 + (h2 * 55), "CPU CHECKS");
-    ADD_MARK(rect.x - f1_wd, 15 + (h2 * 55), (f1_hd * 8) + (f1_hd/2), c);
+    add_mark(cpu_panel, rect.x - f1_wd, 15 + (h2 * 55), (f1_hd * 8) + (f1_hd/2), &c);
     /* STORE ADR */
     (void)add_led(&labels[48], &cpu_2030.MC_REG, 5, rect.x, rect.y, 48);
     rect.x += f1_wd * 4;
@@ -1227,8 +1231,8 @@ next_row1:
     ADD_LABEL(620, (h2 * 36), f1_wd * 40, "PROCESS", c1, cc);
     ADD_LABEL(620 + (f1_wd * 30), (h2 * 36), f1_wd * 3, "ROS", c1, cc);
     ADD_LABEL(620 + (f1_wd * 30), (h2 * 37), f1_wd*4, "SCAN", c1, cc);
-    ADD_LINE(620 + (f1_wd * 11), (h2 * 37), (f1_wd * 3), c1);
-    ADD_LINE(620 + (f1_wd * 26)+1, (h2 * 37), (f1_wd * 3) - 1, c1);
+    add_line(cpu_panel, 620 + (f1_wd * 11), (h2 * 37), (f1_wd * 3), &c1);
+    add_line(cpu_panel, 620 + (f1_wd * 26)+1, (h2 * 37), (f1_wd * 3) - 1, &c1);
     dial[0].boxd.x = 620 + (f1_wd * 10);
     dial[0].boxd.y = h2 * 36;
     dial[0].boxd.w = (f1_wd * 20);
@@ -1256,8 +1260,8 @@ next_row1:
     ADD_LABEL(900, (h2 * 36), f1_wd * 23, "PROCESS", c1, cc);
     ADD_LABEL(900 + (f1_wd * 21), (h2 * 36), f1_wd * 5, "SINGLE", c1, cc);
     ADD_LABEL(900 + (f1_wd * 21), (h2 * 37), f1_wd * 5, "CYCLE", c1, cc);
-    ADD_LINE(900 + (f1_wd * 5), (h2 * 37), (f1_wd * 2), c1);
-    ADD_LINE(900 + (f1_wd * 16), (h2 * 37), (f1_wd * 3), c1);
+    add_line(cpu_panel, 900 + (f1_wd * 5), (h2 * 37), (f1_wd * 2), &c1);
+    add_line(cpu_panel, 900 + (f1_wd * 16), (h2 * 37), (f1_wd * 3), &c1);
     dial[1].boxd.x = 900;
     dial[1].boxd.y = h2 * 36;
     dial[1].boxd.w = (f1_wd * 12);
@@ -1282,23 +1286,23 @@ next_row1:
     ADD_LABEL(620, (h2 * 46), (f1_wd * 40), "ADDRESS COMPARE", c1, cc);
     ADD_LABEL(620, (h2 * 48) - (f1_hd/2), f1_wd*40, "PROCESS", c1, cc);
     ADD_LABEL3(620, (h2 * 48), "ROAR SYNC", c1, cc);
-    ADD_LINE(620 + (f1_wd * 10), (h2 * 49), (f1_wd * 5), c1);
+    add_line(cpu_panel, 620 + (f1_wd * 10), (h2 * 49), (f1_wd * 5), &c1);
     ADD_LABEL3(620, (h2 * 50), "ROAR STOP", c1, cc);
-    ADD_LINE(620 + (f1_wd * 10), (h2 * 51), (f1_wd * 4), c1);
+    add_line(cpu_panel, 620 + (f1_wd * 10), (h2 * 51), (f1_wd * 4), &c1);
     ADD_LABEL3(620, (h2 * 52), "EARLY ROAR", c1, cc);
-    ADD_LINE(620 + (f1_wd * 10), (h2 * 53), (f1_wd * 4), c1);
+    add_line(cpu_panel, 620 + (f1_wd * 10), (h2 * 53), (f1_wd * 4), &c1);
     ADD_LABEL3(620, (h2 * 53), "STOP", c1, cc);
     ADD_LABEL3(620, (h2 * 55), "ROAR RESTART", c1, cc);
     ADD_LABEL3(620, (h2 * 56), "WITHOUT RESET", c1, cc);
     ADD_LABEL(620, (h2 * 56), f1_wd*40, "ROAR", c1, cc);
     ADD_LABEL(620, (h2 * 57), f1_wd*40, "RESTART", c1, cc);
     ADD_LABEL3(620 + (f1_wd * 29), (h2 * 48), "SAR DELAYED", c1, cc);
-    ADD_LINE(620 + (f1_wd * 26) + 1, (h2 * 49), (f1_wd * 2), c1);
+    add_line(cpu_panel, 620 + (f1_wd * 26) + 1, (h2 * 49), (f1_wd * 2), &c1);
     ADD_LABEL3(620 + (f1_wd * 29), (h2 * 49), "STOP", c1, cc);
     ADD_LABEL3(620 + (f1_wd * 32), (h2 * 51) - (f1_hd/2), "SAR STOP", c1, cc);
-    ADD_LINE(620 + (f1_wd * 26) + 1, (h2 * 51), (f1_wd * 4), c1);
+    add_line(cpu_panel, 620 + (f1_wd * 26) + 1, (h2 * 51), (f1_wd * 4), &c1);
     ADD_LABEL3(620 + (f1_wd * 29), (h2 * 53) - (f1_hd/2), "SAR RESTART", c1, cc);
-    ADD_LINE(620 + (f1_wd * 26) + 1, (h2 * 53), (f1_wd * 2), c1);
+    add_line(cpu_panel, 620 + (f1_wd * 26) + 1, (h2 * 53), (f1_wd * 2), &c1);
     ADD_LABEL3(620 + (f1_wd * 28), (h2 * 55), "ROAR RESTART", c1, cc);
     ADD_LABEL3(620 + (f1_wd * 28), (h2 * 56), "STORE BYPASS", c1, cc);
     dial[2].boxd.x = 620 + (f1_wd * 10);
@@ -1338,11 +1342,11 @@ next_row1:
 
     ADD_LABEL(900, (h2 * 46), f1_wd*23, "CHECK CONTROL", c1, cc);
     ADD_LABEL3(900 - (f1_wd *5), (h2 * 48) + (f1_hd/2), "DISABLE", c1, cc);
-    ADD_LINE(900 + (f1_wd * 3), (h2 * 49), (f1_wd * 4), c1);
+    add_line(cpu_panel, 900 + (f1_wd * 3), (h2 * 49), (f1_wd * 4), &c1);
     ADD_LABEL3(900 - (f1_wd*5), (h2 * 50) + (f1_hd/2), "DIAGNOSTIC", c1, cc);
     ADD_LABEL(900, (h2 * 48) - (f1_hd/2), f1_wd*23, "PROCESS", c1, cc);
     ADD_LABEL(900 + (f1_wd * 24), (h2 * 48) + (f1_hd/2), f1_wd*4, "STOP", c1, cc);
-    ADD_LINE(900 + (f1_wd * 16), (h2 * 49), (f1_wd * 6), c1);
+    add_line(cpu_panel, 900 + (f1_wd * 16), (h2 * 49), (f1_wd * 6), &c1);
     ADD_LABEL(900 + (f1_wd * 21), (h2 * 50) + (f1_hd/2), f1_wd*7, "RESTART", c1, cc);
     dial[3].boxd.x = 900;
     dial[3].boxd.y = h2 * 48;
@@ -1425,54 +1429,54 @@ next_row1:
     rect.y=h2 * 69 - (h2 / 2);
     rect.h=h2;
     rect.w= (hex_dial[3].boxd.x + hex_dial[3].boxd.w) - rect.x;
-    ADD_AREA(rect.x, rect.y, rect.h, rect.w, &c);
+    add_area_rect(cpu_panel, &rect, &c);
     ADD_LABEL(rect.x, rect.y, rect.w, "COMPARE ADDRESS", c1, c);
-    ADD_AREA(rect.x, rect.y, h2 + h2/3, 2, &c);
-    ADD_AREA(rect.x + rect.w, rect.y, h2 + h2/3, 2, &c);
+    add_area(cpu_panel, rect.x, rect.y, h2 + h2/3, 2, &c);
+    add_area(cpu_panel, rect.x + rect.w, rect.y, h2 + h2/3, 2, &c);
 
     rect.x= hex_dial[0].boxu.x;
     rect.y=h2 * 70;
     rect.h=h2;
     rect.w= (hex_dial[3].boxd.x + hex_dial[3].boxd.w) - rect.x;
-    ADD_AREA(rect.x, rect.y, rect.h, rect.w, &c);
+    add_area_rect(cpu_panel, &rect, &c);
     ADD_LABEL(rect.x, rect.y, rect.w, "MAIN STORAGE ADDRESS", c1, c);
-    ADD_AREA(rect.x, rect.y, h2 + (3 * f1_hd), 2, &c);
-    ADD_AREA(rect.x + rect.w, rect.y, h2 + (3 * f1_hd), 2, &c);
+    add_area(cpu_panel, rect.x, rect.y, h2 + (3 * f1_hd), 2, &c);
+    add_area(cpu_panel, rect.x + rect.w, rect.y, h2 + (3 * f1_hd), 2, &c);
 
     rect.x= store_dial[0].rect.x;
     rect.y=h2 * 69 - (h2 / 2);
     rect.h=h2;
     rect.w= store_dial[0].rect.w;
-    ADD_AREA(rect.x, rect.y, rect.h, rect.w, &c);
+    add_area_rect(cpu_panel, &rect, &c);
     ADD_LABEL3(rect.x + (f1_wd/2), rect.y, "DISPLAY STOR SEL", c1, c);
-    ADD_AREA(rect.x, rect.y, h2 + (5*f1_hd), 2, &c);
-    ADD_AREA(rect.x + rect.w,  rect.y, h2 + (5*f1_hd), 2, &c);
+    add_area(cpu_panel, rect.x, rect.y, h2 + (5*f1_hd), 2, &c);
+    add_area(cpu_panel, rect.x + rect.w,  rect.y, h2 + (5*f1_hd), 2, &c);
 
     rect.x= hex_dial[4].boxu.x;
     rect.y=h2 * 69 - (h2/2);
     rect.h=h2;
     rect.w= (hex_dial[7].boxd.x + hex_dial[7].boxd.w) - rect.x;
-    ADD_AREA(rect.x, rect.y, rect.h, rect.w, &c);
+    add_area_rect(cpu_panel, &rect, &c);
     ADD_LABEL(rect.x, rect.y, rect.w, "INSTRUCTION ADDRESS - ROS ADDRESS", c1, c);
-    ADD_AREA(rect.x, rect.y, h2 + (5 * f1_hd), 2, &c);
-    ADD_AREA(rect.x + rect.w, rect.y, h2 + (h2 / 3), 2, &c);
+    add_area(cpu_panel, rect.x, rect.y, h2 + (5 * f1_hd), 2, &c);
+    add_area(cpu_panel, rect.x + rect.w, rect.y, h2 + (h2 / 3), 2, &c);
     rect.x= hex_dial[5].boxu.x;
     rect.y=h2 * 70;
     rect.h=h2;
     rect.w= (hex_dial[7].boxd.x + hex_dial[7].boxd.w) - rect.x;
-    ADD_AREA(rect.x, rect.y, rect.h, rect.w, &c);
+    add_area_rect(cpu_panel, &rect, &c);
     ADD_LABEL(rect.x, rect.y, rect.w, "LOAD UNIT", c1, c);
-    ADD_AREA(rect.x, rect.y, h2 + (3 * f1_hd), 2, &c);
-    ADD_AREA(rect.x + rect.w, rect.y, h2 + (h2 / 3), 2, &c);
+    add_area(cpu_panel, rect.x, rect.y, h2 + (3 * f1_hd), 2, &c);
+    add_area(cpu_panel, rect.x + rect.w, rect.y, h2 + (h2 / 3), 2, &c);
 
     rect.x= hex_dial[6].boxu.x;
     rect.y=h2 * 71 + (h2/2);
     rect.h=h2;
     rect.w= (hex_dial[7].boxd.x + hex_dial[7].boxd.w) - rect.x;
-    ADD_AREA(rect.x, rect.y, rect.h, rect.w, &c);
+    add_area_rect(cpu_panel, &rect, &c);
     ADD_LABEL(rect.x, rect.y, rect.w, "DATA", c1, c);
-    ADD_AREA(rect.x, rect.y, h2 + f1_hd, 2, &c);
-    ADD_AREA(rect.x + rect.w, rect.y, h2 + f1_hd, 2, &c);
+    add_area(cpu_panel,rect.x, rect.y, h2 + f1_hd, 2, &c);
+    add_area(cpu_panel,rect.x + rect.w, rect.y, h2 + f1_hd, 2, &c);
     ADD_LABEL2(790+(f1_wd * 10), (h2 * 78) + (h2/2), "SYS");
     ADD_LABEL2(790+(f1_wd * 15), (h2 * 78) + (h2/2), "MAN");
     ADD_LABEL2(790+(f1_wd * 20), (h2 * 78) + (h2/2), "WAIT");
