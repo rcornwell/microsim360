@@ -30,7 +30,7 @@
 #include <SDL_ttf.h>
 #include <SDL_image.h>
 #include <string.h>
-#include "panel.h"
+#include "widgets.h"
 #include "logger.h"
 #include "event.h"
 #include "device.h"

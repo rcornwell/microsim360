@@ -150,8 +150,8 @@ CTEST_DATA(disk_test) {
 
 CTEST_SETUP(disk_test) {
      log_trace("Init test\n");
-     data->addr = 0x91;
      data->dev = chan[0];
+     data->addr = 0x91;
 }
 
 CTEST_TEARDOWN(disk_test) {

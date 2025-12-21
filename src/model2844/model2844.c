@@ -1057,7 +1057,7 @@ model2844_create(struct _option *opt)
      dev2844->create_ctrl = (void *)model2314_control;
      dev2844->type_name = "2844";
      dev2844->n_units = 8;
-     ctx->addr = opt->addr & 0xff;
+     ctx->addr = opt->addr;
      ctx->chan = (opt->addr >> 8) & 0xf;
      ctx->WX = 0;
      for (i = 0; i < 8; i++) {
