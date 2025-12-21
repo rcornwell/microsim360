@@ -1,15 +1,16 @@
+
 # Copyright 2021, Richard Cornwell
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -18,5 +19,30 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+add_library(model2415lib)
+target_sources(model2415lib PRIVATE model2415.c)
+target_include_directories(model2415lib PRIVATE ${includes})
+target_link_libraries(${PROJECT_NAME} PUBLIC model2415lib)
+target_sources(${PROJECT_NAME} PUBLIC panel2415.c)
 
-target_sources(${PROJECT_NAME} PUBLIC model2415.c)
+if (RUN_TESTS)
+add_executable(model2415_test ../test/ctest_main.c ../test/test_chan.c
+               test/model2415_test.c)
+target_link_libraries(model2415_test model2415lib)
+target_link_libraries(model2415_test devicelib)
+target_link_libraries(model2415_test toplib)
+if (WIN32)
+set_property(TARGET model2415_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
+endif()
+add_custom_command(TARGET model2415_test
+            COMMAND model2415_test -v -d
+            COMMENT "Test operation of 2415"
+            VERBATIM)
+target_include_directories(model2415_test PRIVATE ${includes}
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}/test
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}/../test
+                                                 ${CMAKE_CURRENT_SOURCE_DIR}/../device)
+add_test(NAME model2415_test COMMAND model2415_test )
+endif()
+

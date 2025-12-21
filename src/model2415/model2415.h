@@ -65,9 +65,65 @@
 
 #ifndef _MODEL2415_H_
 #define _MODEL2415_H_
-#include <SDL.h>
 #include <stdint.h>
 #include "device.h"
 
-struct _device *model2415_init(void *render, uint16_t addr);
+#define FRAME_DELAY     33    /* 34 us per frame delay */
+#define REWIND_DELAY    1000 /* 20 ms */
+#define REW_FRAME       3840  /* Frames per 20ms */
+#define START_DELAY     100
+#define STOP_DELAY      (10 * FRAME_DELAY)
+
+#define MT_ODD          0x01  /* Odd parity */
+#define MT_TRANS        0x02  /* Translation turned on ignored 9 track  */
+#define MT_CONV         0x04  /* Data converter on ignored 9 track  */
+
+struct _2415_context {
+    device_state_t         state;             /* Current channel state */
+    int                    addr;         /* Device address */
+    int                    chan;
+    int                    selected;     /* Device currently selected */
+    int                    request;      /* Request pending */
+    int                    addressed;    /* Device addressed */
+    int                    stacked;      /* Device has stacked status */
+    int                    sense[6];     /* Current sense value */
+    int                    sense_cnt;    /* Sense counter */
+    int                    busy;         /* Return control unit done */
+    int                    chaining;     /* Command chaining in effect */
+    int                    cmd;          /* Current command */
+    int                    cmd_done;     /* Current read/write finished */
+    int                    status;       /* Current bus status */
+    uint8_t                data;         /* Current byte to send/recieve */
+    uint16_t               cbuffer;      /* Conversion buffer */
+    int                    data_rdy;     /* Data is valid */
+    int                    data_end;     /* No more data to send/recieve */
+    int                    data_end_post;/* No more data to send/recieve */
+    int                    ctrl_busy;    /* Control unit posted short busy */
+    int                    delay;        /* Delay time till operation done */
+    int                    nunits;       /* Number of units */
+    int                    cur_unit;     /* Currently selected unit */
+    int                    stat_unit;    /* Unit having pending sense data */
+    int                    stk_unit;     /* Unit that has stacked status */
+    int                    t_scan;       /* Tape scanner */
+    int                    rew_flags;    /* Units doing rewind */
+    int                    run_flags;    /* Units doing unload */
+    int                    rew_delay;    /* Delay until processing rewinding units */
+    int                    rdy_flags;    /* Unit has become ready */
+    int                    mrk_flags;    /* Last record was mark */
+    struct _tape_buffer   *tape[6];      /* Tape units */
+    int                    track_7;      /* Support 7 track drives */
+    int                    cc;           /* Character counter for 7 track tapes */
+    int                    mode7;        /* Tape mode for 7 track tapes */
+    int                    mode9;        /* Tape mode for 9 track tapes */
+};
+
+void model2415_rewind_callback(struct _device *unit, void *arg, int u);
+
+struct _popup * model2415_control(struct _device *unit, int hd, int wd, int u);
+
+void model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
+
+void model2415_draw(struct _device *unit, void *rend);
+
+void model2415_init(struct _device *unit, void *rend);
 #endif
