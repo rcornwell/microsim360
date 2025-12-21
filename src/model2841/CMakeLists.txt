@@ -40,7 +40,7 @@ target_sources(${PROJECT_NAME} PUBLIC panel2841.c)
 target_link_libraries(${PROJECT_NAME} PUBLIC model2841lib)
 
 if (RUN_TESTS)
-add_executable(test2841_test test/ctest_main.c test/disk_test.c)
+add_executable(test2841_test test/ctest_main.c test/disk_test.c ../test/test_chan.c)
 target_link_libraries(test2841_test model2841lib)
 target_link_libraries(test2841_test devicelib)
 target_link_libraries(test2841_test toplib)

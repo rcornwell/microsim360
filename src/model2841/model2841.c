@@ -142,7 +142,7 @@ step_2841(void *data)
    sal = &ros_2841[ctx->WX];
 
    /* Disassemble micro instruction */
-   if (log_level & LOG_MICRO) {
+   if (log_level & LOG_DMICRO) {
        sprintf(buffer, "%s %03X: %02X %s ", sal->NOTE, ctx->WX, sal->CN, ca_name[sal->CA]);
 
        switch (sal->CC) {
@@ -254,7 +254,7 @@ step_2841(void *data)
              strcat(buffer, tbuf);
        }
        strcat(buffer, "\n");
-       log_micro(buffer);
+       log_dmicro(buffer);
    }
 
 
@@ -760,10 +760,10 @@ step_2841(void *data)
 
    ctx->WX = nextWX;
 
-   log_reg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x WX=%03x %d\n",
+   log_dreg("OP=%02x DW=%02x UR=%02x BX=%02x BY=%02x DH=%02x DL=%02x FR=%02x GL=%02x SC=%02x WX=%03x %d\n",
            ctx->OP_REG, ctx->DW_REG, ctx->UR_REG, ctx->BX_REG, ctx->BY_REG,
            ctx->DH_REG, ctx->DL_REG, ctx->FR_REG, ctx->GL_REG, ctx->SC_REG, ctx->WX, ctx->selected);
-   log_reg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x A=%02x B=%02x > %02x %x\n",
+   log_dreg("KL=%02x ER=%02x GP=%02x IG=%02x DR=%02x ST=%02x FT=%02x FC=%02x A=%02x B=%02x > %02x %x\n",
            ctx->KL_REG, ctx->ER_REG, ctx->GP_REG, ctx->IG_REG, ctx->DR_REG,
            ctx->ST_REG, ctx->FT, ctx->FC, ctx->Abus, ctx->Bbus, ctx->Alu_out, ctx->carry);
 }
@@ -833,6 +833,7 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
             if ((ctx->IG_REG & BIT5) != 0) {
                 *bus_in = 0x100 | SNS_SMS | SNS_BSY;
                 *tags |= CHAN_STA_IN;
+                *tags &= ~(CHAN_SEL_OUT);
                 ctx->sta_in = 1;
                 log_trace("Unit busy\n");
                 ctx->ER_REG |= BIT3|BIT7;
@@ -850,6 +851,9 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
             log_trace("Address parity error\n");
         }
     } else {
+        if ((ctx->IG_REG & BIT5) != 0) {
+             *tags &= ~CHAN_STA_IN;
+        }
         ctx->ER_REG &= ~BIT1;
     }
 
@@ -917,7 +921,7 @@ model2841_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     }
 
     /* Process bus when selected by CPU */
-    if (ctx->selected) {
+    if (ctx->selected || ctx->addressed) {
          *tags &= ~(CHAN_SEL_OUT);
 
          /* If IG Bit 7, raise address IN with selected device */
