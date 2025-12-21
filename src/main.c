@@ -85,7 +85,7 @@
 
 #include "logger.h"
 #include "device.h"
-#include "panel.h"
+#include "widgets.h"
 #include "conf.h"
 #ifdef _WIN32
 #include "getopt.h"
