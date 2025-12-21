@@ -30,7 +30,8 @@
 #include <SDL_image.h>
 #include <stdio.h>
 #include <string.h>
-#include "panel.h"
+#include "widgets.h"
+#include "light.h"
 #include "logger.h"
 #include "event.h"
 #include "xlat.h"
