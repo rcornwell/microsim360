@@ -51,6 +51,9 @@ void (*setup_cpu)(void *rend) = NULL;
 
 void (*step_cpu)() = NULL;
 
+/*
+ * Log channel control bits to log.
+ */
 void
 print_tags(char *name, int state, uint16_t tags, uint16_t bus_out)
 {
@@ -76,6 +79,45 @@ print_tags(char *name, int state, uint16_t tags, uint16_t bus_out)
     }
 }
 
+/*
+ * Initialize all devices. Called before simulator starts.
+ */
+void
+system_init(void *render)
+{
+    struct _device   *dev;
+    int            ch;
+
+    for (ch = 0; ch < (sizeof(chan)/sizeof(struct _device *)); ch++) {
+        for (dev = chan[ch]; dev != NULL; dev = dev->next) {
+            if (dev->init_device != NULL) {
+                (dev->init_device)(dev, render);
+            }
+        }
+    }
+}
+
+/*
+ * Close all devices.
+ */
+void
+system_shutdown()
+{
+    struct _device   *dev;
+    int            ch;
+
+    for (ch = 0; ch < (sizeof(chan)/sizeof(struct _device *)); ch++) {
+        for (dev = chan[ch]; dev != NULL; dev = dev->next) {
+            if (dev->close_device != NULL) {
+                (dev->close_device)(dev);
+            }
+        }
+    }
+}
+
+/*
+ * Add a device to a channel.
+ */
 void
 add_chan(struct _device *dev, uint16_t addr)
 {
@@ -96,6 +138,9 @@ add_chan(struct _device *dev, uint16_t addr)
       }
 }
 
+/*
+ * Find a device on channel.
+ */
 struct _device *
 find_chan(uint16_t addr, uint16_t mask)
 {
@@ -109,6 +154,9 @@ find_chan(uint16_t addr, uint16_t mask)
       return NULL;
 }
 
+/*
+ * Remove a device from a channel
+ */
 void
 del_chan(struct _device *dev, uint16_t addr)
 {

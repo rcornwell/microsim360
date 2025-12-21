@@ -121,10 +121,13 @@ typedef struct _device {
                           uint16_t *bus_in);
     void      (*draw_model)(struct _device *unit, void *render);
     struct _popup *(*create_ctrl)(struct _device *unit, int hd, int wd, int u);
+    void      (*init_device)(struct _device *unit, void *render);
+    void      (*close_device)(struct _device *unit);
     void       *dev;               /* Pointer to device context */
     char       *type_name;         /* Name of device */
     int         n_units;           /* Number of units */
     uint16_t    addr;              /* Device address and channel */
+    uint16_t    mask;              /* Device address mask */
     struct _rect {
         int     x;                 /* X offset for device image */
         int     y;                 /* Y offset for device image */
@@ -176,12 +179,15 @@ void del_disk(void *drive);
 
 void step_disk();
 
+void system_init(void *render);
+
+void system_shutdown();
+
 extern char *title;
 
 extern void (*setup_cpu)(void *rend);
 
 extern void (*step_cpu)();
-
 
 
 /*
