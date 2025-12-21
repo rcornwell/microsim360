@@ -56,6 +56,16 @@
 #define IRG_MASK    0x80               /* P7B inter record marker */
 #define BCD_TM      0xf                /* IRG tape mark */
 
+#define TAPE_STATUS_FILE_ERROR    -1   /* File read/write error to tape file */
+#define TAPE_STATUS_OK             0   /* Operation successful */
+#define TAPE_STATUS_EOT            1   /* Tape at EOT */
+#define TAPE_STATUS_BOT            2   /* Tape at BOT */
+#define TAPE_STATUS_EOB            3   /* End of tape block */
+#define TAPE_STATUS_IRG            4   /* Tape in IRG */
+#define TAPE_STATUS_PARITY         5   /* End of data Parity error */
+#define TAPE_STATUS_MARK           6   /* Tape mark read */
+#define TAPE_STATUS_WRP            7   /* Tape write protected */
+
 struct _tape_buffer {
      char         *file_name;           /* File name attached to */
      int           fd;                  /* Open file descriptor. */
@@ -66,6 +76,7 @@ struct _tape_buffer {
      int           len_buff;            /* Length of buffer */
      uint32_t      lrecl;               /* Logical record length of current record */
      uint32_t      orecl;               /* Original record length */
+     int           parity;              /* Record incomplete */
      long          srec;                /* Start of record offset for TAP and E11 format */
      int           dirty;               /* Buffer dirty */
      uint8_t       buffer[32*1024];     /* Buffer of current record */
@@ -80,6 +91,12 @@ extern struct _tape_image {
 } tape_position[1300];
 
 extern int tape_image_pos[37];
+extern char *format_type[4];
+extern char *density_type[3];
+extern char *tracks[3];
+extern char *ring_mode[3];
+extern char *reel_color[4];
+extern char *label_mode[3];
 
 /*
  * Return true if tape at load point.
@@ -160,6 +177,19 @@ int tape_write_start(struct _tape_buffer *tape);
  */
 
 int tape_write_mark(struct _tape_buffer *tape);
+
+/*
+ * Erase gap.
+ *
+ * Return:
+ *
+ *    -1 if file write error.
+ *     0
+ *     1 successfull
+ *     2 write protection.
+ */
+
+int tape_erase_gap(struct _tape_buffer *tape);
 
 /*
  * Start read forward.
@@ -269,6 +299,10 @@ extern int max_tape_pos;
    Outer tape up 62.9 inch.  10.5 inch
 
    About 2687 rotations. 0.002in or  .0508 mm per revolution.
+
+   ERG:   3.5in
+          800 2800 frames
+         1600 5600 frames
 #endif
 
 #endif

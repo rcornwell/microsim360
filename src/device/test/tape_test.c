@@ -43,10 +43,10 @@ write_block(FILE *f, uint32_t len, uint8_t *buffer, int type)
          wlen = 0x7fffffff & ((len + 1) & ~1);
          /* Fall through */
     case TYPE_E11:
-         xlen[0] = len & 0xff;
+         xlen[0] = (len) & 0xff;
          xlen[1] = (len >> 8) & 0xff;
          xlen[2] = (len >> 16) & 0xff;
-         xlen[3] = (len >> 24) & 0xff;
+         xlen[3] = (len >> 24) & 0xff;;
          fwrite(xlen, sizeof(uint8_t), 4, f);
          fwrite(buffer, sizeof(uint8_t), wlen, f);
          fwrite(xlen, sizeof(uint8_t), 4, f);
@@ -152,22 +152,23 @@ CTEST2(tape_test, read_e11) {
     rec = 0;
     do {
         r = tape_read_forw(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec);
         i = 0;
-        while (tape_read_frame(tape_ctx, &buffer1[i]) == 1) {
+        while ((r = tape_read_frame(tape_ctx, &buffer1[i])) == TAPE_STATUS_OK) {
            i++;
+           ASSERT_TRUE(i < 128);
         }
         buffer1[i] = '\0';
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(strlen(buffer2), i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         ASSERT_EQUAL(0, tape_at_loadpt(tape_ctx));
         rec++;
-    } while (r == 1);
-    ASSERT_EQUAL(2, r);
+    } while (r == TAPE_STATUS_EOB);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
     ASSERT_EQUAL(100, rec);
     tape_detach(tape_ctx);
 }
@@ -185,22 +186,23 @@ CTEST2(tape_test, read_tap) {
     rec = 0;
     do {
         r = tape_read_forw(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec);
         i = 0;
-        while (tape_read_frame(tape_ctx, &buffer1[i]) == 1) {
+        while (tape_read_frame(tape_ctx, &buffer1[i]) == TAPE_STATUS_OK) {
            i++;
+           ASSERT_TRUE(i < 128);
         }
         buffer1[i] = '\0';
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(strlen(buffer2), i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         ASSERT_EQUAL(0, tape_at_loadpt(tape_ctx));
         rec++;
-    } while (r == 1);
-    ASSERT_EQUAL(2, r);
+    } while (r == TAPE_STATUS_OK);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
     ASSERT_EQUAL(100, rec);
     tape_detach(tape_ctx);
 }
@@ -218,22 +220,23 @@ CTEST2(tape_test, read_p7b) {
     rec = 0;
     do {
         r = tape_read_forw(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec);
         i = 0;
-        while (tape_read_frame(tape_ctx, &buffer1[i]) == 1) {
+        while (tape_read_frame(tape_ctx, &buffer1[i]) == TAPE_STATUS_OK) {
            i++;
+           ASSERT_TRUE(i < 128);
         }
         buffer1[i] = '\0';
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(strlen(buffer2), i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         ASSERT_EQUAL(0, tape_at_loadpt(tape_ctx));
         rec++;
-    } while (r == 1);
-    ASSERT_EQUAL(2, r);
+    } while (r == TAPE_STATUS_OK);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
     ASSERT_EQUAL(100, rec);
     tape_detach(tape_ctx);
 }
@@ -258,23 +261,23 @@ CTEST2(tape_test, write_e11_long) {
     /* Write a long enough tape to run over a couple buffers */
     do {
         r = tape_write_start(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec);
         i = 0;
         l = strlen(buffer2);
         for(i = 0; i < l; i++) {
-           if (tape_write_frame(tape_ctx, buffer2[i]) != 1)
+           if (tape_write_frame(tape_ctx, buffer2[i]) != TAPE_STATUS_OK)
                break;
            sz++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         rec++;
     } while (sz < 80*1024);
-    ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_write_mark(tape_ctx));
     /* Rewind tape to start */
-    ASSERT_EQUAL(1, tape_start_rewind(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_start_rewind(tape_ctx));
     while (!tape_at_loadpt(tape_ctx)) {
         tape_rewind_frames(tape_ctx, 10000);
     }
@@ -284,49 +287,51 @@ CTEST2(tape_test, write_e11_long) {
     sz_r = 0;
     do {
         r = tape_read_forw(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = 0;
-        while (tape_read_frame(tape_ctx, &buffer1[i]) == 1) {
+        while (tape_read_frame(tape_ctx, &buffer1[i]) == TAPE_STATUS_OK) {
            i++;
            sz_r++;
+           ASSERT_TRUE(i < 128);
         }
         buffer1[i] = '\0';
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(strlen(buffer2), i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         rec_r++;
-    } while (r == 1);
-    ASSERT_EQUAL(2, r);
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+    } while (r == TAPE_STATUS_OK);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
     ASSERT_EQUAL(rec, rec_r);
     ASSERT_EQUAL(sz, sz_r);
     /* Try and read tape backwards */
 
     /* Skip over the tape mark we just read */
-    ASSERT_EQUAL(2, tape_read_back(tape_ctx));
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_MARK, tape_read_back(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
     rec_r = rec;
     sz_r = 0;
     do {
         r = tape_read_back(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         rec_r--;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = strlen(buffer2);
         buffer1[i] = '\0';
-        while (i >=0 && tape_read_frame(tape_ctx, &buffer1[i-1]) == 1) {
+        while (i >=0 && tape_read_frame(tape_ctx, &buffer1[i-1]) == TAPE_STATUS_OK) {
            i--;
+           ASSERT_TRUE(i >= 0);
            sz_r++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(0, i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
-    } while (r == 1);
+    } while (r == TAPE_STATUS_OK);
     ASSERT_EQUAL(0, rec_r);
     ASSERT_EQUAL(sz, sz_r);
     tape_detach(tape_ctx);
@@ -359,16 +364,16 @@ CTEST2(tape_test, write_tap_long) {
         i = 0;
         l = strlen(buffer2);
         for(i = 0; i < l; i++) {
-           if (tape_write_frame(tape_ctx, buffer2[i]) != 1)
+           if (tape_write_frame(tape_ctx, buffer2[i]) != TAPE_STATUS_OK)
                break;
            sz++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         rec++;
     } while (sz < 80*1024);
-    ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_write_mark(tape_ctx));
     /* Rewind tape to start */
-    ASSERT_EQUAL(1, tape_start_rewind(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_start_rewind(tape_ctx));
     while (!tape_at_loadpt(tape_ctx)) {
         tape_rewind_frames(tape_ctx, 10000);
     }
@@ -377,27 +382,28 @@ CTEST2(tape_test, write_tap_long) {
     rec_r = 0;
     do {
         r = tape_read_forw(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = 0;
-        while (tape_read_frame(tape_ctx, &buffer1[i]) == 1) {
+        while (tape_read_frame(tape_ctx, &buffer1[i]) == TAPE_STATUS_OK) {
            i++;
+           ASSERT_TRUE(i < 128);
         }
         buffer1[i] = '\0';
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(strlen(buffer2), i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         rec_r++;
-    } while (r == 1);
-    ASSERT_EQUAL(2, r);
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+    } while (r == TAPE_STATUS_OK);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
     ASSERT_EQUAL(rec, rec_r);
     /* Try and read tape backwards */
     /* Skip over the tape mark we just read */
-    ASSERT_EQUAL(2, tape_read_back(tape_ctx));
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_MARK, tape_read_back(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
     rec_r = rec;
     sz_r = 0;
     do {
@@ -411,6 +417,7 @@ CTEST2(tape_test, write_tap_long) {
         buffer1[i] = '\0';
         while (tape_read_frame(tape_ctx, &buffer1[i-1]) == 1) {
            i--;
+           ASSERT_TRUE(i >= 0);
            sz_r++;
         }
         ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
@@ -448,16 +455,16 @@ CTEST2(tape_test, write_p7b_long) {
         i = 0;
         l = strlen(buffer2);
         for(i = 0; i < l; i++) {
-           if (tape_write_frame(tape_ctx, buffer2[i]) != 1)
+           if (tape_write_frame(tape_ctx, buffer2[i]) != TAPE_STATUS_OK)
                break;
            sz++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         rec++;
     } while (sz < 80*1024);
-    ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_write_mark(tape_ctx));
     /* Rewind tape to start */
-    ASSERT_EQUAL(1, tape_start_rewind(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_start_rewind(tape_ctx));
     while (!tape_at_loadpt(tape_ctx)) {
         tape_rewind_frames(tape_ctx, 10000);
     }
@@ -465,27 +472,28 @@ CTEST2(tape_test, write_p7b_long) {
     rec_r = 0;
     do {
         r = tape_read_forw(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = 0;
-        while (tape_read_frame(tape_ctx, &buffer1[i]) == 1) {
+        while (tape_read_frame(tape_ctx, &buffer1[i]) == TAPE_STATUS_OK) {
            i++;
+           ASSERT_TRUE(i < 128);
         }
         buffer1[i] = '\0';
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(strlen(buffer2), i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         rec_r++;
-    } while (r == 1);
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
-    ASSERT_EQUAL(2, r);
+    } while (r == TAPE_STATUS_OK);
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
     ASSERT_EQUAL(rec, rec_r);
     /* Try and read tape backwards */
     /* Skip over the tape mark we just read */
-    ASSERT_EQUAL(2, tape_read_back(tape_ctx));
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_MARK, tape_read_back(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
     rec_r = rec;
     sz_r = 0;
     do {
@@ -497,15 +505,15 @@ CTEST2(tape_test, write_p7b_long) {
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = strlen(buffer2);
         buffer1[i] = '\0';
-        while ((r = tape_read_frame(tape_ctx, &buffer1[i-1])) == 1) {
+        while ((r = tape_read_frame(tape_ctx, &buffer1[i-1])) == TAPE_STATUS_OK) {
            i--;
            sz_r++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(0, i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         sz_r = 0;
-    } while (r == 1);
+    } while (r == TAPE_STATUS_OK);
     tape_detach(tape_ctx);
 }
 
@@ -538,9 +546,9 @@ CTEST2(tape_test, write_long_rec) {
         sz += 2000;
         rec++;
     } while (sz < 80*1024);
-    ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_write_mark(tape_ctx));
     /* Rewind tape to start */
-    ASSERT_EQUAL(1, tape_start_rewind(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_start_rewind(tape_ctx));
     while (!tape_at_loadpt(tape_ctx)) {
         tape_rewind_frames(tape_ctx, 10000);
     }
@@ -563,7 +571,7 @@ CTEST2(tape_test, write_long_rec) {
         sz_r += 2000;
         rec_r++;
     } while (r == 1);
-    ASSERT_EQUAL(2, r);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
     ASSERT_EQUAL(rec, rec_r);
     ASSERT_EQUAL(sz, sz_r);
     tape_detach(tape_ctx);
@@ -597,9 +605,9 @@ CTEST2(tape_test, write_long_rec_p7b) {
         sz += 2000;
         rec++;
     } while (sz < 80*1024);
-    ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_write_mark(tape_ctx));
     /* Rewind tape to start */
-    ASSERT_EQUAL(1, tape_start_rewind(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_start_rewind(tape_ctx));
     while (!tape_at_loadpt(tape_ctx)) {
         tape_rewind_frames(tape_ctx, 10000);
     }
@@ -609,20 +617,20 @@ CTEST2(tape_test, write_long_rec_p7b) {
     sz_r = 4000;
     do {
         r = tape_read_forw(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         for(i = 0; i < sz_r; i++) {
-           if (tape_read_frame(tape_ctx, &d) != 1)
+           if (tape_read_frame(tape_ctx, &d) != TAPE_STATUS_OK)
                break;
            if (d != (i & 0x7f))
                break;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(sz_r, i);
         sz_r += 2000;
         rec_r++;
-    } while (r == 1);
-    ASSERT_EQUAL(2, r);
+    } while (r == TAPE_STATUS_OK);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
     ASSERT_EQUAL(rec, rec_r);
     ASSERT_EQUAL(sz, sz_r);
     tape_detach(tape_ctx);
@@ -661,15 +669,15 @@ CTEST2(tape_test, write_mark) {
                break;
            sz++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         rec++;
         if ((rec % 10) == 0) {
             ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
         }
     } while (rec < 100);
-    ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_write_mark(tape_ctx));
     /* Rewind tape to start */
-    ASSERT_EQUAL(1, tape_start_rewind(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_start_rewind(tape_ctx));
     while (!tape_at_loadpt(tape_ctx)) {
         tape_rewind_frames(tape_ctx, 10000);
     }
@@ -679,9 +687,9 @@ CTEST2(tape_test, write_mark) {
     do {
         r = tape_read_forw(tape_ctx);
         /* Check for tape mark */
-        if (r == 2) {
+        if (r == TAPE_STATUS_MARK) {
             ASSERT_EQUAL(0, (rec_r) % 10);
-            ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+            ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
             r = tape_read_forw(tape_ctx);
         }
         if (r != 1)
@@ -689,48 +697,50 @@ CTEST2(tape_test, write_mark) {
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = 0;
-        while (tape_read_frame(tape_ctx, &buffer1[i]) == 1) {
+        while (tape_read_frame(tape_ctx, &buffer1[i]) == TAPE_STATUS_OK) {
            i++;
+           ASSERT_TRUE(i < 128);
         }
         buffer1[i] = '\0';
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(strlen(buffer2), i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         rec_r++;
-    } while (r == 1);
-    ASSERT_EQUAL(2, r);
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
-    ASSERT_EQUAL(0, tape_read_forw(tape_ctx));
+    } while (r == TAPE_STATUS_OK);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_EOT, tape_read_forw(tape_ctx));
     ASSERT_EQUAL(rec, rec_r);
     /* Try and read tape backwards */
     r = tape_read_back(tape_ctx);
     r = tape_read_frame(tape_ctx, &buffer1[0]);
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
     rec_r = rec;
     sz_r = 0;
     do {
         r = tape_read_back(tape_ctx);
         /* Check for tape mark */
-        if (r == 2) {
+        if (r == TAPE_STATUS_MARK) {
             ASSERT_EQUAL(0, (rec_r) % 10);
-            ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+            ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
             r = tape_read_back(tape_ctx);
         }
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         rec_r--;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = strlen(buffer2);
         buffer1[i] = '\0';
-        while (tape_read_frame(tape_ctx, &buffer1[i-1]) == 1 && i > 0) {
+        while (tape_read_frame(tape_ctx, &buffer1[i-1]) == TAPE_STATUS_OK && i > 0) {
            i--;
+           ASSERT_TRUE(i >= 0);
            sz_r++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(0, i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
-    } while (r == 1);
+    } while (r == TAPE_STATUS_OK);
     ASSERT_EQUAL(0, rec_r);
     ASSERT_EQUAL(sz, sz_r);
     tape_detach(tape_ctx);
@@ -758,26 +768,26 @@ CTEST2(tape_test, write_mark_p7b) {
     sz = 0;
     do {
         r = tape_write_start(tape_ctx);
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec);
         i = 0;
         l = strlen(buffer2);
         for(i = 0; i < l; i++) {
-           if (tape_write_frame(tape_ctx, buffer2[i]) != 1)
+           if (tape_write_frame(tape_ctx, buffer2[i]) != TAPE_STATUS_OK)
                break;
            sz++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         rec++;
         if ((rec % 10) == 0) {
-            ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
+            ASSERT_EQUAL(TAPE_STATUS_OK, tape_write_mark(tape_ctx));
         }
     } while (rec < 100);
-    ASSERT_EQUAL(1, tape_write_mark(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_write_mark(tape_ctx));
     /* Rewind tape to start */
-    ASSERT_EQUAL(1, tape_start_rewind(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_start_rewind(tape_ctx));
     while (!tape_at_loadpt(tape_ctx)) {
         tape_rewind_frames(tape_ctx, 10000);
     }
@@ -787,58 +797,60 @@ CTEST2(tape_test, write_mark_p7b) {
     do {
         r = tape_read_forw(tape_ctx);
         /* Check for tape mark */
-        if (r == 2) {
+        if (r == TAPE_STATUS_MARK) {
             ASSERT_EQUAL(0, (rec_r) % 10);
-            ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+            ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
             r = tape_read_forw(tape_ctx);
         }
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = 0;
-        while (tape_read_frame(tape_ctx, &buffer1[i]) == 1) {
+        while (tape_read_frame(tape_ctx, &buffer1[i]) == TAPE_STATUS_OK) {
            i++;
+           ASSERT_TRUE(i < 128);
         }
         buffer1[i] = '\0';
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(strlen(buffer2), i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
         rec_r++;
-    } while (r == 1);
-    ASSERT_EQUAL(2, r);
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
-    ASSERT_EQUAL(0, tape_read_forw(tape_ctx));
+    } while (r == TAPE_STATUS_OK);
+    ASSERT_EQUAL(TAPE_STATUS_MARK, r);
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_EOT, tape_read_forw(tape_ctx));
     ASSERT_EQUAL(rec, rec_r);
     /* Try and read tape backwards */
     r = tape_read_back(tape_ctx);
     r = tape_read_frame(tape_ctx, &buffer1[0]);
-    ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+    ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
     rec_r = rec;
     sz_r = 0;
     do {
         r = tape_read_back(tape_ctx);
         /* Check for tape mark */
-        if (r == 2) {
+        if (r == TAPE_STATUS_MARK) {
             ASSERT_EQUAL(0, (rec_r) % 10);
-            ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+            ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
             r = tape_read_back(tape_ctx);
         }
-        if (r != 1)
+        if (r != TAPE_STATUS_OK)
            break;
         rec_r--;
         sprintf (buffer2,
           "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rec_r);
         i = strlen(buffer2);
         buffer1[i] = '\0';
-        while (tape_read_frame(tape_ctx, &buffer1[i-1]) == 1) {
+        while (tape_read_frame(tape_ctx, &buffer1[i-1]) == TAPE_STATUS_OK) {
            i--;
+           ASSERT_TRUE(i >= 0);
            sz_r++;
         }
-        ASSERT_EQUAL(1, tape_finish_rec(tape_ctx));
+        ASSERT_EQUAL(TAPE_STATUS_OK, tape_finish_rec(tape_ctx));
         ASSERT_EQUAL(0, i);
         ASSERT_STR(buffer2, (char *)&buffer1[0]);
-    } while (r == 1);
+    } while (r == TAPE_STATUS_OK);
     ASSERT_EQUAL(0, rec_r);
     ASSERT_EQUAL(sz, sz_r);
     tape_detach(tape_ctx);
