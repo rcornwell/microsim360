@@ -23,18 +23,18 @@
  *
  */
 
-#include <SDL.h>
-#include <SDL_timer.h>
-#include <SDL_thread.h>
-#include <SDL_ttf.h>
-#include <SDL_image.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <ctype.h>
 #include <string.h>
 #include "logger.h"
 #include "event.h"
-#include "panel.h"
+#include "config.h"
+#include "device.h"
 #include "card.h"
-#include "model1442.xpm"
 #include "xlat.h"
+#include "model1442.h"
 
 /*
  *  Commands.
@@ -53,59 +53,7 @@
 #define SENSE_DATCHK    BIT4  /* More then 1 punch in rows 1-7 */
 #define SENSE_OVRRUN    BIT5  /* Data missed */
 
-
-#define STATE_IDLE      0     /* Device in Idle state */
-#define STATE_SEL       1     /* Device now selected */
-#define STATE_CMD       2     /* Device awaiting command */
-#define STATE_INIT_STAT 3     /* Sent init status */
-#define STATE_OPR       4     /* Do operation */
-#define STATE_OPR_REL   5     /* Operator but release */
-#define STATE_REQ       6     /* Request the channel */
-#define STATE_DATA_O    7     /* Data out to device */
-#define STATE_DATA_I    8     /* Data in  to device */
-#define STATE_DATA_END  9     /* Post end of channel usage */
-#define STATE_END       10    /* Post ending status */
-#define STATE_STACK     11    /* Channel polling */
-#define STATE_STACK_SEL 12    /* Stack status select */
-#define STATE_STACK_CMD 13    /* Stack command */
-#define STATE_STACK_STA 14    /* Stack status out */
-#define STATE_STACK_HLD 15    /* Stack hold */
-#define STATE_WAIT      16    /* After data transfer wait motion */
-
-
-struct _1442_context {
-    int                    addr;         /* Device address */
-    int                    chan;         /* Channel address */
-    int                    state;        /* Current channel state */
-    int                    selected;     /* Device currently selected */
-    int                    request;      /* Request channel */
-    int                    addressed;    /* Device has been addressed */
-    int                    stacked;      /* Device has stack status */
-    int                    busy_flag;    /* If we returned fast busy */
-    int                    sense;        /* Current sense value */
-    int                    cmd;          /* Current command */
-    int                    status;       /* Current bus status */
-    int                    data;         /* Current byte to send/recieve */
-    int                    data_rdy;     /* Data is valid */
-    int                    data_end;     /* Data transfer over */
-    int                    feed_done;    /* Feed done */
-    struct card_context   *feed;         /* Context describing card feed */
-    struct card_context   *stack[2];     /* Output stackers. */
-    uint16_t               rdr_card[80]; /* Current card in reader */
-    int                    rdr_col;      /* Current reader column */
-    int                    rdr_full;     /* Card in reader */
-    int                    hop_cnt;      /* Number of cards in hopper */
-    int                    stk_cnt[2];   /* Number of cards in stacker */
-    uint16_t               pch_card[80]; /* Current card in punch */
-    int                    pch_col;      /* Current punch column */
-    int                    pch_full;     /* Card in punch */
-    int                    stk_sel;      /* Current stacker */
-    int                    eof_flag;     /* End of file flag */
-    int                    stop_flag;    /* Stop at end of current command */
-};
-
-void model1442_feed(struct _1442_context *ctx);
-
+char *type_label[6] = { "AUTO", "ASCII", "EBCDIC", "BIN", "OCTAL", NULL};
 
 static void feed_callback(struct _device *unit, void *arg, int iarg);
 
@@ -126,10 +74,16 @@ read_callback(struct _device *unit, void *arg, int iarg)
         if (ctx->rdr_col < 80) {
             uint8_t ch;
             ctx->data = hol_to_ebcdic(ctx->rdr_card[ctx->rdr_col]);
+            if (ctx->data == 0x100) {
+                ctx->data = 0;
+                ctx->sense |= SENSE_DATCHK;
+                log_device("Read error %d\n", ctx->rdr_col);
+            } else {
             ch = ebcdic_to_ascii[ctx->data];
             if (!isprint(ch))
                ch = '.';
             log_device("Read data %d:%02x '%c'\n", ctx->rdr_col, ctx->data, ch);
+            }
             ctx->rdr_col++;
             ctx->data_rdy = 1;
             add_event(unit, &read_callback, 100, NULL, 0);
@@ -138,10 +92,14 @@ read_callback(struct _device *unit, void *arg, int iarg)
             ctx->data_end = 1;
             add_event(unit, &feed_callback, 1000, NULL, 0);
         }
+        unit->request = 1;
     } else {
+        log_device("reader overrun\n");
         ctx->sense |= SENSE_OVRRUN;
         ctx->status |= SNS_CHNEND|SNS_UNITCHK;
         ctx->data_end = 1;
+        add_event(unit, &feed_callback, 1000, NULL, 0);
+        unit->request = 1;
     }
 
 }
@@ -152,785 +110,631 @@ write_callback(struct _device *unit, void *arg, int iarg)
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
 
     log_device("reader Write get1\n");
+    if (ctx->data_rdy) {
+        ctx->sense |= SENSE_OVRRUN;
+        ctx->status |= SNS_CHNEND|SNS_UNITCHK;
+        ctx->data_end = 1;
+        unit->request = 1;
+        if ((ctx->cmd & 0x80) != 0) {
+             add_event(unit, &feed_callback, 1000, NULL, 0);
+        } else {
+             ctx->status |= SNS_DEVEND;
+             ctx->cmd_done = 1;
+             ctx->busy = 0;
+             ctx->cmd = 0;
+        }
+        return;
+    }
+
     if (ctx->pch_col < 80) {
         ctx->pch_card[ctx->pch_col] |= ebcdic_to_hol(ctx->data);
         ctx->pch_col++;
     }
     /* Set that we are ready for another byte of data */
     ctx->data_rdy = 1;
+    unit->request = 1;
+    add_event(unit, &write_callback, 100, NULL, 0);
 }
 
 static void
 feed_callback(struct _device *unit, void *arg, int iarg)
 {
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
-    model1442_feed(ctx);
     ctx->status |= SNS_DEVEND;
+    ctx->busy = 0;
+    ctx->cmd_done = 1;
     ctx->feed_done = 1;
+    unit->request = 1;
+    if (ctx->hop_cnt == 0 && ctx->eof_flag) {
+        ctx->status |= SNS_UNITEXP;
+        ctx->eof_flag = 0;
+        /* Move card to punch */
+        model1442_feed(ctx);
+        return;
+    }
+    model1442_feed(ctx);
+    if (ctx->sense != 0) {
+        log_device("Sense %02x\n", ctx->sense);
+        ctx->status |= SNS_UNITCHK;
+    }
 }
 
+/* Stop device when channel has no more data */
+static void
+device_stop(struct _device *unit)
+{
+    struct _1442_context *ctx = (struct _1442_context *)unit->dev;
+
+    log_device("1442: stop %02x\n", ctx->cmd);
+    ctx->status |= SNS_CHNEND;
+    ctx->data_end = 1;
+    switch (ctx->cmd & 03) {
+    case 1: /* Write */
+            cancel_event(unit, &write_callback);
+            if ((ctx->cmd & 0x80) != 0) {
+                add_event(unit, &feed_callback, 1000, NULL, 0);
+            } else {
+                ctx->status |= SNS_DEVEND;
+                if (ctx->sense != 0) {
+                    ctx->status |= SNS_UNITCHK;
+                }
+                ctx->cmd_done = 1;
+                ctx->busy = 0;
+                ctx->cmd = 0;
+           }
+           break;
+
+    case 2: /* Read */
+            cancel_event(unit, &read_callback);
+            add_event(unit, &feed_callback, 1000, NULL, 0);
+            break;
+    }
+}
+
+/* Decode command to device */
+static void
+device_cmd(struct _device *unit, uint8_t bus_out)
+{
+    struct _1442_context *ctx = (struct _1442_context *)unit->dev;
+    uint8_t cmd = bus_out & 0xff;
+
+    log_device("1442: command %02x\n", bus_out);
+    ctx->cmd = 0;
+    ctx->data_rdy = 0;
+    ctx->data_end = 1;
+    ctx->feed_done = 0;
+    ctx->cmd_done = 1;
+    ctx->status = 0;
+    switch (cmd & 07) {
+    case 0: /* Test I/O */
+           ctx->data_end = 0;
+           ctx->cmd_done = 0;
+           if (ctx->sense != 0) {
+              ctx->status |= SNS_UNITCHK;
+           }
+           return;
+
+    case 1: /* Write */
+           ctx->sense &= SENSE_INTERV;
+           if ((cmd & 0x5c) != 0) {
+               ctx->sense |= SENSE_CMDREJ;
+               break;
+           }
+           ctx->stk_sel = (cmd & 0x20) != 0;
+           /* Check if card in correct station */
+           if (ctx->pch_full == 0) {
+               break;
+           }
+           ctx->cmd = cmd;
+           ctx->data_end = 0;
+           ctx->cmd_done = 0;
+           ctx->data_rdy = 1;
+           ctx->busy = 1;
+           add_event(unit, &write_callback, 100, NULL, 0);
+           break;
+
+    case 2: /* Read */
+           ctx->sense &= SENSE_INTERV;
+           if ((cmd & 0xdc) != 0) {
+               ctx->sense |= SENSE_CMDREJ;
+               break;
+           }
+           ctx->stk_sel = (cmd & 0x20) != 0;
+           /* Check if last card */
+           if (ctx->rdy_flag == 0) {
+               ctx->sense |= SENSE_INTERV;
+           } else {
+               ctx->cmd = cmd;
+               ctx->data_end = 0;
+               ctx->cmd_done = 0;
+               ctx->busy = 1;
+               add_event(unit, &read_callback, 100, NULL, 0);
+           }
+           break;
+
+    case 3: /* Feed */
+           ctx->sense &= SENSE_INTERV;
+           if ((cmd & 0x5c) != 0) {
+               ctx->sense |= SENSE_CMDREJ;
+               break;
+           }
+           ctx->stk_sel = (cmd & 0x20) != 0;
+           if ((cmd & 0x80) == 0) {
+               ctx->status |= SNS_CHNEND|SNS_DEVEND;
+               return;
+           }
+           if (ctx->rdy_flag == 0) {
+               ctx->sense |= SENSE_INTERV;
+               break;
+           }
+           ctx->cmd = cmd;
+           ctx->cmd_done = 0;
+           ctx->busy = 1;
+           add_event(unit, &feed_callback, 1000, NULL, 0);
+           break;
+
+    case 4:  /* Sense */
+           log_device("1442: Sense %02x\n", ctx->sense);
+           if (cmd != 0x04) {
+               ctx->sense |= SENSE_CMDREJ;
+           } else {
+               ctx->data = ctx->sense;
+               ctx->cmd = cmd;
+               ctx->cmd_done = 0;
+               ctx->data_end = 0;
+               ctx->data_rdy = 1;
+               return;
+           }
+           break;
+
+    default:
+           ctx->sense |= SENSE_CMDREJ;     /* Invalid command */
+           break;
+    }
+    if (ctx->data_end) {
+        ctx->status |= SNS_CHNEND;
+    }
+    if (ctx->cmd_done) {
+        ctx->status |= SNS_DEVEND;
+        if (ctx->sense != 0) {
+            ctx->status |= SNS_UNITCHK;
+        }
+    }
+}
+
+/* Process channel */
 void
 model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in)
 {
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
-    int      i;
     static   uint16_t last_tags = 0;
 
-    if (last_tags != *tags) {
-        print_tags("Reader", ctx->state, *tags, bus_out);
-        last_tags = *tags;
+    if (last_tags != *tags || unit->selected) {
+        print_tags("1442", ctx->state, *tags, bus_out);
+        last_tags = 0; // *tags;
     }
+
     /* Reset device if OPER OUT is dropped */
     if ((*tags & (CHAN_OPR_OUT|CHAN_SUP_OUT)) == 0) {
-        if (ctx->selected || ctx->addressed) {
+        if (unit->selected) {
            *tags &= ~(CHAN_OPR_IN|CHAN_ADR_IN|CHAN_SRV_IN|CHAN_STA_IN);
         }
-        if (ctx->request) {
-           *tags &= ~(CHAN_REQ_IN);
-        }
-        ctx->selected = 0;
-        ctx->request = 0;
-        ctx->addressed = 0;
+        log_device("1442: %03x reset\n",unit->addr);
+        unit->selected = 0;
+        unit->request = 0;
         ctx->state = STATE_IDLE;
+        ctx->status = 0;
         ctx->sense = 0;
         ctx->cmd = 0;
+        ctx->cmd_done = 0;
+        ctx->busy = 0;
+        ctx->data_end = 0;
+        ctx->data_rdy = 0;
         return;
     }
 
     switch (ctx->state) {
+    /* Idle wait for CPU to talk to us */
     case STATE_IDLE:
-            /* Wait until Channels asks for us */
-            if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_REQ_IN)) &&
-                 (bus_out & 0xff) == ctx->addr) {
-                /* Device selected */
-                if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
+            ctx->disconnect = 0;
+//            log_device("1442: %03x idle r=%d s=%d d=%d e=%d p=%d b=%d cd=%d %02x %02x\n",unit->addr,
+ //               unit->request, unit->stacked, ctx->data_rdy, ctx->data_end, ctx->data_end_post,
+  //              ctx->busy, ctx->cmd_done, ctx->cmd, ctx->status);
+            /* If operation out, reset device */
+            if ((*tags & CHAN_OPR_OUT) == 0) {
+                log_device("1442: %03x oper dropped\n",unit->addr);
+                break;
+            }
+
+            /* If operation in, another device has channel */
+            if ((*tags & CHAN_OPR_IN) != 0) {
+                if (unit->request || unit->stacked) {
+                    *tags &= ~(CHAN_REQ_IN);
+                }
+                break;
+            }
+
+            /* If we have request and suppress out is down, post request */
+            if (unit->request || unit->stacked) {
+                log_device("1442: %03x port request\n",unit->addr);
+                if ((*tags & (CHAN_SUP_OUT|CHAN_ADR_OUT)) == 0 || ctx->data_rdy) {
+                    *tags |= CHAN_REQ_IN;
+                } else {
+                    *tags &= ~CHAN_REQ_IN;
+                }
+            }
+
+            /* If select out check if channel is asking for us or we have status */
+            if ((*tags & CHAN_SEL_OUT) != 0) {
+                 /* Check if looking for this device */
+                 if ((*tags & CHAN_ADR_OUT) != 0) {
+                     if ((bus_out & 0xff) == (unit->addr & 0xff)) {
+                        *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);
+                        /* Check if parity error on bus */
+                        if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
+                            ctx->sense |= SENSE_BUSCHK;
+                        }
+                        /* If device in operation, respond with busy status */
+                        if (ctx->busy/* && ctx->data_end == 0*/) {
+                            *bus_in = SNS_BSY | odd_parity[SNS_BSY];
+                            *tags |= CHAN_STA_IN;             /* Put Busy flag on bus */
+                            ctx->state = STATE_BUSY;
+                            log_device("1442: %03x busy\n",unit->addr);
+                            break;
+                        }
+
+                        /* Clear select in, and raise operation in */
+                        *tags |= CHAN_OPR_IN;             /* Put our address on bus */
+                        *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
+                        ctx->state = STATE_INIT_SEL; /* Start initial select sequence */
+                        unit->selected = 1;
+                        log_device("1442: %03x selected\n",unit->addr);
+                     }
+                     break;
+                 }
+
+                 /* If no address out, see if we have request or stacked status */
+                 if ((*tags & CHAN_SUP_OUT) == 0 && (unit->request || unit->stacked)) {
+                     *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);
+                     *tags |= CHAN_OPR_IN;      /* Put our address on bus */
+                     *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
+                     unit->selected = 1;
+                     ctx->state = STATE_INIT_SEL;
+                     log_device("1442: %03x polling\n",unit->addr);
+                 }
+
+             }
+             break;
+
+            /* Start of initial selection sequence */
+    case STATE_INIT_SEL:
+            *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
+            *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
+            log_device("1442: %03x address in\n",unit->addr);
+            /* Wait for Address out to drop */
+            if ((*tags & (CHAN_ADR_OUT)) == 0) {
+                 *tags |= CHAN_ADR_IN;
+                 ctx->state = STATE_COMMAND;
+            }
+            break;
+
+     case STATE_COMMAND:
+            /* Wait for command or address out */
+            *tags &= ~(CHAN_SEL_OUT);
+            unit->request = 0;
+
+            log_device("1442: %03x waiting command %02x\n",unit->addr, ctx->status);
+            *bus_in = (unit->addr & 0xff) | odd_parity[unit->addr & 0xff];
+            /* we get command out, process command */
+            if ((*tags & (CHAN_CMD_OUT)) != 0) {
+                *tags &= ~(CHAN_ADR_IN);        /* Command out, drop addressin */
+                /* Check if parity error on bus */
+                if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
+                    ctx->cmd = 0;
+                    ctx->cmd_done = 0;
+                    ctx->busy = 0;
+                    ctx->data_end = 0;
+                    ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
                     ctx->sense |= SENSE_BUSCHK;
-                *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
-                *tags |= CHAN_OPR_IN;
-                ctx->state = STATE_SEL;
-                ctx->addressed = 1;
-                log_device("reader selected\n");
-             }
+                    ctx->state = STATE_STATUS;
+                    break;
+                }
+                if (ctx->busy) {
+                    if (ctx->data_end == 0) {
+                        ctx->state = STATE_DATA_1;
+                        break;
+                    }
+                    if (ctx->status == 0) {
+                        ctx->status = SNS_BSY;
+                    }
+                    ctx->state = STATE_STATUS; /* Present status out */
+                    break;
+                }
+                ctx->state = STATE_STATUS; /* Present status out */
+                if (!unit->stacked && ctx->status == 0) {       /* If no stacked status, process command */
+                    device_cmd(unit, bus_out & 0xff);
+                }
+                break;
+            }
+
+            /* If we get Address out again, we need to halt */
+            if ((*tags & (CHAN_ADR_OUT)) != 0 && (*tags & CHAN_HLD_OUT) == 0) {
+                *tags &= ~(CHAN_ADR_IN|CHAN_OPR_IN);  /* Clear select in */
+                log_device("1442: Halt %03x device\n",unit->addr);
+                if (ctx->data_end == 0) {
+                    ctx->data_end = 1;
+                    ctx->status |= SNS_CHNEND;
+                }
+                ctx->state = STATE_STATUS_WAIT;
+                break;
+            }
+
+            break;
+
+    /* Present initial status */
+    case STATE_STATUS:
+             /* Wait for Command out to drop */
+             *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);      /* Drop address in */
+
+             *bus_in = ctx->status | odd_parity[ctx->status];
+             log_device("1442: %03x initial status %02x\n",unit->addr, ctx->status);
+             *tags |= (CHAN_STA_IN);
+             ctx->state = STATE_STATUS_ACCEPT;    /* Wait for device to accept out status */
              break;
 
-    case STATE_SEL:
-             /* If we are selected, drop select out to rest of channel */
-             if (ctx->addressed || ctx->selected) {
-                 *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-                 *tags |= CHAN_OPR_IN;
+    /* Wait for CPU to either accept or stack status */
+    case STATE_STATUS_ACCEPT:
+             /* CPU will respond in a couple ways. */
+             *tags &= ~(CHAN_SEL_OUT);
+             *bus_in = ctx->status | odd_parity[ctx->status];
+             if ((*tags & CHAN_CMD_OUT) != 0) {      /* CPU does not want status, stack it */
+                 log_device("1442: %03x status stacked\n",unit->addr);
+                 unit->stacked = 1;
+                 ctx->state = STATE_STATUS_WAIT;
+                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);
+                 break;
              }
+             if ((*tags & CHAN_SRV_OUT) != 0) {   /* CPU accepted the status, continue on */
+                log_device("1442: %03x status accepted\n",unit->addr);
 
-             /* When address out drops put our address on bus in */
-             if (ctx->addressed && (*tags & (CHAN_ADR_OUT|CHAN_CMD_OUT)) == 0) {
-                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
-                  *bus_in = ctx->addr | odd_parity[ctx->addr];
-                  ctx->selected = 1;         /* Mark us as selected */
-                  ctx->addressed  = 0;
-                  log_device("reader address\n");
-                  break;
-             }
+                ctx->status = 0;
+                *tags &= ~(CHAN_STA_IN);
+                /* If end of command, and status accepted, all done */
+                if (ctx->cmd_done || ctx->cmd == 0) {
+                    *tags &= ~(CHAN_OPR_IN);
+                    unit->stacked = 0;
+                    ctx->data_end = 0;
+                    ctx->data_end_post = 0;
+                    ctx->cmd_done = 0;
+                    ctx->cmd = 0;
+                    ctx->busy = 0;
+                    ctx->state = STATE_STATUS_WAIT;
+                    break;
+                }
 
-             if (ctx->selected && (*tags & (CHAN_ADR_OUT|CHAN_CMD_OUT)) == 0) {
-                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
-                  *bus_in = ctx->addr | odd_parity[ctx->addr];
-                  log_device("reader address\n");
-                  break;
-             }
-
-             /* If we get Address out again, we need to halt */
-             if (ctx->selected && (*tags & (CHAN_ADR_OUT)) != 0) {
-                  *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN|CHAN_OPR_IN);  /* Clear select in */
-                  ctx->selected = 0;
-                  log_device("reader Halt device\n");
-                  ctx->state = STATE_IDLE;
-                  break;
-             }
-
-             /* Wait for Command out to raise */
-             /* Can now drop address in */
-             if (ctx->selected && (*tags & (CHAN_CMD_OUT)) != 0) {
-                 log_device("reader command %02x\n", bus_out);
-                 ctx->cmd = bus_out & 0xff;
-                 ctx->data_rdy = 0;
-                 ctx->data_end = 0;
-                 ctx->feed_done = 0;
-                 ctx->status = 0;
-                 ctx->state = STATE_CMD;
-                 *tags &= ~(CHAN_ADR_IN);                 /* Clear address in */
-                 switch (ctx->cmd & 07) {
-                 case 0: /* Test I/O */
-                        break;
-                 case 1: /* Write */
-                        ctx->sense = 0;
-                        if ((ctx->cmd & 0x3c) != 0) {
-                            ctx->cmd = 0;
-                            ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                            ctx->sense = SENSE_CMDREJ;
-                            break;
-                        }
-                        ctx->stk_sel = (ctx->cmd & 0x40) != 0;
-                        /* Check if card in correct station */
-                        if (ctx->pch_full == 0) {
-                            ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                            ctx->sense = SENSE_INTERV;
-                            break;
-                        }
-                        ctx->data_rdy = 1;
-                        break;
-                 case 2: /* Read */
-                        ctx->sense = 0;
-                        if ((ctx->cmd & 0xbc) != 0) {
-                            ctx->cmd = 0;
-                            ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                            ctx->sense = SENSE_CMDREJ;
-                            break;
-                        }
-                        ctx->stk_sel = (ctx->cmd & 0x40) != 0;
-                        /* Check if card in correct station */
-                        if (ctx->rdr_full == 0) {
-                            if (ctx->eof_flag) {
-                                ctx->status |= SNS_CHNEND|SNS_DEVEND|SNS_UNITEXP;
-                                ctx->eof_flag = 0;
-                            } else {
-                                ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                                ctx->sense = SENSE_INTERV;
-                            }
-                            ctx->cmd = 0;
-                        } else {
-                            add_event(unit, &read_callback, 100, NULL, 0);
-                        }
-                        break;
-                 case 3: /* Feed */
-                        ctx->sense = 0;
-                        if ((ctx->cmd & 0x7c) != 0) {
-                            ctx->cmd = 0;
-                            ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                            ctx->sense = SENSE_CMDREJ;
-                            break;
-                        }
-                        if (ctx->rdr_full == 0) {
-                            if (ctx->eof_flag) {
-                                ctx->status |= SNS_CHNEND|SNS_DEVEND|SNS_UNITEXP;
-                                ctx->eof_flag = 0;
-                            } else {
-                                ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                                ctx->sense = SENSE_INTERV;
-                            }
-                            ctx->cmd = 0;
-                            break;
-                        }
-                        ctx->stk_sel = (ctx->cmd & 0x40) != 0;
-                        ctx->status = SNS_CHNEND;
-                        ctx->data_end = 1;
-                        add_event(unit, &feed_callback, 1000, NULL, 0);
-                        break;
-                 case 4:  /* Sense */
-                        if ((ctx->cmd & 0xf8) != 0) {
-                            ctx->cmd = 0;
-                            ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                            ctx->sense = SENSE_CMDREJ;
-                            break;
-                        }
-                        ctx->data = ctx->sense;
-                        ctx->data_rdy = 1;
-                        ctx->data_end = 1;
-                        log_device("reader Sense %02x\n", ctx->sense);
-                        break;
-                 default:
-                        ctx->cmd = 0;
-                        ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                        ctx->sense = SENSE_CMDREJ;     /* Invalid command */
-                        break;
-                 }
-                 if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
-                     ctx->cmd = 0;
-                     ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                     ctx->sense |= SENSE_BUSCHK;
-                 }
-             }
-             break;
-
-    case STATE_CMD:
-             /* If we are selected, drop select out to rest of channel */
-             if (ctx->selected) {
-                 *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-                 *tags |= CHAN_OPR_IN;
-
-                 /* If CMD out to initial select, stack the status */
-                 if ((*tags & (CHAN_CMD_OUT|CHAN_STA_IN)) == (CHAN_CMD_OUT|CHAN_STA_IN)) {
-                     log_device("test stacking inital\n");
-                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
-                     ctx->state = STATE_STACK;
-                     ctx->stacked = 1;
-                     ctx->selected = 0;
-                     break;
-                 }
-
-                 /* Wait for Command out to drop */
-                 if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                     log_device("reader wait cmd drop stat\n");
-                     break;
-                 }
-
-                 /* On MPX channel select out will drop, along with command */
-                 if ((*tags & (CHAN_CMD_OUT)) == 0) {
-                     *tags |= CHAN_STA_IN;                   /* Wait for acceptance of status */
-                     *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
-                     log_device("reader init stat\n");
-                 }
-
-                 /* When we get acknowlegment, go wait for it to go away */
-                 if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                     *tags &= ~CHAN_STA_IN;
-                     ctx->state = STATE_INIT_STAT;
-                     log_device("reader init stat\n");
-                 }
-             }
-             break;
-
-    case STATE_INIT_STAT:
-             /* If we are selected, drop select out to rest of channel */
-             if (ctx->selected) {
-                 *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-                 *tags |= CHAN_OPR_IN;
-
-                 /* Wait for Service out to drop */
-                 if ((*tags & (CHAN_SRV_OUT)) == 0) {
-                     /* If no command, or check status, go back to idle */
-                     if (ctx->cmd == 0 || (ctx->status & (SNS_UNITCHK|SNS_UNITEXP)) != 0) {
-                         *tags &= ~(CHAN_OPR_IN);       /* Clear Oper in */
-                         ctx->state = STATE_IDLE;
-                         ctx->selected = 0;
-                         ctx->addressed = 0;
-                         log_device("reader error state done\n");
-                         break;
-                     }
-
-                     /* If initial status has Channel end, go wait for device to finish */
-                     if ((ctx->status & SNS_DEVEND) != 0) {
-                         *tags &= ~(CHAN_OPR_IN);
-                         ctx->selected = 0;
-                         ctx->addressed = 0;
-                         ctx->state = STATE_IDLE;
-                         log_device("reader device end\n");
-                         break;
-                     }
-
-                     /* If initial status has Channel end, go wait for device to finish */
-                     if ((ctx->status & SNS_CHNEND) != 0) {
-                         *tags &= ~(CHAN_OPR_IN);
-                         ctx->selected = 0;
-                         ctx->addressed = 0;
-                         ctx->state = STATE_WAIT;
-                         log_device("reader channel end\n");
-                         break;
-                     }
-
-                     /* If select out has dropped, drop operator in if no data to send */
-                     if ((*tags & CHAN_HLD_OUT) == 0 && ctx->data_rdy == 0 && ctx->cmd != 0x4) {
-                         *tags &= ~(CHAN_OPR_IN);           /* Clear select out and in */
-                         ctx->selected = 0;
-                         ctx->addressed = 0;
-                     }
-
-                     /* Wait for device to have some data to transmit */
-                     ctx->state = STATE_OPR;
-                     log_device("reader state done\n");
-                     break;
-                 }
-             } else {
-                 /* Wait for device to have some data to transmit */
-                 ctx->state = STATE_OPR;
-                 log_device("reader state done\n");
-             }
-             break;
-
-    case STATE_OPR:
-             log_device("reader opr %d\n", ctx->selected);
-
-             /* If we are selected clear select in */
-             if (ctx->selected) {
-                 *tags &= ~CHAN_SEL_OUT;
-             }
-
-             /* If we get select out with address out, reselection */
-             if (ctx->selected == 0 &&
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) &&
-                (bus_out & 0xff) == ctx->addr) {
-                /* Device selected */
-                *tags &= ~(CHAN_SEL_OUT);              /* Clear select out and in */
-                *tags |= CHAN_STA_IN;                  /* Indicate busy status */
-                *bus_in = SNS_BSY;
-                ctx->selected = 1;
-                ctx->addressed = 1;
-                log_device("reader reselect\n");
+                if (ctx->data_end) {
+                    if ((*tags & CHAN_HLD_OUT) == 0) {
+                        *tags &= ~(CHAN_OPR_IN);
+                    }
+                    ctx->state = STATE_STATUS_WAIT;
+                    break;
+                }
+                if (ctx->data_rdy == 0) {
+                    ctx->disconnect = 1;
+                }
+                ctx->state = STATE_OPR;
                 break;
              }
+             if ((*tags & CHAN_ADR_OUT) != 0) {   /* CPU wants to talk to device */
+                 ctx->state = STATE_IDLE;
+                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);
+             }
+             break;
 
-             /* On Select channel, Select Out will not drop */
-             if (ctx->selected) {
-             /* Catch halt I/O */
-                 if (*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_OPR_IN) &&
-                      (bus_out & 0xff) == ctx->addr) {
-                      /* Halt I/O */
-                      /* Device selected */
-                      *tags &= ~(CHAN_OPR_IN);             /* Clear select out and in */
-                      ctx->data_end = 1;
-                      ctx->data_rdy = 0;
-                      ctx->selected = 0;
-                      log_device("reader Halt i/o\n");
-                      break;
+    /* Wait for CPU to disconnect from channel */
+    case STATE_STATUS_WAIT:
+             *tags &= ~(CHAN_SEL_OUT);
+             if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT|CHAN_ADR_OUT)) == 0) {
+                 if ((*tags & CHAN_HLD_OUT) == 0 || ctx->busy == 0) {
+                     unit->selected = 0;
+                     *tags &= ~(CHAN_OPR_IN);
+                     ctx->state = STATE_IDLE;
+                 } else {
+                     ctx->state = STATE_WAIT_DEVEND;
+                 }
+             }
+             break;
+
+    /* On busy, wait for channel to drop select out */
+    case STATE_BUSY:
+             *bus_in = SNS_BSY | odd_parity[SNS_BSY];
+             if ((*tags & CHAN_SEL_OUT) == 0) {
+                 *tags &= ~(CHAN_SEL_OUT|CHAN_STA_IN);
+                 unit->selected = 0;
+                 ctx->state = STATE_IDLE;
+                 /* If address out, halt device */
+                 if ((*tags & CHAN_ADR_OUT) != 0) {
+                     log_device("1442: %03x Halt IO\n",unit->addr);
+                     if (ctx->data_end == 0) {
+                         ctx->data_rdy = 0;
+                         ctx->data_end = 1;
+                         unit->request = 1;
+                     }
+                 }
+             }
+             *tags &= ~(CHAN_SEL_OUT);
+             break;
+
+    /* Present ending status to CPU */
+    case STATE_END_STATUS:
+             *tags &= ~(CHAN_SEL_OUT);
+             /* Wait for both command out and service out to drop */
+             if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT)) != 0) {
+                  break;
+             }
+
+             *bus_in = ctx->status | odd_parity[ctx->status];
+             *tags |= (CHAN_STA_IN);
+
+             log_device("1442: %03x %02x end status %d\n",unit->addr, ctx->status, unit->request);
+             ctx->state = STATE_END_ACCEPT;    /* Wait for CPU to accept out status */
+             break;
+
+     /* Wait for CPU to accept or stack status */
+     case STATE_END_ACCEPT:
+             *tags &= ~(CHAN_SEL_OUT);
+
+             *bus_in = ctx->status | odd_parity[ctx->status];
+             /* CPU does not want status right now. stack it */
+             if ((*tags & CHAN_CMD_OUT) != 0) {
+                 log_device("1442: %03x status stacked %d\n",unit->addr, unit->request);
+                 unit->stacked = 1;
+                 ctx->state = STATE_STATUS_WAIT;
+                 *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                 break;
+             }
+
+             /* CPU accepted status */
+             if ((*tags & CHAN_SRV_OUT) != 0) {
+
+                 log_device("1442: %03x status accepted %d\n",unit->addr, unit->request);
+                 ctx->status = 0;
+                 /* If end of command, and status accepted, all done */
+                 if (ctx->cmd_done) {
+                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     unit->stacked = 0;
+                     ctx->cmd = 0;
+                     ctx->cmd_done = 0;
+                     ctx->busy = 0;
+                     ctx->data_end = 0;
+                     ctx->state = STATE_STATUS_WAIT;
+                     break;
                  }
 
-                 /* Return status while waiting for Address out to drop */
-                 if (*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_STA_IN)) {
-                    /* Device selected */
-                    *tags |= CHAN_STA_IN;                  /* Indicate busy status */
-                    *bus_in = SNS_BSY;
-                    break;
+                 if (ctx->data_end) {
+                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     ctx->state = STATE_STATUS_WAIT;
+                     break;
                  }
+                 /* Check if on selector channel */
+                 if ((*tags & CHAN_HLD_OUT) != 0) {
+                     *tags &= ~(CHAN_STA_IN);
+                     ctx->state = STATE_WAIT_DEVEND;
+                 } else {
+                     /* Otherwise wait disconnect and let device connect when done */
+                     *tags &= ~(CHAN_STA_IN|CHAN_OPR_IN);
+                     ctx->state = STATE_STATUS_WAIT;
+                 }
+             }
+             break;
 
-                 /* When select out drops, clear selected flag */
-                 if ((*tags == (CHAN_OPR_OUT|CHAN_HLD_OUT|CHAN_STA_IN) ||
-                      *tags == (CHAN_OPR_OUT|CHAN_STA_IN))) {
-                      *tags &= ~(CHAN_STA_IN);             /* Clear select out and in */
-                      ctx->selected = 0;
-                      log_device("reader deselected\n");
-                      break;
-                 }
+      /* Wait on device to finish, before posting status */
+      case STATE_WAIT_DEVEND:
+            log_device("1442: %03x wait end b=%d cd=%d %02x %02x\n",unit->addr,
+                ctx->busy, ctx->cmd_done, ctx->cmd, ctx->status);
+             *tags &= ~(CHAN_SEL_OUT);
+             if (ctx->cmd_done) {
+                 unit->request = 0;
+                 ctx->state = STATE_STATUS;
+             }
+             break;
+
+      /* Handle normal operations */
+      case STATE_OPR:
+             log_device("1442: %03x opr %d r=%d e=%d d=%d\n",unit->addr, unit->selected,
+                     ctx->data_rdy, ctx->data_end, ctx->disconnect);
+             unit->request = 0;
+             *tags &= ~(CHAN_SEL_OUT);
+
+             /* If address out, halt device */
+             if ((*tags & CHAN_ADR_OUT) != 0) {
+                 ctx->data_end = 1;
+                 ctx->data_rdy = 0;
+                 ctx->status |= SNS_CHNEND;
+                 *tags &= ~(CHAN_OPR_IN);
+                 unit->selected = 0;
+                 ctx->state = STATE_IDLE;
+                 break;
              }
 
              /* If data ready, try and get/send it */
              if (ctx->data_rdy) {
-                 ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
+                 ctx->state = STATE_DATA_1;
                  break;
              }
 
-             /* If data end, tell CPU */
-             if (ctx->data_end) {
-                 if (ctx->cmd == 0x4) {
-                    ctx->status |= SNS_CHNEND|SNS_DEVEND;
-                 }
-                 if ((ctx->cmd & 07) == 1) {
-                    add_event(unit, &feed_callback, 1000, NULL, 0);
-                    ctx->status |= SNS_CHNEND;
-                 }
-                 if ((ctx->status & SNS_CHNEND) != 0) {
-                    ctx->state = STATE_DATA_END;
-                 }
-                 if ((ctx->status & SNS_DEVEND) != 0) {
-                    ctx->state = STATE_END;
-                 }
-                 break;
-             }
-             break;
-
-    case STATE_REQ:   /* Data available and we are not talking on channel */
-             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_REQ_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_REQ_IN)) {
-                 /* Put our address on the bus */
-                 *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);        /* Clear select out and in */
-                 *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
-                 *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                 ctx->addressed = 1;
-                 log_device("reader Reselect\n");
-                 break;
-             }
-
-            /* Channel asking for us */
-            if ((*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT|CHAN_REQ_IN)) &&
-                 ctx->feed_done && (bus_out & 0xff) == ctx->addr) {
-                 /* Device selected */
-                 if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                     ctx->sense |= SENSE_BUSCHK;
-                 *tags &= ~(CHAN_SEL_OUT|CHAN_REQ_IN);      /* Clear select out and in */
-                 *tags |= CHAN_OPR_IN;
-                 ctx->state = STATE_STACK_SEL;
-                 ctx->request = 0;
-                 ctx->addressed = 1;
-                 log_device("reader request selected\n");
-                 break;
-             }
-
-             /* Check if another device is being selected */
-             if (ctx->request && (
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
-                *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN))) {
-                *tags &= ~(CHAN_REQ_IN);
-                ctx->request = 0;
-                log_device("printer other device\n");
-                break;
-             }
-
-             /* If we got bus, go and transfer */
-             if (ctx->addressed && (*tags & CHAN_CMD_OUT) != 0) {
-                 *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);  /* Clear select out and in */
-                 ctx->selected = 1;
-                 ctx->addressed = 0;
-                 if (ctx->data_end) {
-                     ctx->state = (ctx->status & SNS_DEVEND) ? STATE_END : STATE_DATA_END;
-                 } else {
-                     ctx->state = (ctx->cmd & 1) ? STATE_DATA_I : STATE_DATA_O;
-                 }
-                 log_device("reader selected\n");
-                 break;
-             }
-
-             /* Put our address on the bus */
-             if (ctx->addressed) {
-                 *tags &= ~(CHAN_SEL_OUT);                    /* Clear select out and in */
-                 *tags |= CHAN_OPR_IN|CHAN_ADR_IN;            /* Put out device on request */
-                 *bus_in = ctx->addr | odd_parity[ctx->addr]; /* Put out our address */
-                 if (ctx->request) {                          /* Drop request in */
-                    *tags &= ~CHAN_REQ_IN;
-                    ctx->request = 0;
-                 }
-                 log_device("reader Address\n");
-                 break;
-             }
-
-             /* See if another device got it. */
-             if ((*tags & (CHAN_OPR_IN|CHAN_STA_IN)) != 0) {
-                 /* Drop request out until channel free again */
-                 if (ctx->request) {
-                     *tags &= ~CHAN_REQ_IN;
-                     ctx->request = 0;
-                     ctx->addressed = 0;
-                     log_device("reader Other device\n");
-                 }
-                 break;
-             }
-
-             /* Put request in up */
-             *tags |= CHAN_REQ_IN;
-             ctx->request = 1;
-             break;
-
-    case STATE_DATA_I:    /* Request data from Channel, wait ready */
-             /* If we are not connected, go request bus */
-             if (ctx->selected == 0) {
-                 ctx->state = STATE_REQ;
-                 break;
-             }
-
-             /* Put request in up */
-             *tags |= CHAN_OPR_IN|CHAN_SRV_IN;
-             *tags &= ~CHAN_SEL_OUT;
-
-             /* Wait for Service out. */
-             if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                  *tags &= ~(CHAN_SRV_IN);  /* Clear select out and in */
-                  ctx->data_rdy = 0;
-                  /* Device selected */
-                  if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
-                      ctx->sense |= SENSE_BUSCHK;
-                      ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                      ctx->data_end = 1;
-                  } else {
-                      ctx->data = bus_out; /* Grab data */
-                  }
-                  ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
-                  break;
-             }
-
-             /* Command out to service in indicates end of data */
-             if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                  *tags &= ~(CHAN_SRV_IN);  /* Count reached zero, no more accepted */
-                  ctx->data_rdy = 0;
-                  ctx->data_end = 1;
-                  ctx->state = STATE_INIT_STAT;          /* Back to operation. */
-                  break;
-             }
-             break;
-
-    case STATE_DATA_O:    /* Request to send data to channel */
-             /* If we are not connected, go request bus */
-             if (ctx->selected == 0) {
-                 ctx->state = STATE_REQ;
-                 break;
-             }
-
-             /* Clear select out, post service in request */
-             *tags &= ~CHAN_SEL_OUT;
-             *tags |= CHAN_OPR_IN|CHAN_SRV_IN;
-             *bus_in = ctx->data | odd_parity[ctx->data];
-
-             /* Wait for data to be accepted */
-             if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                  *tags &= ~(CHAN_SRV_IN);  /* Clear select out and in */
-                  ctx->data_rdy = 0;
-                  ctx->state = STATE_INIT_STAT;       /* Wait for channel to be idle again */
-                  log_device("reader Data sent\n");
-                  break;
-             }
-
-             /* If CMD out, indicates end of data */
-             if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                  *tags &= ~(CHAN_SEL_OUT|CHAN_SRV_IN);  /* Count reached zero, no more accepted */
-                  ctx->data_rdy = 0;
-                  ctx->data_end = 1;
-                  ctx->state = STATE_INIT_STAT;           /* Back to operation. */
-                  log_device("reader Data End\n");
-                  break;
-             }
-             break;
-
-    case STATE_DATA_END:  /* Send channel end to channel indicating end of data */
-             if (ctx->selected == 0) {      /* Request channel if we don't have it */
-                 ctx->state = STATE_REQ;
-                 break;
-             }
-
-             /* Mark channel still in use */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Service out to drop */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_STA_IN)) == (CHAN_SRV_OUT)) {
-                 break;
-             }
-
-             if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT)) == 0) {
-                 *tags |= CHAN_OPR_IN|CHAN_STA_IN;
-                 *bus_in = ctx->status | odd_parity[ctx->status];
-                 log_device("reader End channel status %02x %02x\n", ctx->status, ctx->cmd);
-                 break;
-             }
-
-             /* Service out indicates status was excepted. If Suppress out, then command chaining */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_CMD_OUT)) != 0) {
-                 if ((*tags & CHAN_HLD_OUT) == 0) {
-                      ctx->selected = 0;
-                 }
-                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-                 /* If command out, stack the status */
-                 if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                     ctx->stacked = 1;
-                 }
-                 if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                     ctx->status &= ~SNS_CHNEND;
-                 }
-                 ctx->state = STATE_WAIT;              /* Wait for device to be done */
-                 log_device("reader Accepted data_end\n");
-                 break;
-             }
-             break;
-
-    case STATE_END:
-             if (ctx->selected == 0) {
-                  ctx->state = STATE_REQ;
-                  break;
-             }
-
-             /* Mark channel still in use */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select out and in */
-             *tags |= CHAN_OPR_IN;
-
-             if (ctx->busy_flag) {
-                 ctx->status |= SNS_CTLEND;
-             }
-
-             /* Wait for Service out to drop */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_STA_IN)) == (CHAN_SRV_OUT)) {
-                 break;
-             }
-
-             *bus_in = ctx->status | odd_parity[ctx->status];
-
-             /* Wait for Service out to drop */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_STA_IN)) == 0) {
-                 log_device("reader End status %02x %02x\n", ctx->status, ctx->cmd);
-                 *tags |= CHAN_STA_IN;
-                 if (ctx->sense != 0) {
-                     ctx->status |= SNS_UNITCHK;
-                 }
-                 ctx->cmd = 0;
-                 break;
-             }
-
-             /* Service out indicates status was excepted. If Suppress out, then command chaining */
-             if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-                 log_device("reader Accepted end\n");
-                 ctx->selected = 0;
-                 ctx->busy_flag = 0;
-                 ctx->state = STATE_IDLE;              /* All done, back to idle state */
-                 break;
-             }
-
-             /* Command out to status in indicates a stacking of status */
-             if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                 *tags &= ~(CHAN_OPR_IN|CHAN_STA_IN);  /* Clear select out and in */
-                  log_device("reader Stacked\n");
-                  ctx->selected = 0;
-                  ctx->stacked = 1;
-                  ctx->state = STATE_STACK;            /* Stack status */
-                  break;
-             }
-
-             log_device("Reader End status ready\n");
-             break;
-
-    case STATE_STACK:
-             log_device("reader stack %02x %04x %d %d\n", ctx->status, *tags, ctx->stacked, ctx->feed_done);
-             /* Wait until Channels asks for us */
-             if (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_SUP_OUT) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN) ||
-                 *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT|CHAN_REQ_IN|CHAN_SUP_OUT)) {
-
-                  if ((bus_out & 0xff) == ctx->addr) {
-                      /* Device selected */
-                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0)
-                          ctx->sense |= SENSE_BUSCHK;
-                      *tags &= ~(CHAN_SEL_OUT);      /* Clear select out and in */
-                      *tags |= CHAN_OPR_IN;
-                      ctx->state = STATE_STACK_SEL;
-                      ctx->addressed = 1;
-                      log_device("reader stack selected\n");
-                  }
-             }
-
-
-             /* If stacked and cmd done, try to return status */
-             if (ctx->stacked && ctx->feed_done && *tags == (CHAN_OPR_OUT)) {
-                 ctx->state = STATE_REQ;
-                 log_device("reader stack request\n");
-             }
-             break;
-
-    case STATE_STACK_SEL:  /* Stacked status selected */
-             /* If we are selected, drop select out to rest of channel */
-             if (ctx->addressed || ctx->selected) {
-                 *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-                 *tags |= CHAN_OPR_IN;
-             }
-
-             /* When address out drops put our address on bus in */
-             if (ctx->addressed && (*tags & (CHAN_ADR_OUT|CHAN_CMD_OUT)) == 0) {
-                  *tags |= CHAN_ADR_IN;      /* Return address until accepted */
-                  *bus_in = ctx->addr | odd_parity[ctx->addr];
-                  ctx->addressed = 0;
-                  ctx->selected = 1;         /* Mark us as selected */
-                  log_device("reader address\n");
-                  break;
-             }
-
-             /* Wait for Command out to raise, give our address */
-             if (ctx->selected) {
-                  *bus_in = ctx->addr | odd_parity[ctx->addr];
-
-                 /* Can now drop address in */
-                 if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                      log_device("reader stack command %02x\n", bus_out);
-                      ctx->state = STATE_STACK_CMD;
-                      *tags &= ~(CHAN_SEL_OUT|CHAN_ADR_IN);                 /* Clear address in */
-                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
-                          ctx->status = (SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                          ctx->sense |= SENSE_BUSCHK;
-                      }
-                 }
-             }
-             break;
-
-    case STATE_STACK_CMD:
-             *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Command out to drop */
-             /* On MPX channel select out will drop, along with command */
-             if ((*tags == (CHAN_CMD_OUT)) == 0) {
-                  *tags |= CHAN_OPR_IN|CHAN_STA_IN;     /* Wait for acceptance of status */
-                  ctx->state = STATE_STACK_STA;
-                  log_device("reader stack init stat %02x\n", ctx->status);
-             }
-             break;
-
-    case STATE_STACK_STA:
-             *bus_in = ctx->status | odd_parity[ctx->status];   /* Set initial status */
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Service out to raise, status accepted */
-             if ((*tags & (CHAN_SRV_OUT|CHAN_CMD_OUT)) != 0) {
-                 *tags &= ~(CHAN_STA_IN|CHAN_SEL_OUT);
-                 if ((*tags & (CHAN_CMD_OUT)) != 0) {
-                     ctx->stacked = 1;
-                 }
-                 if ((*tags & (CHAN_SRV_OUT)) != 0) {
-                     ctx->stacked = 0;
-                     ctx->status &= ~SNS_CHNEND;
-                 }
-                 ctx->state = STATE_STACK_HLD;
-                 log_device("test stack init stat %02x done\n", ctx->status);
-                 break;
-             }
-             break;
-
-
-    case STATE_STACK_HLD:
-             *tags &= ~(CHAN_SEL_OUT);  /* Clear select in */
-             *tags |= CHAN_OPR_IN;
-
-             /* Wait for Service/command out to drop */
-             if ((*tags & (CHAN_CMD_OUT|CHAN_SRV_OUT)) == 0) {
-                 if (ctx->stacked) {
-                     if (ctx->feed_done) {
-                        ctx->state = STATE_STACK;
-                     } else {
-                        ctx->state = STATE_WAIT;
-                     }
-                 } else {
-                     ctx->state = STATE_IDLE;
-                 }
-                 *tags &= ~CHAN_OPR_IN;
-                 ctx->selected = 0;
-                 log_device("reader stack done\n");
-             }
-             break;
-
-    case STATE_WAIT:
-             /* If we get select out with address out, reselection */
-             if (!ctx->selected &&
-                 (*tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT) ||
-                  *tags == (CHAN_OPR_OUT|CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_SUP_OUT|CHAN_ADR_OUT)) &&
-                 (bus_out & 0xff) == ctx->addr) {
-                /* Device selected */
-                *tags &= ~(CHAN_SEL_OUT);                 /* Clear select out and in */
-                *tags |= CHAN_STA_IN;
-                *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-                ctx->busy_flag = 1;
-                ctx->addressed = 1;
-                log_device("reader select attempt\n");
-             }
-
-             /* If selected clear status in when select out drops */
-             if (ctx->addressed) {
-                /* Device selected */
-                *tags &= ~(CHAN_SEL_OUT);          /* Clear status in */
-                *tags |= CHAN_STA_IN;
-                *bus_in = 0x100 | SNS_SMS | SNS_BSY;
-
-                /* If selected clear status in when select out drops */
-                if ((*tags & CHAN_HLD_OUT) == 0) {
-                   /* Device selected */
-                   *tags &= ~(CHAN_STA_IN);          /* Clear status in */
-                   ctx->addressed = 0;
-                   log_device("reader status received\n");
+             /* If sense command advance counter */
+             if (ctx->cmd == 0x04) {
+                 ctx->disconnect = 0;
+                 if (ctx->data_rdy == 0) {
+                     ctx->data_end = 1;
+                     ctx->cmd_done = 1;
+                     ctx->busy = 0;
+                     ctx->status |= SNS_CHNEND|SNS_DEVEND;
                 }
              }
 
-             if (ctx->feed_done) {
-                 log_device("feed done %d\n", ctx->selected);
-                 ctx->state = STATE_END;
+             /* If at end of data or command, present status */
+             if (ctx->data_end || ctx->cmd_done) {
+                 ctx->state = STATE_END_STATUS;
+                 break;
              }
+
+             /* If disconnect requested, and not on selector channel disconnect */
+             if (ctx->disconnect) {
+                 ctx->disconnect = 0;
+                 if ((*tags & CHAN_HLD_OUT) == 0) {
+                     *tags &= ~(CHAN_OPR_IN);
+                     unit->selected = 0;
+                     ctx->state = STATE_IDLE;
+                     break;
+                 }
+             }
+
              break;
 
+      case STATE_DATA_1:      /* Send or recieve data from CPU */
+             *tags &= ~CHAN_SEL_OUT;
+             if ((*tags & CHAN_SRV_OUT) != 0) {
+                  /* Wait for service out to drop */
+                  break;
+             }
+             if ((*tags & CHAN_SUP_OUT) != 0) {
+                 /* If suppress out on, wait until sending request */
+                 break;
+             }
+             *tags |= CHAN_SRV_IN;   /* Request tranfer */
+             *bus_in = ctx->data | odd_parity[ctx->data];
+             ctx->state = STATE_DATA_2;
+             break;
+
+      case STATE_DATA_2:      /* Complete transfer */
+             *tags &= ~CHAN_SEL_OUT;
+             *bus_in = ctx->data | odd_parity[ctx->data];
+             if ((*tags & (CHAN_SRV_OUT|CHAN_CMD_OUT)) != 0) {
+                 /* Wait for service out or command out */
+                 *tags &= ~(CHAN_SRV_IN);   /* Clear service in request */
+                 ctx->data_rdy = 0;
+                 if ((ctx->cmd & 1) != 0) { /* Write command */
+                      /* Device selected */
+                      if (((bus_out ^ odd_parity[bus_out & 0xff]) & 0x100) != 0) {
+                          ctx->sense |= SENSE_BUSCHK;
+                          ctx->status |= (SNS_UNITCHK);
+                          ctx->data_end = 1;
+                          ctx->status |= SNS_CHNEND|SNS_DEVEND;
+                          ctx->busy = 0;
+                          ctx->cmd_done = 1;
+                      } else {
+                          ctx->data = bus_out; /* Grab data */
+                      }
+                 }
+                 ctx->state = STATE_OPR;   /* Go to process this data */
+                 if ((*tags & CHAN_CMD_OUT) != 0) {  /* CPU is done sending data */
+                     device_stop(unit);
+                 }
+                 ctx->disconnect = 1;
+             }
+             break;
     }
 }
 
@@ -941,8 +745,17 @@ model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
 void
 model1442_feed(struct _1442_context *ctx)
 {
+
+    /* If no more cards stop processing. */
+    if (hopper_size(ctx->feed) == 0 && ctx->eof_flag == 0) {
+        ctx->sense |= SENSE_INTERV;
+        ctx->rdy_flag = 0;
+        return;
+    }
+       
     /* If punch station full, put card out to stacker */
     if (ctx->pch_full) {
+       log_device("Stack punch %d\n", ctx->stk_sel);
        stack_card(ctx->stack[ctx->stk_sel], &ctx->pch_card);
        ctx->pch_full = 0;
        ctx->pch_col = 0;
@@ -950,527 +763,41 @@ model1442_feed(struct _1442_context *ctx)
 
     /* Move card from reader station to punch station */
     if (ctx->rdr_full) {
+       log_device("move to punch\n");
        memcpy(&ctx->pch_card[0], &ctx->rdr_card, 80 * sizeof(uint16_t));
-       ctx->pch_full = ctx->rdr_full;
+       ctx->pch_full = 1;
        ctx->rdr_full = 0;
     }
 
     if (ctx->stop_flag == 0) {
         ctx->rdr_full = read_card(ctx->feed, &ctx->rdr_card);
+        ctx->hop_cnt = hopper_size(ctx->feed);
+        ctx->rdy_flag = ctx->rdr_full;
+        log_device("read card %d size=%d\n", ctx->rdr_full, ctx->hop_cnt);
+        if (ctx->hop_cnt == 0 && ctx->eof_flag == 0) {
+            ctx->rdy_flag = 0;
+        }
+    } else {
+        ctx->rdy_flag = 0;
     }
+
+    log_device("Size %d %d, %d %d %d\n", hopper_size(ctx->feed),
+            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[0]), ctx->rdy_flag);
     ctx->stop_flag = 0;
     ctx->rdr_col = 0;
-    ctx->hop_cnt = hopper_size(ctx->feed);
     ctx->stk_cnt[0] = stack_size(ctx->stack[0]);
     ctx->stk_cnt[1] = stack_size(ctx->stack[1]);
-    if (ctx->rdr_full == 0 && ctx->eof_flag == 0) {
+    if (ctx->rdy_flag == 0) {
+log_device("intervent\n");
         ctx->sense |= SENSE_INTERV;
+    } else {
+        ctx->sense &= ~(SENSE_INTERV);
     }
 }
 
-SDL_Texture *model1442_img = NULL;
 
-void
-model1442_draw(struct _device *unit, void *rend)
-{
-    struct _1442_context *ctx = (struct _1442_context *)unit->dev;
-    SDL_Renderer *render = (SDL_Renderer *)rend;
-    int          i, j;
-    SDL_Rect     rect;
-    SDL_Rect     rect2;
-    SDL_Surface *text;
-    SDL_Texture *txt;
-    int           x = unit->rect[0].x;
-    int           y = unit->rect[0].y;
-    char          buf[100];
-
-    /* Create the image on first run of draw function */
-    if (model1442_img == NULL) {
-        SDL_Surface *text;
-        text = IMG_ReadXPMFromArray(model1442_xpm);
-        model1442_img = SDL_CreateTextureFromSurface(render, text);
-        SDL_SetTextureBlendMode(model1442_img, SDL_BLENDMODE_BLEND);
-        SDL_FreeSurface(text);
-    }
-
-    /* Draw basic device */
-    rect.x = x;
-    rect.y = y;
-    rect.h = 142;
-    rect.w = 305;
-    rect2.x = 0;
-    rect2.y = 0;
-    rect2.h = 142;
-    rect2.w = 305;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw device number */
-    sprintf(buf, "%0X%02X", ctx->chan, ctx->addr);
-    text = TTF_RenderText_Solid(font14, buf, c1);
-    txt = SDL_CreateTextureFromSurface(render, text);
-    SDL_FreeSurface(text);
-    SDL_QueryTexture(txt, &i, &j, &rect2.w, &rect2.h);
-    rect2.x = x + 20;
-    rect2.y = y + 20;
-    SDL_RenderCopy(render, txt, NULL, & rect2);
-    SDL_DestroyTexture(txt);
-
-    /* Draw stacked cards */
-    rect2.x = x + 351;
-    rect2.w = 399 - rect2.x;
-    rect2.y = y + 10;
-    rect2.h = hopper_size(ctx->feed) / 30;
-    rect2.y = 40 - rect2.h;
-    rect.x = x + 184;
-    rect.y = y + 56 - rect2.h;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw weight */
-    rect2.x = x + 351;
-    rect2.y = y + 0;
-    rect2.h = 10;
-    rect.x = x + 184;
-    rect.y -= 8;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw front */
-    rect2.x = x + 351;
-    rect2.y = y + 51;
-    rect2.w++;
-    rect2.h = 15;
-    rect.x = x + 182;
-    rect.y = y + 60 - rect2.h;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw Stacker 2 */
-    rect2.x = x + 344;
-    rect2.y = y + 104;
-    rect2.w = stack_size(ctx->stack[1]) / 30;
-    rect2.h = 30;
-    rect.x = x + 122;
-    rect.y = y + 75;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Draw Stacker 1 */
-    rect2.x = x + 344;
-    rect2.y = y + 104;
-    rect2.w = stack_size(ctx->stack[0]) / 30;
-    rect2.h = 30;
-    rect.x = x + 122;
-    rect.y = y + 75;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-    /* Overlay */
-    rect2.x = x + 343;
-    rect2.y = y + 69;
-    rect2.w = 400 - 343;
-    rect2.h = 101 - 69;
-    rect.x = x + 122;
-    rect.y = y + 97;
-    rect.h = rect2.h;
-    rect.w = rect2.w;
-    SDL_RenderCopy(render, model1442_img, &rect2, &rect);
-}
-
-static void model1442_update(struct _popup *popup, void *device, int index)
-{
-    struct _device *unit = (struct _device *)device;
-    struct _1442_context *ctx = (struct _1442_context *)unit->dev;
-    int r;
-    int cards;
-
-    switch (index) {
-    case 0:  /* End of file key */
-          ctx->eof_flag = !ctx->eof_flag;
-          break;
-
-    case 1:  /* Start Key */
-          log_device("Start key\n");
-          if (ctx->state == STATE_IDLE) {
-              log_device("Start reader\n");
-              if (ctx->rdr_full == 0) {
-                  model1442_feed(ctx);
-              }
-              if (ctx->rdr_full) {
-                  ctx->state = STATE_END;
-                  ctx->status = SNS_DEVEND;
-                  ctx->data_end = 1;
-                  ctx->feed_done = 1;
-              }
-          }
-          break;
-
-    case 2:  /* NPRO */
-          if (ctx->selected == 0)
-              model1442_feed(ctx);
-          ctx->eof_flag = 0;
-          break;
-
-    case 3:  /* STOP */
-          ctx->stop_flag = 1;
-          break;
-
-    case 4: /* Empty hopper */
-          empty_cards(ctx->feed);
-          break;
-
-    case 5: /* Load hopper */
-          r = read_deck(ctx->feed, popup->text[0].text);
-          break;
-
-    case 6: /* Load hopper blanks */
-          cards = atoi(popup->text[0].text);
-          if (cards > 0) {
-              blank_deck(ctx->feed, cards);
-          }
-          break;
-
-    case 7: /* Empty Stacker 1 */
-          empty_cards(ctx->stack[0]);
-          break;
-
-    case 8: /* Save Stacker 1 */
-          r = save_deck(ctx->stack[0], popup->text[1].text);
-          break;
-
-    case 9: /* Empty Stacker 2 */
-          empty_cards(ctx->stack[1]);
-          break;
-
-    case 10: /* Save Stacker 2 */
-          r = save_deck(ctx->stack[1], popup->text[2].text);
-          break;
-    }
-    ctx->hop_cnt = hopper_size(ctx->feed);
-    ctx->stk_cnt[0] = stack_size(ctx->stack[0]);
-    ctx->stk_cnt[1] = stack_size(ctx->stack[1]);
-}
-
-static struct _l {
-     char        *top;
-     char        *bot;
-     int         ind;
-     int         x;
-     int         y;
-     SDL_Color   col_t;
-     SDL_Color   col_on;
-     SDL_Color   col_off;
-} labels[] = {
-     {"POWER", "ON", 1, 0, 0, {0, 0, 0}, {0x96, 0x8f, 0x85}, {0xfd, 0xfd, 0xfd}},
-     {"READY", NULL, 1, 1, 0, {0xff, 0xff, 0xff}, {0x7f,0xc0, 0x86}, {0x0c, 0x2e, 0x30}},
-     {"END OF", "FILE", 0, 2, 0, {0xff, 0xff, 0xff}, {0x0c, 0x2e, 0x30}, {0,0,0}},
-     {"CHECK", NULL, 1, 0, 1, {0, 0, 0}, {0xff, 0xfd, 0x5e}, {0xdd, 0xdc, 0x8a}},
-     {"CHIP BOX", NULL, 1, 1, 1, {0, 0, 0}, {0xff, 0xfd, 0x5e}, {0xdd, 0xdc, 0x8a}},
-     {"END OF", "FILE", 1, 2, 1, {0, 0, 0}, {0xff, 0xfd, 0x5e}, {0xdd, 0xdc, 0x8a} },
-     {"START", NULL,  0, 0, 2, {0xff, 0xff, 0xff}, {0x0c, 0x2e, 0x30}, {0, 0, 0}},
-     {"NPRO", NULL, 0, 1, 2, {0xff, 0xff, 0xff}, {0x0a, 0x52, 0x9a}, {0, 0, 0}},
-     {"STOP", NULL, 0, 2, 2, {0xff, 0xff, 0xff}, {0xc8, 0x3a, 0x30}, {0, 0, 0}},
-     {"EMPTY", NULL, 0, 8, 0, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"LOAD", NULL, 0, 9, 0, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"BLANK", NULL, 0, 10, 0, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"EMPTY", NULL, 0, 8, 1, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"SAVE", NULL, 0, 9, 1, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"EMPTY", NULL, 0, 8, 2, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"SAVE", NULL, 0, 9, 2, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {NULL, NULL, 0},
-};
-
-static char *type_label[] = { "AUTO", "ASCII", "EBCDIC", "BIN", "OCTAL", NULL};
-
-struct _popup *
-model1442_control(struct _device *unit, int hd, int wd, int u)
-{
-    struct _popup  *popup;
-    struct _1442_context *ctx = (struct _1442_context *)unit->dev;
-    SDL_Surface *text;
-    int    i, j;
-    int    w, h;
-    char   buffer[100];
-
-    if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
-        return popup;
-    sprintf(buffer, "IBM1442 Dev 0x'%03X'", ctx->addr);
-    popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-        1000, 200, SDL_WINDOW_RESIZABLE );
-    popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
-    popup->device = unit;
-    popup->areas[popup->area_ptr].rect.x = 20 + (12 * wd) * 3;
-    popup->areas[popup->area_ptr].rect.y = 0;
-    popup->areas[popup->area_ptr].rect.h = 200;
-    popup->areas[popup->area_ptr].rect.w = 800;
-    popup->areas[popup->area_ptr].c = &c;
-    popup->area_ptr++;
-    for (i = 0; labels[i].top != NULL; i++) {
-        if (labels[i].ind) {
-            popup->ind[popup->ind_ptr].lab = labels[i].top;
-            popup->ind[popup->ind_ptr].c[0] = &labels[i].col_off;
-            popup->ind[popup->ind_ptr].c[1] = &labels[i].col_on;
-            popup->ind[popup->ind_ptr].ct = &labels[i].col_t;
-            text = TTF_RenderText_Solid(font1, labels[i].top, labels[i].col_t);
-            popup->ind[popup->ind_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
-            popup->ind[popup->ind_ptr].top_len = strlen(labels[i].top);
-            SDL_FreeSurface(text);
-            if (labels[i].bot != NULL) {
-                text = TTF_RenderText_Solid(font1, labels[i].bot, labels[i].col_t);
-                popup->ind[popup->ind_ptr].bot = SDL_CreateTextureFromSurface( popup->render, text);
-                popup->ind[popup->ind_ptr].bot_len = strlen(labels[i].bot);
-                SDL_FreeSurface(text);
-            }
-            popup->ind[popup->ind_ptr].rect.x = 20 + ((12* wd) * labels[i].x);
-            popup->ind[popup->ind_ptr].rect.y = 20 + ((3 *hd) * labels[i].y);
-            popup->ind[popup->ind_ptr].rect.h = 2 * hd;
-            popup->ind[popup->ind_ptr].rect.w = 10 * wd;
-            popup->ind_ptr++;
-        } else {
-            popup->sws[popup->sws_ptr].lab = labels[i].top;
-            popup->sws[popup->sws_ptr].c[0] = &labels[i].col_on;
-            text = TTF_RenderText_Solid(font1, labels[i].top, labels[i].col_t);
-            popup->sws[popup->sws_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
-            popup->sws[popup->sws_ptr].top_len = strlen(labels[i].top);
-            SDL_FreeSurface(text);
-            if (labels[i].bot != NULL) {
-                text = TTF_RenderText_Solid(font1, labels[i].bot, labels[i].col_t);
-                popup->sws[popup->sws_ptr].bot = SDL_CreateTextureFromSurface( popup->render, text);
-                popup->sws[popup->sws_ptr].bot_len = strlen(labels[i].bot);
-                SDL_FreeSurface(text);
-            }
-            popup->sws[popup->sws_ptr].rect.x = 20 + ((12 *wd) * labels[i].x);
-            popup->sws[popup->sws_ptr].rect.y = 20 + ((3 *hd) * labels[i].y);
-            popup->sws[popup->sws_ptr].rect.h = 2 * hd;
-            popup->sws[popup->sws_ptr].rect.w = 10 * wd;
-            popup->sws_ptr++;
-        }
-    }
-
-    popup->ind[1].value = &ctx->rdr_full;
-    popup->ind[4].value = &ctx->eof_flag;
-
-    text = TTF_RenderText_Solid(font14, "Hopper: ", c1);
-
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 20;
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->text[popup->txt_ptr].rect.y = 20;
-    popup->text[popup->txt_ptr].rect.w = 45 * wd;
-    popup->text[popup->txt_ptr].rect.h = h + 5;
-    if (ctx->feed->file_name != NULL)
-        strncpy(popup->text[popup->txt_ptr].text, ctx->feed->file_name, 256);
-    else
-        popup->text[popup->txt_ptr].text[0] = '\0';
-    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
-    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
-    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
-                                        popup->text[popup->txt_ptr].pos);
-    popup->txt_ptr++;
-    popup->number[popup->num_ptr].rect.x = 25 + (12 * wd) * 13;
-    popup->number[popup->num_ptr].rect.y = 20;
-    popup->number[popup->num_ptr].rect.w = 5 * wd;
-    popup->number[popup->num_ptr].rect.h = h;
-    popup->number[popup->num_ptr].value = &ctx->hop_cnt;
-    popup->number[popup->num_ptr].c = &c;
-    popup->num_ptr++;
-
-    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 11;
-    popup->combo[popup->cmb_ptr].rect.y = 20;
-    popup->combo[popup->cmb_ptr].rect.w = 12 * wd;
-    popup->combo[popup->cmb_ptr].rect.h = h;
-    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
-    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].urect.h = h;
-    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (10 * wd) - 1;
-    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].drect.h = h;
-    for (i = 0; type_label[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, type_label[i], c1);
-        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
-                                      text);
-        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
-             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
-    }
-    popup->combo[popup->cmb_ptr].num = ctx->feed->mode;
-    popup->combo[popup->cmb_ptr].value = &ctx->feed->mode;
-    popup->combo[popup->cmb_ptr].max = i - 1;
-    popup->cmb_ptr++;
-
-    text = TTF_RenderText_Solid(font14, "Stack 1: ", c1);
-
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (hd * 3);
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->text[popup->txt_ptr].rect.y = 20 + (hd * 3);
-    popup->text[popup->txt_ptr].rect.w = 45 * wd;
-    popup->text[popup->txt_ptr].rect.h = h + 5;
-    if (ctx->stack[0]->file_name != NULL)
-        strncpy(popup->text[popup->txt_ptr].text, ctx->stack[0]->file_name, 256);
-    else
-        popup->text[popup->txt_ptr].text[0] = '\0';
-    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
-    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
-    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
-                                        popup->text[popup->txt_ptr].pos);
-    popup->txt_ptr++;
-    popup->number[popup->num_ptr].rect.x = 25 + (12 * wd) * 13;
-    popup->number[popup->num_ptr].rect.y = 20 + (hd * 3);
-    popup->number[popup->num_ptr].rect.w = 5 * wd;
-    popup->number[popup->num_ptr].rect.h = h;
-    popup->number[popup->num_ptr].value = &ctx->stk_cnt[0];
-    popup->number[popup->num_ptr].c = &c;
-    popup->num_ptr++;
-    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 11;
-    popup->combo[popup->cmb_ptr].rect.y = 20 + (hd * 3);
-    popup->combo[popup->cmb_ptr].rect.w = 12 * wd;
-    popup->combo[popup->cmb_ptr].rect.h = h;
-    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
-    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].urect.h = h;
-    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (10 * wd) - 1;
-    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].drect.h = h;
-    for (i = 0; type_label[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, type_label[i], c1);
-        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
-                                      text);
-        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
-             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
-    }
-    popup->combo[popup->cmb_ptr].num = ctx->stack[0]->mode;
-    popup->combo[popup->cmb_ptr].value = &ctx->stack[0]->mode;
-    popup->combo[popup->cmb_ptr].max = i - 1;
-    popup->cmb_ptr++;
-
-    text = TTF_RenderText_Solid(font14, "Stack 2: ", c1);
-
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (hd * 6);
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->text[popup->txt_ptr].rect.y = 20 + (hd * 6);
-    popup->text[popup->txt_ptr].rect.w = 45 * wd;
-    popup->text[popup->txt_ptr].rect.h = h;
-    if (ctx->stack[1]->file_name != NULL)
-        strncpy(popup->text[popup->txt_ptr].text, ctx->stack[1]->file_name, 256);
-    else
-        popup->text[popup->txt_ptr].text[0] = '\0';
-    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
-    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
-    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
-                                        popup->text[popup->txt_ptr].pos);
-    popup->txt_ptr++;
-    popup->number[popup->num_ptr].rect.x = 25 + (12 * wd) * 13;
-    popup->number[popup->num_ptr].rect.y = 20 + (hd * 6);
-    popup->number[popup->num_ptr].rect.w = 5 * wd;
-    popup->number[popup->num_ptr].rect.h = h;
-    popup->number[popup->num_ptr].value = &ctx->stk_cnt[1];
-    popup->number[popup->num_ptr].c = &c;
-    popup->num_ptr++;
-
-    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 11;
-    popup->combo[popup->cmb_ptr].rect.y = 20 + (hd * 6);
-    popup->combo[popup->cmb_ptr].rect.w = 12 * wd;
-    popup->combo[popup->cmb_ptr].rect.h = h;
-    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
-    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].urect.h = h;
-    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (10 * wd) - 1;
-    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].drect.h = h;
-    for (i = 0; type_label[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, type_label[i], c1);
-        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
-                                      text);
-        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
-             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
-    }
-    popup->combo[popup->cmb_ptr].num = ctx->stack[1]->mode;
-    popup->combo[popup->cmb_ptr].value = &ctx->stack[1]->mode;
-    popup->combo[popup->cmb_ptr].max = i - 1;
-    popup->cmb_ptr++;
-
-    w = 0;
-    for (i = 0; i < popup->ctl_ptr; i++) {
-        if (popup->ctl_label[i].rect.w > w)
-            w = popup->ctl_label[i].rect.w;
-    }
-    for (i = 0; i < popup->txt_ptr; i++) {
-        popup->text[i].rect.x += w;
-    }
-
-    popup->update = &model1442_update;
-    return popup;
-}
-
-struct _device *
-model1442_init(void *rend, uint16_t addr)
-{
-     SDL_Surface *text;
-//     SDL_Renderer *render = (SDL_Renderer *)rend;
-     struct _device *dev1442;
-     struct _1442_context *card;
-
-     if ((dev1442 = calloc(1, sizeof(struct _device))) == NULL)
-         return NULL;
-     if ((card = calloc(1, sizeof(struct _1442_context))) == NULL) {
-         free(dev1442);
-         return NULL;
-     }
-  //   text = IMG_ReadXPMFromArray(model1442_xpm);
- //    model1442_img = SDL_CreateTextureFromSurface(render, text);
-   //  SDL_SetTextureBlendMode(model1442_img, SDL_BLENDMODE_BLEND);
-    // SDL_FreeSurface(text);
-
-     dev1442->bus_func = &model1442_dev;
-     dev1442->dev = (void *)card;
-     dev1442->draw_model = (void *)&model1442_draw;
-     dev1442->create_ctrl = (void *)&model1442_control;
-     dev1442->rect[0].x = 0;
-     dev1442->rect[0].y = 0;
-     dev1442->rect[0].w = 305;
-     dev1442->rect[0].h = 142;
-     dev1442->n_units = 1;
-     dev1442->addr = addr;
-     card->addr = addr & 0xff;
-     card->chan = (addr >> 8) & 0xf;
-     card->state = STATE_IDLE;
-     card->selected = 0;
-     card->sense = 0;
-     card->feed = init_card_context();
-     card->stack[0] = init_card_context();
-     card->stack[1] = init_card_context();
-     card->hop_cnt = hopper_size(card->feed);
-     card->stk_cnt[0] = stack_size(card->stack[0]);
-     card->stk_cnt[1] = stack_size(card->stack[1]);
-     add_chan(dev1442, addr);
-     return dev1442;
-}
-
-int
+static int
 model1442_create(struct _option *opt)
 {
      struct _device       *dev1442;
@@ -1497,6 +824,7 @@ model1442_create(struct _option *opt)
      dev1442->dev = (void *)card;
      dev1442->draw_model = (void *)&model1442_draw;
      dev1442->create_ctrl = (void *)&model1442_control;
+     dev1442->init_device = (void *)&model1442_init;
      dev1442->type_name = "1442";
      dev1442->rect[0].x = 0;
      dev1442->rect[0].y = 0;
