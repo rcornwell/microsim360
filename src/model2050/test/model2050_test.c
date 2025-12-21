@@ -445,7 +445,7 @@ test_io_inst(int mask)
         flag = !flag;
         step_count++;
         max++;
-        if ((cpu_2050.ROAR == 0x188) && (cpu_2050.SDR_REG == 0)) {
+        if ((cpu_2050.ROAR == 0x182)) {// && (cpu_2050.SDR_REG == 0)) {
            stop_flag = 1;
         }
         if (cpu_2050.ROAR == 0x10e)
