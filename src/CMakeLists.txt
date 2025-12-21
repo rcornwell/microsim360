@@ -28,36 +28,43 @@ set(includes ${CMAKE_CURRENT_BINARY_DIR}
              ${CMAKE_CURRENT_SOURCE_DIR}
              ${CMAKE_CURRENT_SOURCE_DIR}/image
              ${CMAKE_CURRENT_SOURCE_DIR}/device)
+
+if (RUN_TESTS)
+add_subdirectory(test)
+add_executable(sim_test test/ctest_main.c test/sim_test.c test/event_test.c)
+endif()
+
+add_subdirectory(device)
+add_subdirectory(panel)
 add_subdirectory(model1052)
 add_subdirectory(model1442)
 add_subdirectory(model1443)
+add_subdirectory(model2415)
+add_subdirectory(model2844)
 add_subdirectory(model2030)
 add_subdirectory(model2050)
-#add_subdirectory(model2075)
 #add_subdirectory(model2065)
-add_subdirectory(model2415)
-add_subdirectory(model2841)
-add_subdirectory(model2844)
-add_subdirectory(device)
+#add_subdirectory(model2075)
+#add_subdirectory(model2841)
 add_library(toplib conf.c logger.c event.c layout.c)
 target_include_directories(toplib PUBLIC ${includes})
 target_include_directories(${PROJECT_NAME} PUBLIC ${includes})
 target_sources(${PROJECT_NAME} PUBLIC main.c)
 target_link_libraries(${PROJECT_NAME} PUBLIC toplib)
+target_link_libraries(${PROJECT_NAME} PUBLIC devicelib)
+
 #add_dependencies(${PROJECT_NAME} font1.h)
 if (WIN32)
 set_property(TARGET ${PROJECT_NAME} APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
+else()
+#target_compile_options(${PROJECT_NAME} PUBLIC -fsanitize=address -fsanitize-recover=address)
 endif()
 
-
-
 if (RUN_TESTS)
-add_executable(sim_test test/ctest_main.c test/event_test.c)
 
 if (WIN32)
 set_property(TARGET sim_test APPEND_STRING PROPERTY LINK_FLAGS " /INCREMENTAL:NO")
 endif()
-target_link_libraries(sim_test PUBLIC asan)
 target_link_libraries(sim_test PUBLIC toplib)
 add_custom_command(TARGET sim_test
             COMMAND sim_test
@@ -69,4 +76,6 @@ target_include_directories(sim_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                             ${CMAKE_CURRENT_BINARY_DIR})
 add_test(NAME sim_test COMMAND sim_test )
 endif()
+
+
 
