@@ -36,7 +36,7 @@
 #endif
 #include <fcntl.h>
 
-#include "panel.h"
+#include "widgets.h"
 #include "cpu.h"
 #include "model2050.h"
 #include "rollers.xpm"

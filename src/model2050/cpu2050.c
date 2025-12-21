@@ -194,7 +194,7 @@ static    char     *ws_name[] = {   /* Local storage address decode */
                   "FN,MD>LSA",
                   "FN,MD|1>LSA",
               };
-static    char     *sf_name[] = {    /* Local Storage controlles */
+static    char     *sf_name[] = {    /* Local Storage controls */
                   "R>LS",
                   "LS>L,R>LS",
                   "LS>R>LS",
@@ -681,16 +681,21 @@ cycle_2050()
     }
 
     if (LOAD) {
-        printf("Load\n");
+        log_trace("Load\n");
         load_mode = 1;
         stop_mode = 0;
         allow_man_operation = 0;
         for (i = 0; i < 4; i++) {
             cpu_2050.TAGS[i] = 0;
+            cpu_2050.TAGS_IN[i] = 0;
             cpu_2050.polling[i] = 1;
             cpu_2050.ROUTINE[i] = 0;
             cpu_2050.CHREQ[i] = 0;
             cpu_2050.CHPOS[i] = 0;
+            for (dev = chan[i]; dev != NULL; dev = dev->next) {
+                 dev->bus_func(dev, &cpu_2050.TAGS_IN[i],
+                      cpu_2050.BUS_OUT[i], &cpu_2050.BUS_IN[i]);
+            }
         }
         cpu_2050.ROAR = 0x240;
         cpu_2050.init_mem = 0;
@@ -714,6 +719,7 @@ cycle_2050()
         allow_man_operation = 1;
         for (i = 0; i < 4; i++) {
             cpu_2050.TAGS[i] = 0;
+            cpu_2050.TAGS_IN[i] = 0;
             cpu_2050.polling[i] = 1;
             cpu_2050.ROUTINE[i] = 0;
             cpu_2050.CHREQ[i] = 0;
@@ -724,6 +730,10 @@ cycle_2050()
             cpu_2050.C4[i] = 0;
             cpu_2050.D1[i] = 0;
             cpu_2050.D2[i] = 0;
+            for (dev = chan[i]; dev != NULL; dev = dev->next) {
+                 dev->bus_func(dev, &cpu_2050.TAGS_IN[i],
+                      cpu_2050.BUS_OUT[i], &cpu_2050.BUS_IN[i]);
+            }
         }
         cpu_2050.KEY = 0;
         cpu_2050.CC = 0;
@@ -756,7 +766,6 @@ cycle_2050()
         cpu_2050.bump_mem = 0;
         ROAR_RST = 0;
     }
-    log_trace("OPPanel %x\n", cpu_2050.OPPANEL);
 
     sal = &ros_2050[cpu_2050.ROAR];
     cpu_2050.ros_row1 = sal->row1;
@@ -764,7 +773,7 @@ cycle_2050()
     cpu_2050.ros_row3 = sal->row3;
     cpu_2050.ros_row4 = sal->row4;
 
-    /* Stop running microsteps if ROAR matches */
+    /* Stop running micro steps if ROAR matches */
     if (ROS_CMP == 1 && cpu_2050.ROAR == (cpu_2050.DKEYS & 0xfff)) {
        goto channel;
     }
@@ -841,6 +850,9 @@ cycle_2050()
                      cpu_2050.BUMP[ba] = cpu_2050.SDR_REG;
                  } else {
                     M[SA >> 2] = cpu_2050.SDR_REG;
+                    if ((SA >> 2) == (cpu_2050.IA_REG >> 2)) {
+                        cpu_2050.REFETCH = 1;
+                    }
                  }
              }
              SA = cpu_2050.SAR_REG & 0x3ffff;
@@ -866,7 +878,7 @@ cycle_2050()
              break;
     }
 
-    if ((log_level & LOG_ITRACE) != 0 && (cpu_2050.ROAR == 0x188)) {
+    if ((log_level & LOG_ITRACE) != 0 && (cpu_2050.ROAR == 0x188 || cpu_2050.ROAR == 0x187 || cpu_2050.ROAR == 0x19B)) {
         uint8_t   mem[6];
         int       i;
         for (i = 0; i < 6; i++) {
@@ -876,7 +888,7 @@ cycle_2050()
         }
 
         print_inst(mem);
-        log_itrace_c(" IC=%06x CC=%x", cpu_2050.IA_REG, cpu_2050.CC);
+        log_itrace_c(" IC=%06x CC=%x MSK=%02x AMWP=%1x", cpu_2050.IA_REG, cpu_2050.CC, cpu_2050.MASK, cpu_2050.AMWP);
         log_itrace("\n");
 
         log_itrace_s(" ");
@@ -2061,6 +2073,7 @@ cycle_2050()
                 carry_in = (cpu_2050.S_REG & BIT1) != 0;     /* <-- */
                 break;
         }
+
          /* Instruction address register */
          switch (sal->iv) {
          case 0:  /* Nop */
@@ -3189,7 +3202,7 @@ cycle_2050()
             case 0:  /* Interrupt routine */
                    log_selchn("Interrupt\n");
                    if (cpu_2050.CH == 0x3) {
-                       cpu_2050.polling[0] = 1;
+                       cpu_2050.polling[3] = 1;
                        if (cpu_2050.break_out) {
                            cpu_2050.inst_latch = 0;
                            cpu_2050.s3_set = 1;
@@ -3533,8 +3546,10 @@ cycle_2050()
                         if (cpu_2050.ROUTINE[3] == 0x8c) { /* Burst mode */
                            cpu_2050.CC = 2;
                         }
+                    } else if ((cpu_2050.BCHI & (BIT0 >> i)) != 0) {
+                       cpu_2050.CC = 1;
                     } else {
-                       if (cpu_2050.polling[i] == 0) {
+                       if (cpu_2050.polling[i-1] == 0) {
                            cpu_2050.CC = 2;
                        } else {
                            cpu_2050.CC = 0;
@@ -3548,45 +3563,45 @@ cycle_2050()
                     switch(cpu_2050.CHCTL) {
                     case 1: /* SIO */
                             /* Interrupt pending, post busy */
-                            if ((cpu_2050.BCHI & (1 << (i-1))) != 0) {
+                            if ((cpu_2050.BCHI & (BIT0 >> i)) != 0) {
                                 cpu_2050.CC = 2;
                                 s_update |= BIT3;     /* <-- */
                                 break;
                             }
-                            if (cpu_2050.polling[i] == 0) {
+                            if (cpu_2050.polling[i-1] == 0) {
                                 cpu_2050.CC = 2;
                                 s_update |= BIT3;     /* <-- */
                             } else {
                                 cpu_2050.CHREQ[i-1] = BIT4;
-                                cpu_2050.polling[i] = 0;
+                                cpu_2050.polling[i-1] = 0;
                                 cpu_2050.inst_latch = 1;
                             }
                             break;
                     case 4: /* TIO */
-                            if ((cpu_2050.BCHI & (1 << (i-1))) != 0) {
+                            if ((cpu_2050.BCHI & (BIT0 >> i)) != 0) {
                                 cpu_2050.CHREQ[i-1] = BIT1;
                                 cpu_2050.inst_latch = 1;
                                 log_trace("Post TIO interupt\n");
                                 break;
                             }
-                            if (cpu_2050.polling[i] == 0 || cpu_2050.CHREQ[i-1] != 0 ||
+                            if (cpu_2050.polling[i-1] == 0 || cpu_2050.CHREQ[i-1] != 0 ||
                                 cpu_2050.CHPOS[i-1] != 0) {
                                 cpu_2050.CC = 2;
                                 s_update |= BIT3;     /* <-- */
                                 break;
                             }
                             cpu_2050.CHREQ[i-1] = BIT2;
-                            cpu_2050.polling[i] = 0;
+                            cpu_2050.polling[i-1] = 0;
                             cpu_2050.inst_latch = 1;
                             break;
                     case 2: /* HIO */
-                            if ((cpu_2050.BCHI & (1 << (i-1))) != 0) {
+                            if ((cpu_2050.BCHI & (BIT0 >> i)) != 0) {
                                 cpu_2050.CC = 0;
                                 s_update |= BIT3;     /* <-- */
                                 log_trace("Post HIO interupt\n");
                                 break;
                             }
-                            if (cpu_2050.polling[i]) {
+                            if (cpu_2050.polling[i-1]) {
                                 cpu_2050.CHREQ[i-1] = BIT2;
                                 cpu_2050.inst_latch = 1;
                             } else {
@@ -3605,7 +3620,7 @@ cycle_2050()
                             s_update |= BIT1|BIT2|BIT3;     /* <-- */
                     }
                 } else {
-                    if (cpu_2050.polling[0] == 1 && cpu_2050.ROUTINE[3] == 0) {
+                    if (cpu_2050.polling[3] == 1 && cpu_2050.ROUTINE[3] == 0) {
                         cpu_2050.ROUTINE[3] = 0xa0;
                         cpu_2050.break_in |= 8;
                         cpu_2050.inst_latch = 1;
@@ -3780,8 +3795,8 @@ channel:
 
     /* Check if break in cycle */
     if (cpu_2050.mem_state == W1) {
-        log_trace("Routine %02x bi=%x bo=%x dtc1=%d dtc2=%d\n", cpu_2050.ROUTINE[3],
-                  cpu_2050.break_in, cpu_2050.break_out, dtc1, dtc2);
+        log_trace("Routine %02x bi=%x bo=%x dtc1=%d dtc2=%d polling=%d\n", cpu_2050.ROUTINE[3],
+                  cpu_2050.break_in, cpu_2050.break_out, dtc1, dtc2, cpu_2050.polling[3]);
     }
 
     /* Check if break in cycle */
@@ -3922,7 +3937,7 @@ channel:
                      }
                     break;
                 }
-                if (cpu_2050.break_out == 0 || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
+                if ((cpu_2050.break_in == 0 && cpu_2050.break_out == 0) || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
                     if ((cpu_2050.TAGS[0] & CHAN_SRV_OUT) == 0 && (cpu_2050.TAGS_IN[0] & CHAN_STA_IN) != 0) {
                          log_trace("Status in\n");
                          cpu_2050.ROUTINE[3] = 0x90;  /* RTA4 */
@@ -3956,7 +3971,7 @@ channel:
                              cpu_2050.ROUTINE[3] = 0x8c;  /* RTA3 */
                              cpu_2050.break_in |= 8;
                         } else {
-                             cpu_2050.polling[0] = 1;
+                             cpu_2050.polling[3] = 1;
                              cpu_2050.ROUTINE[3] = 0x00;
                         }
                     }
@@ -4013,7 +4028,7 @@ channel:
                     }
                     break;
                 }
-                if (cpu_2050.break_out == 0 || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
+                if ((cpu_2050.break_in == 0 && cpu_2050.break_out == 0) || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
                     if ((cpu_2050.TAGS[0] & CHAN_SRV_OUT) == 0 && (cpu_2050.TAGS_IN[0] & CHAN_STA_IN) != 0) {
                         log_trace("Status in\n");
                         if ((cpu_2050.BFR1 & 0x60) == 0x60) {   /* Command Chain & SLI */
@@ -4106,7 +4121,7 @@ channel:
                 /*  D0 <- (A7) (BR 6), CDA flag, Not inv addr, not prot ch */
                 /*  A3 <- (A7) BR 7, service in, not service out, prot ck, inv address CDA */
                 /*  A3 <- (A7) BR 7, service in, not service out, prot ck, inv address not CDA, input */
-                if ((cpu_2050.break_out == 0 || (cpu_2050.last_cycle && cpu_2050.CH == 3)) && cpu_2050.BRC == 7) {
+                if (((cpu_2050.break_in == 0 && cpu_2050.break_out == 0) || (cpu_2050.last_cycle && cpu_2050.CH == 3)) && cpu_2050.BRC == 7) {
                     if ((cpu_2050.TAGS_IN[0] & (CHAN_OPR_IN)) == 0) {
                         cpu_2050.ROUTINE[3] = 0xb4;     /* RTB5 */
                         cpu_2050.break_in |= 8;
@@ -4143,7 +4158,7 @@ channel:
                 /*  idle <- (B0) (BR 6), inv bump addr */
                 if (cpu_2050.last_cycle && cpu_2050.CH == 3) {
                     if (cpu_2050.BRC == 0) {
-                        cpu_2050.polling[0] = 0;
+                        cpu_2050.polling[3] = 0;
                         if (cpu_2050.CHCTL == 0x01)  /* SIO */
                            cpu_2050.ROUTINE[3] = 0xa4;  /* RTB1 */
                         if (cpu_2050.CHCTL == 0x04 || cpu_2050.CHCTL == 0x80)  /* TIO */
@@ -4158,7 +4173,7 @@ channel:
                            cpu_2050.s3_set = 1;      /* Set stat 3. */
                            cpu_2050.ROUTINE[3] = 0x00;
                            cpu_2050.inst_latch = 0;
-                           cpu_2050.polling[0] = 1;
+                           cpu_2050.polling[3] = 1;
                             break;
                         }
                         if (cpu_2050.ROUTINE[3] != 0xa0) {
@@ -4171,7 +4186,7 @@ channel:
                         cpu_2050.CHCTL = 0;
                         cpu_2050.ROUTINE[3] = 0x00;
                         cpu_2050.inst_latch = 0;
-                        cpu_2050.polling[0] = 1;
+                        cpu_2050.polling[3] = 1;
                     }
                 }
                 break;
@@ -4185,7 +4200,7 @@ channel:
                 /*  D5 <- (B1) (BR 1), seq ctrl idel, invalid op */
                 /*  idle <- (B1) (BR 2), seq crtl active */
                 /*  idle <- (B1) (BR 6), seq ctrl idle, op in, sel in */
-                if (cpu_2050.break_out) {
+                if (cpu_2050.break_in == 0 && cpu_2050.break_out) {
                     break;
                 }
                 if (cpu_2050.BRC == 6) {
@@ -4207,7 +4222,7 @@ channel:
                     cpu_2050.CHCTL = 0;
                     cpu_2050.ROUTINE[3] = 0x00;
                     cpu_2050.inst_latch = 0;
-                    cpu_2050.polling[0] = 1;
+                    cpu_2050.polling[3] = 1;
                 }
                 if (cpu_2050.BRC == 1) { /* Program check */
                     cpu_2050.IOSTAT[3] = BIT3;
@@ -4221,7 +4236,7 @@ channel:
                 log_trace("Routine B2\n");
                 /*  B3 <- (B2) (BR 4), status in */
                 /* Log out BR 1 */
-                if (cpu_2050.break_out == 0 && cpu_2050.BRC == 4 && (cpu_2050.TAGS_IN[0] & (CHAN_STA_IN)) != 0) {
+                if (cpu_2050.break_in == 0 && cpu_2050.break_out == 0 && cpu_2050.BRC == 4 && (cpu_2050.TAGS_IN[0] & (CHAN_STA_IN)) != 0) {
                     if ((cpu_2050.IOSTAT[3]  & BIT3) != 0 && (cpu_2050.BFR2 & 0x7) == 0) { /* Skip */
                         cpu_2050.BFR2 |= 0x03; /* Skip operator */
                     }
@@ -4273,7 +4288,7 @@ channel:
                     }
                 }
 
-                if (cpu_2050.break_out == 0 && cpu_2050.BRC == 7) {       /* Good status, no CC */
+                if (cpu_2050.break_in == 0 && cpu_2050.break_out == 0 && cpu_2050.BRC == 7) {       /* Good status, no CC */
                     /* If service in, go transfer some data */
                     if ((cpu_2050.TAGS_IN[0] & (CHAN_SRV_IN)) != 0) {
                         if ((cpu_2050.IOSTAT[3] & 0x70) != 0x60) {   /* Not output */
@@ -4324,7 +4339,7 @@ channel:
                     if ((cpu_2050.TAGS_IN[0] & (CHAN_OPR_IN|CHAN_STA_IN)) == 0) {
                     cpu_2050.TAGS[0] &= ~CHAN_SUP_OUT;
                     cpu_2050.ROUTINE[3] = 0x0;   /* None */
-                    cpu_2050.polling[0] = 1;
+                    cpu_2050.polling[3] = 1;
                     }
                     if ((cpu_2050.TAGS_IN[0] & CHAN_STA_IN) != 0) {
                          log_trace("Status in\n");
@@ -4353,7 +4368,7 @@ channel:
                 /*  C7 <- (C1) (BR 1), Ch end in IB, test I/O == IB */
                 /*  idle <- (C1) (BR 2), (busy | ch end rec) */
                 /*  idle <- (C1) (BR 2), ch end in IB, test I/o uo =1 IB uo */
-                if (cpu_2050.break_out == 0 || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
+                if ((cpu_2050.break_in == 0 && cpu_2050.break_out == 0) || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
                     if (cpu_2050.BRC == 6) {
                         if ((cpu_2050.TAGS_IN[0] & (CHAN_OPR_IN|CHAN_STA_IN|CHAN_ADR_IN)) ==
                                   (CHAN_OPR_IN|CHAN_ADR_IN)) {
@@ -4372,7 +4387,7 @@ channel:
                     if (cpu_2050.BRC == 2) {  /* IB UA != Inst UA */
                         cpu_2050.CC = 2;
                         cpu_2050.CHCTL = 0;
-                        cpu_2050.polling[0] = 1;
+                        cpu_2050.polling[3] = 1;
                         cpu_2050.inst_latch = 0;
                         cpu_2050.ROUTINE[3] = 0x00;
                         cpu_2050.s3_set = 1;      /* Set stat 3. */
@@ -4418,7 +4433,7 @@ channel:
                     if (cpu_2050.BRC == 2) {  /* IB UA != Inst UA */
                         cpu_2050.CC = 0;
                         cpu_2050.CHCTL = 0;
-                        cpu_2050.polling[0] = 1;
+                        cpu_2050.polling[3] = 1;
                         cpu_2050.inst_latch = 0;
                         cpu_2050.ROUTINE[3] = 0x00;
                         cpu_2050.s3_set = 1;      /* Set stat 3. */
@@ -4444,7 +4459,7 @@ channel:
                         cpu_2050.CHCTL = 0;
                         cpu_2050.ROUTINE[3] = 0x00;
                         cpu_2050.inst_latch = 0;
-                        cpu_2050.polling[0] = 1;
+                        cpu_2050.polling[3] = 1;
                     } else {
                         log_trace("C5 -> D5\n");
                         cpu_2050.ROUTINE[3] = 0xb6;  /* RTD5 */
@@ -4474,7 +4489,7 @@ channel:
                         cpu_2050.CHCTL = 0;
                         cpu_2050.ROUTINE[3] = 0x00;
                         cpu_2050.inst_latch = 0;
-                        cpu_2050.polling[0] = 1;
+                        cpu_2050.polling[3] = 1;
                      }
                 }
                 if (cpu_2050.last_cycle && cpu_2050.CH == 3 && cpu_2050.BRC == 2) {
@@ -4482,7 +4497,7 @@ channel:
                         cpu_2050.CHCTL = 0;
                         cpu_2050.ROUTINE[3] = 0x00;
                         cpu_2050.inst_latch = 0;
-                        cpu_2050.polling[0] = 1;
+                        cpu_2050.polling[3] = 1;
                 }
                 break;
 
@@ -4503,7 +4518,7 @@ channel:
                     }
                     if (cpu_2050.BRC == 2) {  /* IB UA != Inst UA */
                         cpu_2050.CC = 2;
-                        cpu_2050.polling[0] = 1;
+                        cpu_2050.polling[3] = 1;
                         cpu_2050.ROUTINE[3] = 0x00;
                         cpu_2050.CHCTL = 0;
                         cpu_2050.inst_latch = 0;
@@ -4545,7 +4560,7 @@ channel:
     case 0xaa:  /*  RTD2  Routine D2 - QV330 */
                 log_trace("Routine D2\n");
                 /*  D3 <- (D2) (BR 2), status in */
-                if ((cpu_2050.break_out == 0 || (cpu_2050.last_cycle && cpu_2050.CH == 3)) && cpu_2050.BRC == 2) {    /* Status check */
+                if (((cpu_2050.break_in == 0 && cpu_2050.break_out == 0) || (cpu_2050.last_cycle && cpu_2050.CH == 3)) && cpu_2050.BRC == 2) {    /* Status check */
                     if ((cpu_2050.TAGS[0] & CHAN_SRV_OUT) == 0 && (cpu_2050.TAGS_IN[0] & CHAN_STA_IN) != 0) {
                         cpu_2050.ROUTINE[3] = 0xae;  /* RTD3 */
                         cpu_2050.break_in |= 8;
@@ -4565,7 +4580,7 @@ channel:
                 /*  A6 <- (D3) (BR 5) IB Not full, no prog ck, new cc flag, unit status = error  */
                 /*  A6 <- (D3) (BR 7) IB full, prog ck  */
                 /*  D0 <- (D3) (BR 6), not prog ck, new cc, status eq, not err, dev end */
-                if (cpu_2050.break_out == 0 || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
+                if ((cpu_2050.break_in == 0 && cpu_2050.break_out == 0) || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
                     if (cpu_2050.BRC == 1) {        /* Data */
                         if ((cpu_2050.TAGS[0] & CHAN_SRV_OUT) == 0 &&
                             (cpu_2050.TAGS_IN[0] & CHAN_STA_IN) != 0) {
@@ -4615,7 +4630,7 @@ channel:
                 /*  D7 <- (D4) | (BR 3) | CDA), inv Valid addr, M/op TIC */
                 /*  D7 <- (D4) | (BR 3) | CDA), M/op invalid */
                 /*  D7 <- (D4) | (BR 3) | CDA), M/op valid, not TIC */
-                if (cpu_2050.break_out == 0 || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
+                if ((cpu_2050.break_in == 0 && cpu_2050.break_out == 0) || (cpu_2050.last_cycle && cpu_2050.CH == 3)) {
                     if (cpu_2050.BRC == 3) {
                         cpu_2050.ROUTINE[3] = 0xbe; /* RTD7 */
                         cpu_2050.break_in |= 8;
@@ -4660,7 +4675,7 @@ channel:
                 /*  A3 <- (D7) (BR 1 | BR 3), service in, input, skip */
                 /*  A4 <- (D7) (BR 7), not service in, status in, not cc tgr */
                 /*  A5 <- (D7) (BR 7), not service in, status in, cc tgr on */
-                if (cpu_2050.break_out == 0) {
+                if (cpu_2050.break_in == 0 && cpu_2050.break_out == 0) {
                     if (cpu_2050.BRC == 7) {    /* Program check */
                         if ((cpu_2050.TAGS[0] & CHAN_SRV_OUT) == 0 && (cpu_2050.TAGS_IN[0] & CHAN_STA_IN) != 0) {
                             cpu_2050.ROUTINE[3] = 0x90;  /* RTA4 */
@@ -4708,6 +4723,7 @@ channel:
          dev->bus_func(dev, &cpu_2050.TAGS_IN[0], cpu_2050.BUS_OUT[0], &cpu_2050.BUS_IN[0]);
     }
 
+#if 0
     /* If we are polling and get Request in, enable select. */
     if (cpu_2050.polling[0] && cpu_2050.ROUTINE[3] == 0x00) {
         if ((cpu_2050.TAGS_IN[0] & CHAN_REQ_IN) != 0) {
@@ -4722,6 +4738,7 @@ channel:
             cpu_2050.BI_REG = 0x3;
         }
     }
+#endif
 
     /* Drop suppress in when Select out rises */
     if ((cpu_2050.TAGS[0] & CHAN_SEL_OUT) != 0) {
@@ -4739,7 +4756,7 @@ channel:
         log_trace("cpu_2050.CC %d\n", cpu_2050.CC);
         cpu_2050.ROUTINE[3] = 0;
         cpu_2050.inst_latch = 0;
-        cpu_2050.polling[0] = 1;
+        cpu_2050.polling[3] = 1;
     }
 
     /* Drop select out when address in raise  */
@@ -5001,7 +5018,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                            cpu_2050.FLAGS_REG[i] |= CHAN_PROG;
                            cpu_2050.CHCLK[i] = 0;
                            cpu_2050.CHPOS[i] = 0;
-                           cpu_2050.BCHI |= 1 << i;    /* Request interrupt */
+                           cpu_2050.BCHI |= BIT0 >> i;    /* Request interrupt */
                            break;
                    }
                }
@@ -5104,7 +5121,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                          cpu_2050.BUS_OUT[ch] = (cpu_2050.C_REG[i] >> 24) & 0xff;
                          cpu_2050.BUS_OUT[ch] |= odd_parity[cpu_2050.BUS_OUT[ch]];
                          cpu_2050.CHCLK[i] = 1;
-                         cpu_2050.polling[ch] = 0;
+                         cpu_2050.polling[i] = 0;
                          break;
                 case 1:
                          /* If Halting, raise Address out */
@@ -5121,7 +5138,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                                  cpu_2050.TAGS[ch] &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT|CHAN_ADR_OUT);
                                  cpu_2050.BUS_OUT[ch] = 0x100;
                                  cpu_2050.CC = 3;
-                                 cpu_2050.polling[ch] = 1;
+                                 cpu_2050.polling[i] = 1;
                                  cpu_2050.CHPOS[i] = 0;
                                  cpu_2050.CHCLK[i] = 0;
                                  cpu_2050.CHCTL = 0;
@@ -5139,7 +5156,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                               cpu_2050.CHCLK[i] = 0;
                               if (inst) {
                                   cpu_2050.CC = 2;
-                                  cpu_2050.polling[ch] = 1;
+                                  cpu_2050.polling[i] = 1;
                                   cpu_2050.CHCTL = 0;
                                   cpu_2050.inst_latch = 0;
                                   cpu_2050.S_REG |= BIT3;
@@ -5184,13 +5201,13 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                              cpu_2050.CHCLK[i] = 0;
                              if (inst) {
                                  cpu_2050.CC = 3;
-                                 cpu_2050.polling[ch] = 1;
+                                 cpu_2050.polling[i] = 1;
                                  cpu_2050.CHCTL = 0;
                                  cpu_2050.inst_latch = 0;
                                  cpu_2050.S_REG |= BIT3;
                              } else {
                                  cpu_2050.IOSTAT[i] = BIT4;  /* Status only */
-                                 cpu_2050.BCHI |= 1 << i;    /* Request interrupt */
+                                 cpu_2050.BCHI |= BIT1 >> i;    /* Request interrupt */
                              }
                              break;
                          }
@@ -5270,7 +5287,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                                  cpu_2050.IOSTAT[i] = BIT4;  /* Status only interrupt */
                                  cpu_2050.CC = 1;
                               } else {
-                                 cpu_2050.polling[ch] = 1;
+                                 cpu_2050.polling[i] = 1;
                                  cpu_2050.CC = 0;
                                  cpu_2050.inst_latch = 0;
                                  cpu_2050.S_REG |= BIT3;
@@ -5288,11 +5305,11 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                                   cpu_2050.C3[i] = 0;
                                   cpu_2050.CC = 1;
                              } else {
-                                 cpu_2050.BCHI |= 1 << i;    /* Request interrupt */
+                                 cpu_2050.BCHI |= BIT1 >> i;    /* Request interrupt */
                              }
                              cpu_2050.CHCLK[i] = 0;
                              cpu_2050.IF_STOP[i] = 1;
-                             cpu_2050.polling[ch] = 0;
+                             cpu_2050.polling[i] = 0;
                              break;
                          }
                          /* Device end */
@@ -5337,7 +5354,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                          /* Otherwise continue with transfer */
                          log_selchn("Continue\n");
                          cpu_2050.TAGS[ch] &= ~(CHAN_SUP_OUT);
-                         cpu_2050.polling[ch] = 0;
+                         cpu_2050.polling[i] = 0;
                          if (inst) {
                              cpu_2050.CC = 0;
                              cpu_2050.CHCTL = 0;
@@ -5355,7 +5372,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                          cpu_2050.CHPOS[i] = 0;
                          cpu_2050.CHCLK[i] = 0;
                          cpu_2050.TAGS[ch] &= ~(CHAN_ADR_OUT);
-                         cpu_2050.polling[ch] = 1;
+                         cpu_2050.polling[i] = 1;
                          cpu_2050.inst_latch = 0;
                          cpu_2050.CC = 1;
                          cpu_2050.S_REG |= BIT3;
@@ -5437,7 +5454,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                                cpu_2050.TAGS[ch] |= CHAN_SRV_OUT;
                            }
                            if (cpu_2050.CHREQ[i] == 0 && (cpu_2050.FLAGS_REG[i] & 0xff) != 0) {
-                               cpu_2050.BCHI |= 1 << i;
+                               cpu_2050.BCHI |= BIT1 >> i;
                                break;
                            }
                            /* No command chain */
@@ -5447,7 +5464,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                                if (inst) {
                                    cpu_2050.CHREQ[i] = BIT1;  /* Request interrupt */
                               } else {
-                                  cpu_2050.BCHI |= 1 << i;
+                                  cpu_2050.BCHI |= BIT1 >> i;
                               }
                           } else {
                              /* Command chain */
@@ -5518,7 +5535,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                 }
                 if (cpu_2050.last_cycle) {
                     if ((cpu_2050.TAGS_IN[ch] & CHAN_OPR_IN) == 0) {
-                        cpu_2050.polling[ch] = 1;
+                        cpu_2050.polling[i] = 1;
                         cpu_2050.TAGS[ch] &= ~CHAN_SUP_OUT;
                     }
                     if (inst) {
@@ -5530,11 +5547,11 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                     cpu_2050.C3[i] = 0;
                     cpu_2050.FLAGS_REG[i] &= ~(0x08ff);
                     cpu_2050.CHPOS[i] = 0;
-                    cpu_2050.BCHI &= ~(1 << i);
+                    cpu_2050.BCHI &= ~(BIT1 >> i);
                 }
             }
-        } else if (cpu_2050.polling[ch]) {  /* Handle polling mode */
-            if ((cpu_2050.BCHI & (1 << i)) != 0) {
+        } else if (cpu_2050.polling[i]) {  /* Handle polling mode */
+            if ((cpu_2050.BCHI & (BIT1 >> i)) != 0) {
                 cpu_2050.TAGS[ch] |= CHAN_SUP_OUT;
             }
             if ((cpu_2050.TAGS_IN[ch] & (CHAN_SRV_IN|CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
@@ -5561,8 +5578,8 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                  cpu_2050.C_REG[i] &= 0x00ffffff;
                  cpu_2050.C_REG[i] |= ((uint32_t)cpu_2050.BUS_IN[ch] & 0xff) << 24;
                  cpu_2050.IOSTAT[i] = BIT0;
-                 cpu_2050.BCHI |= 1 << i;
-                 cpu_2050.polling[ch] = 0;
+                 cpu_2050.BCHI |= BIT1 >> i;
+                 cpu_2050.polling[i] = 0;
                  cpu_2050.C1[i] = 0;
                  cpu_2050.C2[i] = 0;
                  cpu_2050.C3[i] = 0;
@@ -5620,7 +5637,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                 if (cpu_2050.CCI_REG[i] != 0) {  /* Flush data */
                     cpu_2050.C_FULL[i] = 1;
                 }
-                cpu_2050.polling[ch] = 1;
+                cpu_2050.polling[i] = 1;
             }
 
             if (cpu_2050.LS_FULL[i] != 0 && cpu_2050.CHREQ[i] == 0 && cpu_2050.CHPOS[i] == 0 &&
@@ -5685,7 +5702,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
 
         if ((cpu_2050.TAGS_IN[ch] & (CHAN_SRV_IN|CHAN_STA_IN|CHAN_SRV_OUT)) == (CHAN_SRV_OUT)) {
             cpu_2050.TAGS[ch] &= ~CHAN_SRV_OUT;
-            if ((cpu_2050.BCHI & (1 << i)) != 0) {
+            if ((cpu_2050.BCHI & (BIT1 >> i)) != 0) {
                 cpu_2050.TAGS[ch] |= CHAN_SUP_OUT;
             }
         }
@@ -5859,7 +5876,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
               cpu_2050.IBFULL, cpu_2050.BCHI, cpu_2050.inst_latch, cpu_2050.LS[cpu_2050.LSA]);
     log_reg("ILC=%X CC=%X AMWP=%X PM=%X MASK=%02X KEY=%01x poll=%d R=%d 1S=%d brk=%x bo=%d BRC=%d IO=%x IO_KEY=%x\n",
               cpu_2050.ILC, cpu_2050.CC, cpu_2050.AMWP, cpu_2050.PMASK, cpu_2050.MASK,
-              cpu_2050.KEY, cpu_2050.polling[0], cpu_2050.REFETCH, cpu_2050.SYLS1, cpu_2050.break_in,
+              cpu_2050.KEY, cpu_2050.polling[3], cpu_2050.REFETCH, cpu_2050.SYLS1, cpu_2050.break_in,
               cpu_2050.break_out, cpu_2050.BRC, cpu_2050.IO_REG, cpu_2050.IO_KEY);
     log_reg("CLS[2C]=%08x CLS[2D]=%08x CLS[2E]=%08x CLS[2F]=%08x\n", cpu_2050.LS[0x2c], cpu_2050.LS[0x2d],
                       cpu_2050.LS[0x2e], cpu_2050.LS[0x2f]);
@@ -5884,7 +5901,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
             cpu_2050.CLI_REG[i], cpu_2050.IF_STOP[i], cpu_2050.C1[i]);
         log_selchn("%d: LS[0] = %08x LS[1] = %08x LS[2] = %08x LS[3] = %08x FLAGS=%03x CD=%d c=%d, e=%d poll=%d EOR=%d\n", i,
                   cpu_2050.LS[i<<2], cpu_2050.LS[(i << 2)|1], cpu_2050.LS[(i << 2)| 2], cpu_2050.LS[(i << 2)|3], cpu_2050.FLAGS_REG[i],
-                  cpu_2050.CD[i], (cpu_2050.GP_REG[i] >> 5) & 3, (cpu_2050.GP_REG[i]>> 3) & 3, cpu_2050.polling[i+1], cpu_2050.EOR[i] );
+                  cpu_2050.CD[i], (cpu_2050.GP_REG[i] >> 5) & 3, (cpu_2050.GP_REG[i]>> 3) & 3, cpu_2050.polling[i], cpu_2050.EOR[i] );
     }
     /* Handle break in cycle */
     if (cpu_2050.last_cycle && (cpu_2050.break_in & (1 << cpu_2050.CH)) != 0) {

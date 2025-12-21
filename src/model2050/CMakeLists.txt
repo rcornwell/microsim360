@@ -50,7 +50,7 @@ if (UNIX)
 target_link_libraries(inst2050_test m)
 endif()
 add_custom_command(TARGET inst2050_test
-            COMMAND inst2050_test -v -d
+            COMMAND inst2050_test
             COMMENT "Test instructions for 2050"
             VERBATIM)
 target_include_directories(inst2050_test PRIVATE ${includes}
