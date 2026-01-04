@@ -27,6 +27,7 @@
 set(includes ${CMAKE_CURRENT_BINARY_DIR}
              ${CMAKE_CURRENT_SOURCE_DIR}
              ${CMAKE_CURRENT_SOURCE_DIR}/image
+             ${CMAKE_CURRENT_SOURCE_DIR}/panel
              ${CMAKE_CURRENT_SOURCE_DIR}/device)
 
 if (RUN_TESTS)
