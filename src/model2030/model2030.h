@@ -54,7 +54,6 @@ extern struct ROS_2030 {
     char        note[16];
 } ros_2030[4096];
 
-
 extern struct CPU_2030 {
 int         count;
 uint16_t    LS[4096];           /* Local storage and BUMP storage */
@@ -315,6 +314,17 @@ uint16_t    GHZ;
 
 uint16_t    SEL_TAGS[2];          /* Select channel tags. */
 uint16_t    SEL_TI[2];            /* Input tags. */
+
+uint16_t    clock_start_lch;      /* CPU Running */
+uint16_t    allow_man_operation;  /* CPU in manual mode */
+uint16_t    wait;                 /* CPU in wait state */
+uint16_t    test_mode;            /* CPU out of normal mode */
+uint16_t    load_mode;            /* CPU loading */
+uint16_t    allow_write;          /* Allow write in next cycle */
+uint16_t    store;                /* Store mode Main/Local */
+uint16_t    end_of_e_cycle;       /* End of instruction */
+uint16_t    t_request;            /* Request from console */
+uint16_t    match;                /* Address matched switches */
 
 struct _1052_context  *console;         /* Console device */
 

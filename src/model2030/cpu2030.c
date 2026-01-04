@@ -35,7 +35,6 @@
 #include "model2030.h"
 #include "model1052.h"
 
-
 struct CPU_2030 cpu_2030;
 
 /* Machine check bits */
@@ -142,11 +141,11 @@ static int        set_ic_allowed;       /* Set IC switch pressed 03CC3 */
 static int        set_ic_start;         /* Start of set IC */
 static int        cf_stop;
 static int        stop_req;
-static int        process_stop;
+static int        process_stop;         /* Stop CPU */
 static int        read_call;
 static int        proc_stop_loop_active;
 static int        protect_loc_cpu_or_mpx;
-static int        interrupt;
+static int        interrupt;            /* Interrupt pending */
 static int        any_mach_chk;
 static int        chk_restart;
 static int        priority;
@@ -171,7 +170,6 @@ static int        u_wrap_cpu;
 static int        u_wrap_mpx;
 static int        wrap_buf;
 static int        alu_chk;
-static int        mpx_share_req;
 static int        mpx_share_pulse;
 static int        mpx_cmd_start;
 static int        mpx_start_sel;
@@ -181,7 +179,6 @@ static int        even_parity;
 static int        mem_prot;
 static int        timer_update;
 static int        tc;
-static int        sel_start_sel;
 static int        sel_ros_req;
 static int        sel_chnl_chk;
 static int        sel_chain_pulse;
@@ -264,24 +261,24 @@ cycle_2030()
    chk_or_diag_stop_sw = (CHK_SW == 3);
    /* See if address matches selected switches */
    if (MATCH_SW > 3) {
-      match = cpu_2030.WX == ((B_SW << 8) | (C_SW << 4) | (D_SW));
-   } else if (MATCH_SW != 0 && (store == MAIN)) {
-      match = cpu_2030.MN_REG == ((A_SW << 12) | (B_SW << 8) | (C_SW << 4) | (D_SW));
+      cpu_2030.match = cpu_2030.WX == ((B_SW << 8) | (C_SW << 4) | (D_SW));
+   } else if (MATCH_SW != 0 && (cpu_2030.store == MAIN)) {
+      cpu_2030.match = cpu_2030.MN_REG == ((A_SW << 12) | (B_SW << 8) | (C_SW << 4) | (D_SW));
    } else if (MATCH_SW == 0) {
-      match = cpu_2030.MN_REG == ((A_SW << 12) | (B_SW << 8) | (C_SW << 4) | (D_SW));
+      cpu_2030.match = cpu_2030.MN_REG == ((A_SW << 12) | (B_SW << 8) | (C_SW << 4) | (D_SW));
    }
 
-   test_mode = (MATCH_SW != 0) || (CHK_SW != 2) || (PROC_SW != 1) || (RATE_SW != 1) ||
+   cpu_2030.test_mode = (MATCH_SW != 0) || (CHK_SW != 2) || (PROC_SW != 1) || (RATE_SW != 1) ||
                    even_parity | alu_chk;
 
    /* If SAR_DELAY_SW and Match or Rate Instruction step */
-   if (((MATCH_SW == 1) && match) || (RATE_SW == 2)) {
+   if (((MATCH_SW == 1) && cpu_2030.match) || (RATE_SW == 2)) {
       process_stop = 1;
    }
 
    /* Clear match on SYNC or process */
    if ((MATCH_SW == 9) || (MATCH_SW == 0))
-      match = 0;
+      cpu_2030.match = 0;
 
    if (proc_stop_loop_active)
       priority_lch = 0;
@@ -293,20 +290,20 @@ cycle_2030()
        chk_restart = 0;
 
    /* SAR Restart SW */
-   if ((MATCH_SW == 3 && match && !allow_write) ||
+   if ((MATCH_SW == 3 && cpu_2030.match && !cpu_2030.allow_write) ||
        ((MATCH_SW == 4 || MATCH_SW == 5 || MATCH_SW == 6) && chk_restart) ||
        set_ic_allowed) {
        force_ij_req = 1;
        cf_stop = 0;
    }
 
-   if ((match && (MATCH_SW == 4)) ||
-       (match && allow_write && (MATCH_SW == 5 || MATCH_SW == 6)))
+   if ((cpu_2030.match && (MATCH_SW == 4)) ||
+       (cpu_2030.match && cpu_2030.allow_write && (MATCH_SW == 5 || MATCH_SW == 6)))
       gate_sw_to_wx = 1;
 
    if ((((cpu_2030.FT & BIT3) != 0 || sel_ros_req) && proc_stop_loop_active) ||
         set_ic_start) {
-      log_trace("CY start %d\n", allow_man_operation);
+      log_trace("CY start %d\n", cpu_2030.allow_man_operation);
       e_cy_stop_sample = 1;
    }
 
@@ -328,7 +325,7 @@ cycle_2030()
    }
 
    if (START) {
-      if (allow_man_operation) {
+      if (cpu_2030.allow_man_operation) {
           log_trace("Start\n");
           start_sw_rst = 1;
           process_stop = 0;
@@ -336,7 +333,7 @@ cycle_2030()
           cf_stop = 0;
           e_cy_stop_sample = 1;
           hard_stop = 0;
-          match = 0;
+          cpu_2030.match = 0;
       }
       START = 0;
    }
@@ -349,9 +346,9 @@ cycle_2030()
    if (LOAD) {
       log_trace("Load\n");
       cpu_2030.FT |= BIT4;  /* Set load flag. */
-      load_mode = 1;
+      cpu_2030.load_mode = 1;
       cf_stop = 0;
-      allow_man_operation = 0;
+      cpu_2030.allow_man_operation = 0;
       suppr_half_trap_lch = 0;
       priority_lch = 0;
       even_parity = 0;
@@ -360,16 +357,16 @@ cycle_2030()
    }
 
    if (SET_IC) {
-      if (allow_man_operation) {
-         log_trace("Set IC %d\n", allow_man_operation);
+      if (cpu_2030.allow_man_operation) {
+         log_trace("Set IC %d\n", cpu_2030.allow_man_operation);
          set_ic_allowed = 1;
       }
       SET_IC = 0;
    }
 
    if (ROAR_RST) {
-       log_trace("Set Roar %d\n", allow_man_operation);
-       if (allow_man_operation) {
+       log_trace("Set Roar %d\n", cpu_2030.allow_man_operation);
+       if (cpu_2030.allow_man_operation) {
           gate_sw_to_wx = 1;
           priority_stack_reg = 0;
        }
@@ -381,7 +378,7 @@ cycle_2030()
       hard_stop = 0;
       force_ij_req = 0;
       gate_sw_to_wx = 0;
-      clock_start_lch = 1;
+      cpu_2030.clock_start_lch = 1;
       second_err_stop = 0;
       first_mach_chk_req = 0;
       cf_stop = 0;
@@ -402,10 +399,10 @@ cycle_2030()
       cpu_2030.G_REG = 0x100;
       cpu_2030.L_REG = 0x100;
       cpu_2030.D_REG = 0x100;
-      allow_man_operation = !LOAD;
+      cpu_2030.allow_man_operation = !LOAD;
       e_cy_stop_sample = 1;
       suppr_half_trap_lch = 0;
-      allow_write = 0;
+      cpu_2030.allow_write = 0;
       read_call = 0;
       even_parity = 0;
       inh_stg_prot = 0;
@@ -413,7 +410,7 @@ cycle_2030()
       cpu_2030.ASCII = 0;
       SYS_RST = 0;
       if (LOAD == 0) {
-         load_mode = 0;
+         cpu_2030.load_mode = 0;
          cpu_2030.FT &= ~BIT4;  /* Clear load flag. */
       }
       LOAD = 0;
@@ -439,7 +436,7 @@ cycle_2030()
    }
 
    /* Process Display and Store switches */
-   if (allow_man_operation) {
+   if (cpu_2030.allow_man_operation) {
        if (DISPLAY) {
            cpu_2030.Abus = 0;
            switch(E_SW) {
@@ -563,7 +560,7 @@ cycle_2030()
                        break;
            case 0x20:
            case 0x21:
-                   if (allow_write)
+                   if (cpu_2030.allow_write)
                        break;
                    cpu_2030.M_REG = (A_SW << 4) | (B_SW);
                    cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG & 0xff];
@@ -573,34 +570,34 @@ cycle_2030()
                                                  (cpu_2030.N_REG & 0xff);
                    if (E_SW == 0x20) {
                        cpu_2030.R_REG = M[cpu_2030.MN_REG] ^ 0x100;
-                       store = MAIN;
+                       cpu_2030.store = MAIN;
                    }
                    if (E_SW == 0x21) {
                        cpu_2030.R_REG = cpu_2030.LS[((cpu_2030.M_REG << 5) & 0x700) |
                                         (cpu_2030.N_REG & 0xff)] ^ 0x100;
-                       store = LOCAL;
+                       cpu_2030.store = LOCAL;
                    }
                    break;
            case 0x30:  cpu_2030.Abus = cpu_2030.I_REG;  /* I */
-                    if (allow_write == 0) {
+                    if (cpu_2030.allow_write == 0) {
                        cpu_2030.M_REG = cpu_2030.I_REG;
                        cpu_2030.N_REG = cpu_2030.J_REG;
                     }
                     break;
            case 0x31:  cpu_2030.Abus = cpu_2030.J_REG;         /* J */
-                    if (allow_write == 0) {
+                    if (cpu_2030.allow_write == 0) {
                        cpu_2030.M_REG = cpu_2030.I_REG;
                        cpu_2030.N_REG = cpu_2030.J_REG;
                     }
                     break;
            case 0x32:  cpu_2030.Abus = cpu_2030.U_REG;  /* U */
-                    if (allow_write == 0) {
+                    if (cpu_2030.allow_write == 0) {
                        cpu_2030.M_REG = cpu_2030.U_REG;
                        cpu_2030.N_REG = cpu_2030.V_REG;
                     }
                     break;
            case 0x33:  cpu_2030.Abus = cpu_2030.V_REG;         /* V */
-                    if (allow_write == 0) {
+                    if (cpu_2030.allow_write == 0) {
                        cpu_2030.M_REG = cpu_2030.U_REG;
                        cpu_2030.N_REG = cpu_2030.V_REG;
                     }
@@ -627,7 +624,7 @@ cycle_2030()
            case 0x10:  cpu_2030.Q_REG = cpu_2030.Alu_out; /* Q */  break;
            case 0x20:
            case 0x21:
-                   if (allow_write)
+                   if (cpu_2030.allow_write)
                        break;
                    cpu_2030.R_REG = cpu_2030.Alu_out;
                    cpu_2030.M_REG = (A_SW << 4) | (B_SW);
@@ -637,11 +634,11 @@ cycle_2030()
                    cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
                    if (E_SW == 0x20) {
                        M[cpu_2030.MN_REG] = cpu_2030.R_REG ^ 0x100;
-                       store = MAIN;
+                       cpu_2030.store = MAIN;
                    }
                    if (E_SW == 0x21) {
                        cpu_2030.LS[((cpu_2030.M_REG << 5) & 0x700) | (cpu_2030.N_REG & 0xff)] = cpu_2030.R_REG ^ 0x100;
-                       store = LOCAL;
+                       cpu_2030.store = LOCAL;
                    }
                    cpu_2030.Abus = cpu_2030.R_REG;
                    break;
@@ -689,21 +686,21 @@ cycle_2030()
    if ((cpu_2030.MASK & BIT2) && (sel_intrp_lch[1] || (cpu_2030.GF[1] & BIT4) != 0)) {
        interrupt = 1;
    }
-   stop_req = !(process_stop & (!interrupt) & end_of_e_cycle);
+   stop_req = !(process_stop & (!interrupt) & cpu_2030.end_of_e_cycle);
 
    clock_rst = hard_stop | ((sal->CA != 0xE) & cf_stop);
-   clock_stop = (proc_stop_loop_active & (!sel_ros_req) & (!mpx_share_req));
+   clock_stop = (proc_stop_loop_active & (!sel_ros_req));
    if (clock_stop || clock_rst) {
-      clock_start_lch = 0;
+      cpu_2030.clock_start_lch = 0;
       e_cy_stop_sample = 0;
-      allow_man_operation = 1;
+      cpu_2030.allow_man_operation = 1;
    }
 
-   if (e_cy_stop_sample && allow_man_operation) {
-      allow_man_operation = 0;
+   if (e_cy_stop_sample && cpu_2030.allow_man_operation) {
+      cpu_2030.allow_man_operation = 0;
       set_ic_allowed = 0;
       force_ij_req = 0;
-      clock_start_lch = 1;
+      cpu_2030.clock_start_lch = 1;
    }
 
    set_ic_start = ((priority_stack_reg & BIT2) != 0) & set_ic_allowed;
@@ -712,7 +709,7 @@ cycle_2030()
       cpu_2030.WX = (G_SW << 8) | (H_SW << 4) | (J_SW);
       priority_lch = 0;
       gate_sw_to_wx = 0;
-      match = 0;
+      cpu_2030.match = 0;
    }
 
    if (CHK_SW == 0 || (hard_stop == 0 && any_priority_lch)) {
@@ -724,7 +721,7 @@ cycle_2030()
 
    priority_bus = 0;
    mach_chk_pulse = 0;
-   if (!priority_lch && read_call == 0 && allow_write == 0) {
+   if (!priority_lch && read_call == 0 && cpu_2030.allow_write == 0) {
        if (!suppr_half_trap_lch && !gate_sw_to_wx && (priority_stack_reg & BIT0) != 0) {
            priority_bus = BIT5;   /* Mach_chk_pulse */
            mach_chk_pulse = 1;
@@ -759,7 +756,7 @@ cycle_2030()
     any_priority_pulse = (priority_bus != 0);
 
     /* Check if we should run a select memory cycle or not */
-    if (sel_share_req != 0 && allow_write == 0 && read_call == 0) {
+    if (sel_share_req != 0 && cpu_2030.allow_write == 0 && read_call == 0) {
        if (sel_share_req & 1)
           i = 0;
        else
@@ -873,11 +870,11 @@ cycle_2030()
         /* If we have interrupt, transfer to it */
         if (any_priority_pulse && cpu_2030.sel_ros_rest == 0 && cpu_2030.mpx_ros_rest == 0) {
            priority_lch = 1;
-           clock_start_lch = 1;
+           cpu_2030.clock_start_lch = 1;
            cpu_2030.dead_cycle = 1;
         }
         /* Otherwise see if CPU clock is running */
-        if (clock_start_lch) {
+        if (cpu_2030.clock_start_lch) {
            sal = &ros_2030[cpu_2030.WX];
            cpu_2030.ros_row1 = sal->row1;
            cpu_2030.ros_row2 = sal->row2;
@@ -1051,10 +1048,10 @@ cycle_2030()
                }
 
                /* Check if in range of memory */
-               if (store == MAIN && ((0xFFFF ^ mem_max) & cpu_2030.MN_REG) != 0) {
+               if (cpu_2030.store == MAIN && ((0xFFFF ^ mem_max) & cpu_2030.MN_REG) != 0) {
                    mem_prot = 1;
                }
-               if (store == MAIN && mem_prot == 0) {
+               if (cpu_2030.store == MAIN && mem_prot == 0) {
                    cpu_2030.Q_REG &= 0xf0;
                    cpu_2030.Q_REG |= cpu_2030.MP[cpu_2030.SA_REG] & 0xf;
                    if (!inh_stg_prot) {
@@ -1067,13 +1064,13 @@ cycle_2030()
                        }
                    }
                }
-               if (store == MPX) {
+               if (cpu_2030.store == MPX) {
                    cpu_2030.Q_REG &= 0xf0;
                    cpu_2030.Q_REG |= cpu_2030.MP[cpu_2030.SA_REG] & 0xf;
                    log_mem("read mpx %02x %x\n", cpu_2030.SA_REG, cpu_2030.Q_REG & 0xf);
                }
                if (sal->CM != 2 && mem_prot == 0) {
-                   switch (store) {
+                   switch (cpu_2030.store) {
                    case MAIN:
                         if (sal->CU == 1) {
                             cpu_2030.GR[cpu_2030.ch_sel] = M[cpu_2030.MN_REG];
@@ -1095,7 +1092,7 @@ cycle_2030()
                         break;
                    }
                }
-               allow_write = 1;
+               cpu_2030.allow_write = 1;
                read_call = 0;
            }
 
@@ -1109,8 +1106,8 @@ cycle_2030()
                        /* Fall through */
                case 0:       /* Write */
                       /* Do write to memory from this request */
-                      if (allow_write) {
-                          switch (store) {
+                      if (cpu_2030.allow_write) {
+                          switch (cpu_2030.store) {
                           case MAIN:
                                if (sal->CU == 1) {
                                    M[cpu_2030.MN_REG] = cpu_2030.GR[cpu_2030.ch_sel];
@@ -1132,7 +1129,7 @@ cycle_2030()
                                    cpu_2030.LS[(cpu_2030.MN_REG & 0x7ff)] = cpu_2030.R_REG;
                                break;
                           }
-                          allow_write = 0;
+                          cpu_2030.allow_write = 0;
                           read_call = 0;
                           inh_stg_prot = 0;
                       }
@@ -1173,7 +1170,7 @@ cycle_2030()
 
                /* If load new address, generate SA and Main/MPX request */
                if (sal->CM >= 3) {
-                   store = MAIN;
+                   cpu_2030.store = MAIN;
                    mem_wrap_req = 0;
                    switch (sal->CU) {
                    case 0:
@@ -1196,12 +1193,12 @@ cycle_2030()
                        }
                        break;
                    case 1:
-                       store = LOCAL;
+                       cpu_2030.store = LOCAL;
                        cpu_2030.M_REG = BIT0|BIT1|BIT2;
                        cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
                        break;
                    case 2:
-                       store = MPX;
+                       cpu_2030.store = MPX;
                        cpu_2030.M_REG = cpu_2030.XX_REG;
                        cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
                        cpu_2030.SA_REG = (cpu_2030.XX_REG & 0xE0) | ((cpu_2030.N_REG >> 3) & 0x1f);
@@ -1210,13 +1207,13 @@ cycle_2030()
                        if ((cpu_2030.G_REG & (BIT0|BIT1)) == 0) {
                            cpu_2030.M_REG = BIT0|BIT1|BIT2;
                            cpu_2030.M_REG |= odd_parity[cpu_2030.M_REG];
-                           store = LOCAL;
+                           cpu_2030.store = LOCAL;
                        }
                    }
-                   if (!allow_write && !mem_wrap_req) {
+                   if (!cpu_2030.allow_write && !mem_wrap_req) {
                        read_call = 1;
                    }
-                   if (store == MAIN) {
+                   if (cpu_2030.store == MAIN) {
                        cpu_2030.MN_REG = ((cpu_2030.M_REG & 0xff) << 8) | (cpu_2030.N_REG & 0xff);
                        cpu_2030.SA_REG = (0xE0) | ((cpu_2030.M_REG >> 3) & 0x1F);
                    } else {
@@ -1300,7 +1297,7 @@ cycle_2030()
                    break;
            }
 
-           end_of_e_cycle = 0;
+           cpu_2030.end_of_e_cycle = 0;
            /* Decode the X7 bit */
            switch (sal->CL) {
            case 0:
@@ -1361,7 +1358,7 @@ cycle_2030()
                       nextWX |= 0x1;
                    break;
            case 15: /* INTR */
-                   end_of_e_cycle = 1;
+                   cpu_2030.end_of_e_cycle = 1;
                    if (interrupt) {
                       nextWX |= 0x1;
                    }
@@ -1442,7 +1439,7 @@ cycle_2030()
               } else if (mpx_share_pulse) {
                  cpu_2030.FWX = cpu_2030.WX;
                  cpu_2030.MPX_X6X7 = nextWX & 3;
-                 if (t_request == 0) {
+                 if (cpu_2030.t_request == 0) {
                     cpu_2030.MPX_TAGS |= (CHAN_SEL_OUT|CHAN_HLD_OUT);
                     cpu_2030.FT |= BIT6;
                  }
@@ -1504,7 +1501,7 @@ cycle_2030()
                        break;
            case 0x1d:  /* reset IPL load */
                        cpu_2030.FT &= ~BIT4;
-                       load_mode = 0;
+                       cpu_2030.load_mode = 0;
                        even_parity = 0;
                        alu_chk = 0;
                        break;
@@ -1893,9 +1890,9 @@ cycle_2030()
                    suppr_half_trap_lch = (cpu_2030.R_REG & BIT5) == 0;
                }
                if (sal->CC == 3) {
-                   wait = 1;
+                   cpu_2030.wait = 1;
                } else {
-                   wait = 0;
+                   cpu_2030.wait = 0;
                }
            }
            cpu_2030.Alu_out |= odd_parity[cpu_2030.Alu_out] ^ even_parity;
@@ -1942,7 +1939,7 @@ cycle_2030()
                    break;
            case 7:
                    /* If protection violation, don't let R get changed */
-                   if ((allow_write && protect_loc_cpu_or_mpx) || mem_prot) {
+                   if ((cpu_2030.allow_write && protect_loc_cpu_or_mpx) || mem_prot) {
                        stg_prot_req = 1;
                        break;
                    }
@@ -2054,7 +2051,7 @@ cycle_2030()
            case 0x05: /* Treq */
                    /* If 1050 request set BIT1 */
                    cpu_2030.S_REG &= ~(BIT1);
-                   if ((cpu_2030.MPX_TI & CHAN_OPR_IN) == 0 && t_request)
+                   if ((cpu_2030.MPX_TI & CHAN_OPR_IN) == 0 && cpu_2030.t_request)
                       cpu_2030.S_REG |= BIT1;
                    break;
            case 0x06:   /* 0 -> S0 */
@@ -2348,7 +2345,6 @@ cycle_2030()
                         cpu_2030.SEL_TAGS[cpu_2030.ch_sel] |= CHAN_ADR_OUT;
                         cpu_2030.GO[cpu_2030.ch_sel] = cpu_2030.GR[cpu_2030.ch_sel];
                         if (sal->CK & BIT4) {
-                            sel_start_sel = 1;
                             sel_status_stop_cond[cpu_2030.ch_sel] = 0;
                         }
                    } else {
@@ -2382,7 +2378,7 @@ cycle_2030()
               if (any_priority_lch)
                   priority_lch = 1;
            }
-           if (match && ((MATCH_SW == 2) || (MATCH_SW == 7) || (MATCH_SW == 8))) {
+           if (cpu_2030.match && ((MATCH_SW == 2) || (MATCH_SW == 7) || (MATCH_SW == 8))) {
               hard_stop = 1;
               if (any_priority_lch)
                   priority_lch = 1;
@@ -2419,7 +2415,7 @@ cycle_2030()
            log_reg("M=%02x N=%02x I=%02x J=%02x U=%02x V=%02x WX=%03x FWX=%03x GWX=%03x ST=%02x O=%02x car=%02x %d aw=%d rc=%d 2nd=%d tc=%d\n",
                    cpu_2030.M_REG, cpu_2030.N_REG, cpu_2030.I_REG, cpu_2030.J_REG,
                    cpu_2030.U_REG, cpu_2030.V_REG, cpu_2030.WX, cpu_2030.FWX, cpu_2030.GWX,
-                   cpu_2030.STAT_REG, cpu_2030.O_REG, carries, priority_lch, allow_write, read_call,
+                   cpu_2030.STAT_REG, cpu_2030.O_REG, carries, priority_lch, cpu_2030.allow_write, read_call,
                    second_err_stop, tc);
            log_selchn("GE[0]=%02x GF[0]=%02x GG[0]=%02x GI[0]=%02x GK[0]=%02x GR[0]=%02x GO[0]=%02x GCD=%02x%02x GUV=%02x%02x  h=%d\n",
                    cpu_2030.GE[0] & 0xff, cpu_2030.GF[0] & 0xff, cpu_2030.GG[0] & 0xff,
@@ -2458,11 +2454,11 @@ chan_scan:
         if ((cpu_2030.MPX_TAGS & (CHAN_SEL_OUT)) == 0 &&
             (cpu_2030.MPX_TI & (CHAN_OPR_IN)) == 0) {
             /* Call out to console first */
-            model1052_func(cpu_2030.console, &cpu_2030.TT, cpu_2030.TA, &t_request);
-            if (t_request)
+            model1052_func(cpu_2030.console, &cpu_2030.TT, cpu_2030.TA, &cpu_2030.t_request);
+            if (cpu_2030.t_request)
                cpu_2030.FT |= BIT3;
         } else {
-            t_request = 0;
+            cpu_2030.t_request = 0;
         }
 
         /* Check for MPX request */
@@ -2791,9 +2787,9 @@ chan_scan:
             cpu_2030.FT &= ~BIT5;
             if ((cpu_2030.MPX_TI & CHAN_SEL_IN) != 0)
                cpu_2030.FT |= BIT5;
-            if ((cpu_2030.MPX_TI & CHAN_STA_IN) != 0 && !t_request)
+            if ((cpu_2030.MPX_TI & CHAN_STA_IN) != 0 && !cpu_2030.t_request)
                cpu_2030.STAT_REG |= BIT1;
-            if ((cpu_2030.MPX_TI & CHAN_SRV_IN) != 0 && !t_request)
+            if ((cpu_2030.MPX_TI & CHAN_SRV_IN) != 0 && !cpu_2030.t_request)
                cpu_2030.STAT_REG |= BIT3;
             if ((cpu_2030.MPX_TI & CHAN_OPR_IN) != 0) {
                cpu_2030.STAT_REG |= BIT2;
@@ -2805,7 +2801,7 @@ chan_scan:
         }
 
         /* Update the priority latch */
-        if (allow_write == 0 || gate_sw_to_wx) {
+        if (cpu_2030.allow_write == 0 || gate_sw_to_wx) {
             priority_stack_reg = 0;
             if (first_mach_chk_req) {
                 priority_stack_reg |= BIT0;
@@ -2842,6 +2838,7 @@ chan_scan:
 struct _device *
 model2030_init(void *render, uint16_t addr)
 {
+    INT_TMR = 1;   /* By default enable interval timer */
     return NULL;
 }
 
@@ -2886,6 +2883,7 @@ model2030_create(struct _option *opt)
     mem_max = msize - 1;
     log_info("Model 30 configured %d %04x mem\n", msize, mem_max);
     cpu_2030.console = model1052_init_ctx(port);
+    INT_TMR = 1;   /* By default enable interval timer */
     return 1;
 }
 
