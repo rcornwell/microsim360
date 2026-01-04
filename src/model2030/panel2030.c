@@ -40,37 +40,44 @@
 #include "area.h"
 #include "line.h"
 #include "label.h"
+#include "light.h"
+#include "button.h"
+#include "timer.h"
+#include "lamp.h"
+#include "hex_dial.h"
+#include "store_dial.h"
+#include "dial.h"
+#include "ros_row.h"
+#include "reg_row.h"
 #include "cpu.h"
 #include "logger.h"
 #include "model2030.h"
 
-#define DIG_LP   17
-#define DIG_CD   18
-#define DIG_CC   19
-#define DIG_SLI  20
-#define DIG_SKP  21
-#define DIG_PCI  22
-#define DIG_OP   23
+/* ! is line between digits.
+   | is line in place of digit.
+*/
+                   /*            1         2           */
+                   /*  0123456789012345678901234567890 */
+struct _ros_row row1 = {
+                      "P!012345 ! P !L! P!1!8421| P!8421!8421",
+                      " |       !   ! ! P!3!4567| P!0123!4567",
+                      23, &con, &cof};
 
-static struct _labels labels[] = {
-    { "0", NULL },
-    { "1", NULL },
-    { "2", NULL },
-    { "3", NULL },
-    { "4", NULL },
-    { "5", NULL },
-    { "6", NULL },
-    { "7", NULL },
-    { "8", NULL },
-    { "9", NULL },
-    { "A", NULL },
-    { "B", NULL },
-    { "C", NULL },
-    { "D", NULL },
-    { "E", NULL },
-    { "F", NULL },
-    { "P", NULL },
-    { "LP", NULL },
+                   /*            1         2           */
+                   /*  0123456789012345678901234567890 */
+struct _ros_row row2 = {
+                      "P!0123|0123|A0123|01!012!01!A!P!0123",
+                       NULL,
+                       26, &con, &cof};
+
+                   /*            1         2           */
+                   /*  0123456789012345678901234567890 */
+struct _ros_row row3 = {
+                      "P! 0123|    |012 |01|01!012!A0123",
+                       NULL,
+                       23, &con, &cof};
+
+struct _labels sel_labels[] = {
     { "CD", NULL },
     { "CC", NULL },
     { "SLI", NULL },
@@ -91,1429 +98,611 @@ static struct _labels labels[] = {
     { "CHNL", "DATA" },
     { "CHNL", "CTRL" },
     { "INT", "FACE" },
-    { "MAIN STOR", NULL },
-    { "AUX STOR", NULL },
-    { "EX", NULL },
-    { "MATCH", NULL },
-    { "ALLOW", "WRITE" },
-    { "1050", "INTV" },
-    { "1050", "REQ" },
-    { "MPX", "CHNL" },
-    { "SEL" "CHNL" },
-    { "COMP", "MODE" },
-    { "STOR", "ADR" },
-    { "STOR", "DATA" },
-    { "A", "REG" },
-    { "B", "REG" },
-    { "ALU", NULL },
-    { "ROS", "ADR" },
-    { "ROS", "SALS" },
-    { "CTRL", "REG" },
-    { NULL, NULL }
 };
-
-
-static struct _labels sw_labels[] = {
-    { "SYSTEM", "RESET" },
-    { "ROAR", "RESET" },
-    { "START", NULL },
-    { "SET", "IC" },
-    { "CHECK", "RESET" },
-    { "STOP", NULL },
-    { "INT TMR", NULL },
-    { "STORE", NULL },
-    { "LAMP", "TEST" },
-    { "DISPLAY", NULL },
-    { "POWER", "ON" },
-    { "POWER", "OFF" },
-    { "INTERRUPT", NULL },
-    { "LOAD", NULL },
-    { NULL, NULL }
-};
-
-                   /*            1         2           */
-                   /*  0123456789012345678901234567890 */
-static char *row1 =    "P012345  P L P18421  P84218421";
-static char *row1a=    "             P34567  P01234567";
-static int   pos1[32];
-                   /*            1         2           */
-                   /*  0123456789012345678901234567890 */
-static char *row2 =    "P0123 0123 A0123 0101201AP0123";
-static int   pos2[32];
-                   /*            1         2           */
-                   /*  0123456789012345678901234567890 */
-static char *row3 =    "P 0123      012  01 01012A0123";
-static int   pos3[32];
-static char *row_cnt = "     P84218421 P84217421      ";
-static char *row_cnta= "     P01234576 P01234576      ";
-static int   pos_cnt[32];
-
-static char *chan_one = "     P84218421 P8421 8421     ";
-static char *chan_onea= "     P01234576 P0123 4567     ";
-static int   pos_chan1[32];
-static int   pos_chan2[32];
-static char *chan_two = "     P84218421 P8421 8421     ";
-static char *chan_twoa= "     P01234576 P0123 4567     ";
-
-static char *store_addr = "P84218421 P84218421 ";
-static char *store_addra= "P01234567 P01234567 ";
-static char *data_reg = "P84218421  84218421 ";
-static int pos_mpx[32];
-static int pos_store[32];
-static int pos_main[32];
-static int pos_data[32];
-static int pos_breg[32];
 
 void
 setup_fp2030(void *rend)
 {
     SDL_Renderer  *render = (SDL_Renderer *)rend;
-    SDL_Rect rect, rect2;
-    SDL_Surface *text;
-    SDL_Texture *txt;
-    int      shf;
+    reg_row  reg;
     int	     i, j, k;
     int      h, w;
-    int      wb;
     int	     hx, wx;
-    int      h2, w2;
+    int      h1, w1;      /* Height and width of font 1 */
+    int      start;       /* Start of register display boarders. */
+    int      width;       /* Width of register display boarders. */
+    int      reg_width;   /* Width of register areas */
+    int      reg_start;   /* Start of register areas */
+    int      pos;         /* Current vertical position */
+    int      step;        /* Step for each row */
+    int      control_row; /* Top of control panel position */
+    int      s;           /* Temporary start position */
+    int      e;           /* Temporary end position */
+    int      p;           /* Temporary row position */
+    int      pos_reg[32]; /* Position of digits in register */
     Uint32   f;
+    dial_label label;
 
 log_trace("Initialize panel\n");
-    f1_hd = 0;
-    f1_wd = 0;
     j = 0;
 
-    /* Create textures for labels and buttons */
-    for (i = 0; labels[i].upper != NULL; i++) {
-       if ((i >= 32 && i <= 37) || (i >= 48 && i <= 55) ) {
-          text = TTF_RenderText_Shaded(font1, labels[i].upper, c5o, cl);
-       } else {
-          text = TTF_RenderText_Shaded(font1, labels[i].upper, cof, cl);
-       }
-       digit_off[i] = SDL_CreateTextureFromSurface( render, text);
-       SDL_FreeSurface(text);
-       if (labels[i].lower != NULL) {
-           if ((i >= 32 && i <= 37) || (i >= 48 && i <= 55) ) {
-               text = TTF_RenderText_Shaded(font1, labels[i].lower, c5o, cl);
-           } else {
-               text = TTF_RenderText_Shaded(font1, labels[i].lower, cof, cl);
-           }
-           digit2_off[i] = SDL_CreateTextureFromSurface( render, text);
-           SDL_FreeSurface(text);
-       } else {
-           digit2_off[i] = NULL;
-       }
-       if ((i >= 32 && i <= 37) || (i >= 48 && i <= 55) ) {
-           text = TTF_RenderText_Shaded(font1, labels[i].upper, c5, cl);
-       } else {
-           text = TTF_RenderText_Shaded(font1, labels[i].upper, con, cl);
-       }
-       digit_on[i] = SDL_CreateTextureFromSurface( render, text);
-       SDL_FreeSurface(text);
-       if (labels[i].lower != NULL) {
-           if ((i >= 32 && i <= 37) || (i >= 48 && i <= 55) ) {
-               text = TTF_RenderText_Shaded(font1, labels[i].lower, c5, cl);
-           } else {
-               text = TTF_RenderText_Shaded(font1, labels[i].lower, con, cl);
-           }
-           digit2_on[i] = SDL_CreateTextureFromSurface( render, text);
-           SDL_FreeSurface(text);
-       } else {
-           digit2_on[i] = NULL;
-       }
-       if (strlen(labels[i].upper) == 1) {
-           SDL_QueryTexture(digit_on[i], &f, &k, &w, &h);
-           if (w > f1_wd)
-              f1_wd = w;
-           if (h > f1_hd)
-              f1_hd = h;
-       }
+    /* Compute size of fonts */
+    if (TTF_SizeText(font10, "M", &wx, &hx) != 0) {
+        return;
+    }
+    if (TTF_SizeText(font1, "M", &w1, &h1) != 0) {
+        return;
     }
 
-    text = TTF_RenderText_Shaded(font1, "M", c, cb);
-    txt = SDL_CreateTextureFromSurface( render, text);
-    SDL_QueryTexture(txt, &f, &k, &w2, &h2);
-    SDL_FreeSurface(text);
-    text = TTF_RenderText_Shaded(font1, "ON", c1, c);
-    on = SDL_CreateTextureFromSurface( render, text);
-    SDL_FreeSurface(text);
-    text = TTF_RenderText_Shaded(font1, "OFF", c1, c);
-    off = SDL_CreateTextureFromSurface( render, text);
-    SDL_FreeSurface(text);
-    wb = (strlen(row1) + 2) * (3 * f1_wd);
+    step = hx;
+    pos = step;
 
     /* Draw top of display */
     add_area(cpu_panel, 0, 0, 975, 1100, &cc);
+    start = 8 * wx;
+    reg_width = ros_row_width(cpu_panel, &row1, font10);
+    reg_start = start + (3 * wx);
+    width = reg_width + (wx * 4);
 
-    /* Draw bottom switch panel */
-    add_area(cpu_panel, 0, (66 * h2) - (f1_hd/4), (31 * h2), 1100, &cl);
-
-    /* Draw top box */
-    add_area(cpu_panel, 10, 10, h2 + 10, wb + 40, &cb);
-
-    add_area(cpu_panel, 10, 10 + h2, (h2 * 12) + 10, 10, &cb);
-
-    add_area(cpu_panel, 10+(wb+30), 10 + h2, (h2 * 12) + 10, 10, &cb);
-    add_label_center(cpu_panel, 10, 10 + (h2/2), wb, "READ ONLY STORAGE", 
-                font1, &c, &cb);
+    /* Draw top ROS border  */
+    add_area(cpu_panel, start, pos, hx + 2, width, &cb);
+    add_area(cpu_panel, start, pos, (hx * 11) + 4, wx+3, &cb);
+    add_area(cpu_panel, start + width, pos, (hx * 11) + 4, wx, &cb);
+    add_label_center(cpu_panel, step, pos, width, "READ ONLY STORAGE",
+                font10, &c, &cb);
 
     /* Draw ROS boxes */
-    add_area(cpu_panel, 30, 10 + (h2 * 2), h2 * 4, wb, &cl);
-    add_line(cpu_panel, 30, 10 + (h2 * 3), wb, &c);
-    rect.x = 50 + f1_wd;
-    rect.y = 15 + (h2 * 3);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    ros_ptr = 0;
-    shf = 23;
-    for (i = 0; row1[i] != '\0'; i++) {
-        pos1[i] = rect.x;
-        switch (row1[i]) {
-        case 'L': j = DIG_LP; pos1[i] += f1_wd/2; break;
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': pos1[i] = rect.x + f1_wd + (f1_wd/2); goto next_row1;
-        }
-        ros_bits[ros_ptr].rect.x = pos1[i];
-        ros_bits[ros_ptr].rect.y = rect.y;
-        ros_bits[ros_ptr].rect.h = f1_hd;
-        ros_bits[ros_ptr].rect.w = f1_wd;
-        ros_bits[ros_ptr].digit_on = digit_on[j];
-        ros_bits[ros_ptr].digit_off = digit_off[j];
-        ros_bits[ros_ptr].value = &cpu_2030.ros_row1;
-        ros_bits[ros_ptr].shift = shf;
-        if (j == DIG_LP) {
-           ros_bits[ros_ptr].rect.x -= f1_wd/2;
-           ros_bits[ros_ptr].rect.w = 2*f1_wd;
-        }
-        shf --;
-        ros_ptr++;
-next_row1:
-        rect.x += 3*f1_wd;
-        switch (row1a[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': continue;
-        }
-        ctl_label[ctl_ptr].rect.x = pos1[i];
-        ctl_label[ctl_ptr].rect.y = rect.y + f1_hd;
-        ctl_label[ctl_ptr].rect.h = f1_hd;
-        ctl_label[ctl_ptr].rect.w = f1_wd;
-        ctl_label[ctl_ptr].text = digit_off[j];
-        ctl_ptr++;
-    }
-    rect.y = 15 + (h2 * 3);
+    pos += (2 * step) - 4;
+    add_area(cpu_panel, reg_start, pos-1, (hx * 3) + 6, reg_width, &cl);
+    add_line(cpu_panel, reg_start, pos + hx + 1, reg_width, &c);
+    add_ros_row(cpu_panel, reg_start, pos+hx+3, &row1,
+                font10, &cpu_2030.ros_row1, pos_reg, &c);
 
-    ADD_LABEL1(pos1[3] + f1_wd, 10 + (h2 * 2), "CN");
-    ADD_LABEL1(pos1[9] - f1_wd, 10 + (h2 * 2), "ADR");
-    ADD_LABEL1(pos1[14] - f1_wd, 10 + (h2 * 2), "W REGISTER");
-    ADD_LABEL1(pos1[23] + f1_wd, 10 + (h2 * 2), "X REGISTER");
-    add_mark(cpu_panel, pos1[1] - f1_wd, rect.y, f1_hd*2, &c);
-    add_mark(cpu_panel, pos1[7], rect.y, f1_hd*2, &c);
-    add_mark(cpu_panel, pos1[11] - f1_wd, rect.y, f1_hd*2, &c);
-    add_mark(cpu_panel, pos1[12] - f1_wd, rect.y, f1_hd*2, &c);
-    add_mark(cpu_panel, pos1[14] - f1_wd, rect.y, f1_hd*2, &c);
-    add_mark(cpu_panel, pos1[19] - f1_wd, rect.y, f1_hd*2, &c);
-    add_mark(cpu_panel, pos1[22] - f1_wd, rect.y, f1_hd*2, &c);
-    add_mark(cpu_panel, pos1[26] - f1_wd, rect.y, f1_hd*2, &c);
-    add_mark(cpu_panel, pos1[7], rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos1[11] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos1[12] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos1[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    add_label_center(cpu_panel, pos_reg[0], pos, pos_reg[2] - pos_reg[0],
+                   "CN", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[2]-1, pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[2], pos, pos_reg[3] - pos_reg[2],
+                   "ADR", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[3]-1, pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[4], pos, pos_reg[7] - pos_reg[4],
+                   "W REGISTER", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[4]-1, pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[7], pos, pos_reg[10] - pos_reg[7],
+                   "X REGISTER", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[7]-1, pos+1, hx-3, &c);
+
+    pos += step * 4;
 
     /* Second ROS row */
-    add_area(cpu_panel, 30, 10 +(h2 * 7), h2 * 3, wb, &cl);
-    add_line(cpu_panel, 30, 10 + (h2 * 8), wb, &c);
+    add_area(cpu_panel, reg_start, pos - 1, (hx * 2) + 6, reg_width, &cl);
+    add_line(cpu_panel, reg_start, pos + hx + 1, reg_width, &c);
 
-    rect.x = 30 + f1_wd;
-    rect.y = 15 + (h2 * 8);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    shf = 26;
-    for (i = 0; row2[i] != '\0'; i++) {
-        pos2[i] = rect.x;
-        switch (row2[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': pos2[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3*f1_wd; continue;
-        }
-        ros_bits[ros_ptr].rect.x = rect.x;
-        ros_bits[ros_ptr].rect.y = rect.y;
-        ros_bits[ros_ptr].rect.h = f1_hd;
-        ros_bits[ros_ptr].rect.w = f1_wd;
-        ros_bits[ros_ptr].digit_on = digit_on[j];
-        ros_bits[ros_ptr].digit_off = digit_off[j];
-        ros_bits[ros_ptr].value = &cpu_2030.ros_row2;
-        ros_bits[ros_ptr].shift = shf;
-        ros_ptr++;
-        rect.x = pos2[i] + 3*f1_wd;
-        shf--;
-    }
-             /*            1         2           */
-             /*  0123456789012345678901234567890 */
-             /* "P0123 0123 A0123 0101201AP0123" */
-             /* SA CH   CL   CA   CB CMCU  CK */
+    add_ros_row(cpu_panel, reg_start, pos+hx+3,  &row2, font10, &cpu_2030.ros_row2,
+                 &pos_reg[0], &c);
+    add_label_center(cpu_panel, pos_reg[0], pos, pos_reg[1] - pos_reg[0],
+                   "SA", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[1], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[1], pos, pos_reg[2] - pos_reg[1],
+                   "CH", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[1], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[2], pos, pos_reg[3] - pos_reg[2],
+                   "CL", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[2], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[3], pos, pos_reg[4] - pos_reg[3],
+                   "CA", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[3], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[4], pos, pos_reg[5] - pos_reg[4],
+                   "CB", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[4], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[5], pos, pos_reg[6] - pos_reg[5],
+                   "CM", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[5], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[6], pos, pos_reg[7] - pos_reg[6],
+                   "CU", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[6], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[7], pos, pos_reg[8] - pos_reg[7],
+                   "CK", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[7], pos+1, hx-3, &c);
 
-    ADD_LABEL1(pos2[0] - (f1_wd / 2), 10 + (h2 * 7), "SA");
-    ADD_LABEL1(pos2[3] - (f1_wd*2), 10 + (h2 * 7), "CH");
-    ADD_LABEL1(pos2[8] - (f1_wd*2), 10 + (h2 * 7), "CL");
-    ADD_LABEL1(pos2[13] - f1_wd, 10 + (h2 * 7), "CA");
-    ADD_LABEL1(pos2[17] + f1_wd, 10 + (h2 * 7), "CB");
-    ADD_LABEL1(pos2[20] - f1_wd, 10 + (h2 * 7), "CM");
-    ADD_LABEL1(pos2[22] + f1_wd, 10 + (h2 * 7), "CU");
-    ADD_LABEL1(pos2[26] + f1_wd, 10 + (h2 * 7), "CK");
-
-    add_mark(cpu_panel, pos2[1] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos2[5] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos2[10] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos2[16],  rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos2[19] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos2[22] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos2[24] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos2[25] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos2[26] - f1_wd, rect.y, f1_hd, &c);
-
-    add_mark(cpu_panel, pos2[1] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos2[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos2[10] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos2[16], rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos2[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos2[22] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos2[24] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    pos += step * 3;
 
     /* 3rd ROS Row */
-    add_area(cpu_panel, 30, 10 + (h2 * 11), h2 * 3, wb , &cl);
-    add_line(cpu_panel, 30, 10 + (h2 * 12), wb, &c);
+    add_area(cpu_panel, reg_start, pos - 1, (hx * 2) + 6, reg_width , &cl);
+    add_line(cpu_panel, reg_start, pos + hx, reg_width, &c);
 
-    rect.x = 30 + f1_wd;
-    rect.y = 15 + (h2 * 12);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    shf = 19;
-    for (i = 0; row3[i] != '\0'; i++) {
-        pos3[i] = rect.x;
-        switch (row3[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': pos3[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3*f1_wd; continue;
-        }
-        ros_bits[ros_ptr].rect.x = rect.x;
-        ros_bits[ros_ptr].rect.y = rect.y;
-        ros_bits[ros_ptr].rect.h = f1_hd;
-        ros_bits[ros_ptr].rect.w = f1_wd;
-        ros_bits[ros_ptr].digit_on = digit_on[j];
-        ros_bits[ros_ptr].digit_off = digit_off[j];
-        ros_bits[ros_ptr].value = &cpu_2030.ros_row3;
-        ros_bits[ros_ptr].shift = shf;
-        ros_ptr++;
-        rect.x = pos3[i] + 3*f1_wd;
-        shf--;
-    }
+    add_ros_row(cpu_panel, reg_start, pos+hx+3,  &row3, font10,
+                &cpu_2030.ros_row3, pos_reg, &c);
+    add_label_center(cpu_panel, pos_reg[0], pos, pos_reg[1] - pos_reg[0],
+                   "CR", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[1], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[1], pos, pos_reg[2] - pos_reg[1],
+                   "CD", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[2], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[3], pos, pos_reg[4] - pos_reg[3],
+                   "CF", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[3], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[4], pos, pos_reg[5] - pos_reg[4],
+                   "CG", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[4], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[5], pos, pos_reg[6] - pos_reg[5],
+                   "CV", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[5], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[6], pos, pos_reg[7] - pos_reg[6],
+                   "CC", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[6], pos+1, hx-3, &c);
+    add_label_center(cpu_panel, pos_reg[7], pos, pos_reg[8] - pos_reg[7],
+                   "CS", font10, &c, &cl);
+    add_mark(cpu_panel, pos_reg[7], pos+1, hx-3, &c);
 
-    ADD_LABEL1(pos3[0] - (f1_wd / 2), 10 + (h2 * 11), "CR");
-    ADD_LABEL1(pos3[3], 10 + (h2 * 11), "CD");
-    ADD_LABEL1(pos3[13] + f1_wd, 10 + (h2 * 11), "CF");
-    ADD_LABEL1(pos3[17] + f1_wd, 10 + (h2 * 11), "CG");
-    ADD_LABEL1(pos3[20], 10 + (h2 * 11), "CV");
-    ADD_LABEL1(pos3[23] - f1_wd, 10 + (h2 * 11), "CC");
-    ADD_LABEL1(pos3[27] - f1_wd, 10 + (h2 * 11), "CS");
-
-    add_mark(cpu_panel, pos3[1] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos3[6] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos3[11] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos3[16] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos3[19] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos3[22] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos3[25] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos3[1] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos3[6] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos3[11] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos3[16] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos3[19] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos3[22] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos3[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    pos += (step * 3) + (hx/2);
 
     /* Count register */
-    add_area(cpu_panel, 30, 10 + (h2 * 15), h2 * 4, wb, &cl);
-    /* Draw Count title */
-    add_label_center(cpu_panel, 30, 15 + (h2 * 14) + (h2/2), wb, "COUNT REGISTER", font1, &c, &cl);
-    add_line(cpu_panel, 30, 10 + (h2 * 16), wb, &c);
-    rect.x = 30 + f1_wd;
-    rect.y = 15 + (h2 * 16);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    shf = 8;
-    j = 0;
-    for (i = 0; row_cnt[i] != '\0'; i++) {
-        pos_cnt[i] = rect.x;
-        switch (row_cnt[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': pos_cnt[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3 * f1_wd; continue;
+    reg.upper = "P!8421!8421|P!8421!8421";
+    reg.lower = "P!0123!4576|P!0123!4576";
+    reg.c_on = &con;
+    reg.c_off = &cof;
+    reg.start_bit[0] = 8;
+    reg.value[0] = &cpu_2030.GHZ;
+    reg.start_bit[1] = 8;
+    reg.value[1] = &cpu_2030.GHY;
+    w = reg_row_width(cpu_panel, &reg, font10);
+    s = (reg_width/2) - (w/2);
+    add_area(cpu_panel, reg_start, pos - 1, (hx * 3) + 6, reg_width , &cl);
+    add_line(cpu_panel, reg_start, pos + hx, reg_width, &c);
+    add_reg_row(cpu_panel, reg_start + s, pos+hx+3, &reg, font10, pos_reg, &c);
+    add_label_center(cpu_panel, reg_start, pos, reg_width, "COUNT REGISTER",
+                 font1, &c, &cl);
+
+    pos += (step * 4);
+
+    /* Selector channels */
+    for (i = 0; i < 2; i++) {
+        s = (reg_width/2) - (w/2);
+        reg.start_bit[0] = 8;
+        reg.value[0] = &cpu_2030.GR[i];
+        reg.start_bit[1] = 4;
+        reg.value[1] = &cpu_2030.GK[i];
+        reg.start_bit[2] = 3;
+        reg.value[2] = &cpu_2030.GG[i];
+        /* Draw top Channel border */
+        add_area(cpu_panel, start, pos, hx + 2, width, &cb);
+        add_area(cpu_panel, start, pos, hx * 11, wx+3, &cb);
+        add_area(cpu_panel, start + width, pos, (hx * 11) + 4, wx, &cb);
+        if (i != 0) {
+            add_label_center(cpu_panel, start, pos, width, "CHANNEL TWO",
+                                font10, &c, &cb);
+        } else {
+            add_label_center(cpu_panel, start, pos, width, "CHANNEL ONE",
+                                font10, &c, &cb);
         }
-        if (j)
-            (void)add_led(&labels[j], &cpu_2030.GHY, shf, pos_cnt[i], rect.y, j);
-        else
-            (void)add_led(&labels[j], &cpu_2030.GHZ, shf, pos_cnt[i], rect.y, j);
-        shf--;
-        if (shf == -1) {
-           j++;
-           shf = 8;
+
+        pos += (2 * step) - 4;
+        add_area(cpu_panel, reg_start, pos-1, (hx * 3) + 6, reg_width, &cl);
+        add_line(cpu_panel, reg_start, pos + hx + 1, reg_width, &c);
+        add_reg_row(cpu_panel, s, pos+hx+3, &reg, font10, pos_reg, &c);
+
+        add_mark(cpu_panel, pos_reg[0], pos+1, hx-3, &c);
+        add_label_center(cpu_panel, pos_reg[0], pos, pos_reg[3] - pos_reg[0],
+                       "DATA REGISTER", font10, &c, &cl);
+        add_mark(cpu_panel, pos_reg[3]-1, pos+1, hx-3, &c);
+        add_label_center(cpu_panel, pos_reg[3], pos, pos_reg[5] - pos_reg[3],
+                       "KEY", font10, &c, &cl);
+        add_mark(cpu_panel, pos_reg[5]-1, pos+1, hx-3, &c);
+        add_label_center(cpu_panel, pos_reg[5], pos, pos_reg[6] - pos_reg[5],
+                       "COMMAND", font10, &c, &cl);
+        add_mark(cpu_panel, pos_reg[7]-1, pos+1, hx-3, &c);
+
+        pos += step * 4;
+        /* Channel Status */
+        add_area(cpu_panel, reg_start, pos-1, (hx * 5) + (hx/2), reg_width, &cl);
+        add_line(cpu_panel, reg_start, pos + hx + 1, reg_width, &c);
+        s = reg_start + wx;
+        k = 7;
+        for (j = 0; j < 5; j++) {
+            add_light(cpu_panel, s, pos + (hx * 2) - 2, sel_labels[j].upper,
+                   sel_labels[j].lower, &cpu_2030.GF[i], k, font10, &con, &cof);
+            s += wx * 5;
+            k--;
         }
-        rect.x += 3*f1_wd;
-        switch (row_cnta[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': continue;
+        add_label_center(cpu_panel, reg_start, pos, s - reg_start, "FLAGS", font10,
+                        &c, &cl);
+        add_mark(cpu_panel, s, pos+1, hx-3, &c);
+        add_mark(cpu_panel, s, pos+hx+1, (hx * 5)-3, &c);
+        k = 7;
+        e = s;
+        s += wx * 3;
+        for (; j < 9; j++) {
+            add_light(cpu_panel, s, pos + (hx * 2) - 2, sel_labels[j].upper,
+                   sel_labels[j].lower, &cpu_2030.SEL_TI[i], k, font10, &con, &cof);
+            s += wx * 5;
+            k--;
         }
-        ctl_label[ctl_ptr].rect.x = pos_cnt[i];
-        ctl_label[ctl_ptr].rect.y = rect.y + f1_hd;
-        ctl_label[ctl_ptr].rect.h = f1_hd;
-        ctl_label[ctl_ptr].rect.w = f1_wd;
-        ctl_label[ctl_ptr].text = digit_off[j];
-        ctl_ptr++;
+        s = e + wx * 3;
+        k = 15;
+        for (; j < 14; j++) {
+            add_light(cpu_panel, s, pos + (hx * 4) - 2, sel_labels[j].upper,
+                   sel_labels[j].lower, &cpu_2030.SEL_TAGS[i], k, font10, &con, &cof);
+            s += wx * 5;
+            k--;
+        }
+        add_label_center(cpu_panel, e, pos, s - e, "TAGS", font10, &c, &cl);
+        add_mark(cpu_panel, s, pos+1, hx-3, &c);
+        add_mark(cpu_panel, s, pos+hx+1, (hx * 5)-3, &c);
+        e = s;
+        k = 6;
+        s += wx * 2;
+        for (; j < 19; j++) {
+            add_light(cpu_panel, s, pos + (hx * 2) - 2, sel_labels[j].upper,
+                   sel_labels[j].lower, &cpu_2030.GE[i], k, font10, &c5o, &cof);
+            s += wx * 5;
+            k--;
+        }
+        add_label_center(cpu_panel, e, pos, reg_width - e, "CHECKS", font10, &c, &cl);
+        pos += (step * 6) + (hx / 2);
     }
 
-    add_mark(cpu_panel, pos_cnt[6] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_cnt[10] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_cnt[14] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_cnt[16] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_cnt[20] - f1_wd, rect.y, f1_hd * 2, &c);
-
-
-
-    /* Channel number one */
-    add_area(cpu_panel, 10, 10 + (h2 * 20), h2 + 10, wb + 40, &cb);
-    add_area(cpu_panel, 10, 10 + (h2 * 21), (h2 * 10), 10, &cb);
-    add_area(cpu_panel, 10 + (wb + 30), 10 + (h2 * 21), (h2 * 10), 10, &cb);
-
-    /* Channel one title */
-    add_label_center(cpu_panel, 10, 10 + (h2 * 20) + (h2 /2), wb, "CHANNEL NUMBER ONE", font1, &c, &cb);
-
-    /* Channel one register */
-    add_area(cpu_panel, 30, 10 + (h2 * 22), h2 * 4, wb, &cl);
-    add_line(cpu_panel, 30, 10 + (h2 * 23), wb, &c);
-
-    rect.x = 20 + f1_wd;
-    rect.y = 15 + (h2 * 23);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    shf = 8;
-    k = 0;
-    for (i = 0; chan_one[i] != '\0'; i++) {
-        pos_chan1[i] = rect.x;
-        switch (chan_one[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': pos_chan1[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3 * f1_wd; continue;
-        }
-        switch (k) {
-        case 0:  (void)add_led(&labels[j], &cpu_2030.GR[0], shf, pos_chan1[i], rect.y, j); break;
-        case 1:  (void)add_led(&labels[j], &cpu_2030.GK[0], shf, pos_chan1[i], rect.y, j); break;
-        case 2:  (void)add_led(&labels[j], &cpu_2030.GG[0], shf, pos_chan1[i], rect.y, j); break;
-        }
-        shf--;
-        if (shf == -1) {
-           k++;
-           if (k == 1)
-              shf = 4;
-           else
-              shf = 3;
-        }
-        rect.x += 3*f1_wd;
-        switch (chan_onea[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': continue;
-        }
-        ctl_label[ctl_ptr].rect.x = pos_chan1[i];
-        ctl_label[ctl_ptr].rect.y = rect.y + f1_hd;
-        ctl_label[ctl_ptr].rect.h = f1_hd;
-        ctl_label[ctl_ptr].rect.w = f1_wd;
-        ctl_label[ctl_ptr].text = digit_off[j];
-        ctl_ptr++;
+    /* MPX Channel TAGS */
+    add_area(cpu_panel, reg_start, pos-1, (hx * 3) + (hx/2), reg_width, &cl);
+    add_line(cpu_panel, reg_start, pos + hx + 1, reg_width, &c);
+    s = reg_start + wx;
+    k = 7;
+    e = s;
+    for (j = 5; j < 9; j++) {
+        add_light(cpu_panel, s, pos + (hx * 2) - 2, sel_labels[j].upper,
+                sel_labels[j].lower, &cpu_2030.MPX_TI, k, font10, &con, &cof);
+        s += wx * 5;
+        k--;
     }
-
-    ADD_LABEL1(pos_chan1[8] - (f1_wd / 2), 10 + (h2 * 22), "DATA REGISTER");
-    ADD_LABEL1(pos_chan1[17] - f1_wd, 10 + (h2 * 22), "KEY");
-    ADD_LABEL1(pos_chan1[22], 10 + (h2 * 22), "COMMAND");
-    add_mark(cpu_panel, pos_chan1[5] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[6] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[10] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[14] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[16] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[20] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[25] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos_chan1[14] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos_chan1[20] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos_chan1[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-
-    /* Channel one Status */
-    add_area(cpu_panel, 30, 10 + (h2 * 26) + (f1_hd/4), h2 * 6, wb, &cl);
-    add_line(cpu_panel, 30, 15 + (h2 * 27) + (f1_hd/4), wb, &c);
-    rect.x = 30 + f1_wd;
-    rect.y = 15 + (h2 * 28);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    pos_chan2[0] = rect.x;
-    (void) add_led(&labels[DIG_CD], &cpu_2030.GF[0], 7, rect.x, rect.y, DIG_CD);
-    rect.x += f1_wd * 5;
-    pos_chan2[1] = rect.x;
-    (void) add_led(&labels[DIG_CC], &cpu_2030.GF[0], 6, rect.x, rect.y, DIG_CC);
-    rect.x += f1_wd * 5;
-    pos_chan2[2] = rect.x;
-    (void) add_led(&labels[DIG_SLI], &cpu_2030.GF[0], 5, rect.x, rect.y, DIG_SLI);
-    rect.x += f1_wd * 5;
-    pos_chan2[3] = rect.x;
-    (void) add_led(&labels[DIG_SKP], &cpu_2030.GF[0], 4, rect.x, rect.y, DIG_SKP);
-    rect.x += f1_wd * 5;
-    pos_chan2[4] = rect.x;
-    (void) add_led(&labels[DIG_PCI], &cpu_2030.GF[0], 3, rect.x, rect.y, DIG_PCI);
-    rect.x += f1_wd * 5;
-    pos_chan2[5] = rect.x;
-    (void)add_led(&labels[DIG_OP], &cpu_2030.SEL_TI[0], 7, rect.x, rect.y, DIG_OP);
-    rect.x += f1_wd * 6;
-    pos_chan2[6] = rect.x;
-    (void)add_led(&labels[24], &cpu_2030.SEL_TI[0], 6, rect.x, rect.y, 24);
-    rect.x += f1_wd * 6;
-    pos_chan2[7] = rect.x;
-    (void)add_led(&labels[25], &cpu_2030.SEL_TI[0], 5, rect.x, rect.y, 25);
-    rect.x += f1_wd * 6;
-    pos_chan2[8] = rect.x;
-    (void)add_led(&labels[26], &cpu_2030.SEL_TI[0], 4, rect.x, rect.y, 26);
-    rect.x += f1_wd * 6;
-    rect.y += f1_hd * 2;
-    rect.x = pos_chan2[5];
-    (void)add_led(&labels[27], &cpu_2030.SEL_TAGS[0], 15, rect.x, rect.y, 27);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[28], &cpu_2030.SEL_TAGS[0], 14, rect.x, rect.y, 28);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[29], &cpu_2030.SEL_TAGS[0], 13, rect.x, rect.y, 29);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[30], &cpu_2030.SEL_TAGS[0], 12, rect.x, rect.y, 30);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[31], &cpu_2030.SEL_TAGS[0], 11, rect.x, rect.y, 31);
-    rect.y -= f1_hd * 2;
-    rect.x += f1_wd * 6;
-    pos_chan2[9] = rect.x;
-    (void)add_led(&labels[32], &cpu_2030.GE[0], 6, rect.x, rect.y, 32);
-    rect.x += f1_wd * 6;
-    pos_chan2[10] = rect.x;
-    (void)add_led(&labels[33], &cpu_2030.GE[0], 5, rect.x, rect.y, 33);
-    rect.x += f1_wd * 6;
-    pos_chan2[11] = rect.x;
-    (void)add_led(&labels[34], &cpu_2030.GE[0], 4, rect.x, rect.y, 34);
-    rect.x += f1_wd * 6;
-    pos_chan2[12] = rect.x;
-    (void)add_led(&labels[35], &cpu_2030.GE[0], 3, rect.x, rect.y, 35);
-    rect.x += f1_wd * 6;
-    pos_chan2[13] = rect.x;
-    (void)add_led(&labels[36], &cpu_2030.GE[0], 2, rect.x, rect.y, 36);
-    rect.x += f1_wd * 6;
-    pos_chan2[13] = rect.x;
-    (void)add_led(&labels[37], &cpu_2030.GE[0], 1, rect.x, rect.y, 37);
-    ADD_LABEL1(pos_chan2[2], 15 + (h2 * 26), "FLAGS");
-    ADD_LABEL1(pos_chan2[7], 15 + (h2 * 26), "TAGS");
-    ADD_LABEL1(pos_chan2[11], 15 + (h2 * 26), "CHECKS");
-    add_mark(cpu_panel, pos_chan2[5] - f1_wd, rect.y - (h2/2), f1_hd * 4, &c);
-    add_mark(cpu_panel, pos_chan2[9] - f1_wd, rect.y - (h2/2), f1_hd * 4, &c);
-    add_mark(cpu_panel, pos_chan2[5] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos_chan2[9] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), &c);
-
-    /* Channel number two */
-    add_area(cpu_panel, 10, 10 + (h2 * 33), h2 + 10, wb + 40, &cb);
-    add_area(cpu_panel, 10, 10 + (h2 * 34), (h2 * 10), 10, &cb);
-    add_area(cpu_panel, 10 + (wb + 30), 10 + (h2 * 34), (h2 * 10), 10, &cb);
-
-    /* Channel two title */
-    add_label_center(cpu_panel, 10, 10 + (h2 * 33) + (h2 /2), wb, "CHANNEL NUMBER TWO", font1, &c, &cb);
-    add_area(cpu_panel, 30, 10 + (h2 * 35), (h2 * 4), wb, &cl);
-    add_line(cpu_panel, 30, 10 + (h2 * 36), wb, &c);
-
-    rect.y = 15 + (h2 * 36);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    shf = 8;
-    k = 0;
-    for (i = 0; chan_one[i] != '\0'; i++) {
-        rect.x = pos_chan1[i];
-        switch (chan_one[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': rect.x += 3 * f1_wd; continue;
-        }
-        switch (k) {
-        case 0:  (void)add_led(&labels[j], &cpu_2030.GR[1], shf, pos_chan1[i], rect.y, j); break;
-        case 1:  (void)add_led(&labels[j], &cpu_2030.GK[1], shf, pos_chan1[i], rect.y, j); break;
-        case 2:  (void)add_led(&labels[j], &cpu_2030.GG[1], shf, pos_chan1[i], rect.y, j); break;
-        }
-        shf--;
-        if (shf == -1) {
-           k++;
-           if (k == 1)
-              shf = 4;
-           else
-              shf = 3;
-        }
-        rect.x += 3*f1_wd;
-        switch (chan_onea[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': continue;
-        }
-        ctl_label[ctl_ptr].rect.x = pos_chan1[i];
-        ctl_label[ctl_ptr].rect.y = rect.y + h2;
-        ctl_label[ctl_ptr].rect.h = f1_hd;
-        ctl_label[ctl_ptr].rect.w = f1_wd;
-        ctl_label[ctl_ptr].text = digit_off[j];
-        ctl_ptr++;
+    k = 15;
+    for (; j < 14; j++) {
+        add_light(cpu_panel, s, pos + (hx * 2) - 2, sel_labels[j].upper,
+                sel_labels[j].lower, &cpu_2030.MPX_TAGS, k, font10, &con, &cof);
+        s += wx * 5;
+        k--;
     }
+    add_label_center(cpu_panel, e, pos, s - e, "MPX CHANNEL TAGS", font10, &c, &cl);
+    add_mark(cpu_panel, s, pos+1, hx-3, &c);
+    add_mark(cpu_panel, s, pos+hx+1, (hx * 5)-3, &c);
+    e = s;
+    reg.upper = "P!8421!8421";
+    reg.lower = "P!0123!4576";
+    reg.c_on = &con;
+    reg.c_off = &cof;
+    reg.start_bit[0] = 8;
+    reg.value[0] = &cpu_2030.O_REG;
+    add_reg_row_large(cpu_panel, s, pos+hx+3, &reg, font10, pos_reg, &c);
+    add_label_center(cpu_panel, s, pos, reg_width - s,
+               "MPX CHANNEL BUS-OUT REGISTER", font1, &c, &cl);
+    control_row = pos;
+    pos += (step * 4);
 
-    ADD_LABEL1(pos_chan1[8] - (f1_wd / 2), 10 + (h2 * 35), "DATA REGISTER");
-    ADD_LABEL1(pos_chan1[17] - f1_wd, 10 + (h2 * 35), "KEY");
-    ADD_LABEL1(pos_chan1[22], 10 + (h2 * 35), "COMMAND");
-    add_mark(cpu_panel, pos_chan1[5] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[6] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[10] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[14] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[16] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[20] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[25] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_chan1[5] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos_chan1[14] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos_chan1[20] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos_chan1[25] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (h2/4), &c);
+    /* Address register */
+    reg.upper = "P!8421!8421|P!8421!8421";
+    reg.lower = "P!0123!4576|P!0123!4576";
+    reg.c_on = &con;
+    reg.c_off = &cof;
+    reg.start_bit[0] = 8;
+    reg.value[0] = &cpu_2030.N_REG;
+    reg.start_bit[1] = 8;
+    reg.value[1] = &cpu_2030.M_REG;
+    add_area(cpu_panel, reg_start, pos - 1, (hx * 5) + 5, reg_width , &cl);
+    add_line(cpu_panel, reg_start, pos + hx, reg_width, &c);
+    add_reg_row(cpu_panel, reg_start, pos+ (hx * 2), &reg, font10, pos_reg, &c);
+    add_mark(cpu_panel, pos_reg[6] + wx, pos+hx+4, (4 * hx) - 3, &c);
+    add_light(cpu_panel, pos_reg[6] + (wx * 3), pos+hx+(hx/2), "MAIN", "STOR",
+                           &cpu_2030.store, 0, font10, &con, &cof);
+    add_light(cpu_panel, pos_reg[6] + (wx * 3), pos+(hx*4)-(hx/2), "AUX", "STOR",
+                           &cpu_2030.store, 1, font10, &con, &cof);
+    add_label_center(cpu_panel, reg_start, pos, reg_width,
+            "MAIN STOARAGE ADDRESS REGISTER", font1, &c, &cl);
 
-    /* Channel Status */
-    add_area(cpu_panel, 30, 10 + (h2 * 39) + (f1_hd/4), h2 * 6, wb, &cl);
-    add_line(cpu_panel, 30, 15 + (h2 * 40) + (f1_hd/4), wb, &c);
-    rect.x = 30 + f1_wd;
-    rect.y = 10 + (h2 * 41) + (f1_hd/2);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    rect.x = pos_chan2[0];
-    (void) add_led(&labels[DIG_CD], &cpu_2030.GF[1], 7, rect.x, rect.y, DIG_CD);
-    rect.x += f1_wd * 5;
-    (void) add_led(&labels[DIG_CC], &cpu_2030.GF[1], 6, rect.x, rect.y, DIG_CC);
-    rect.x += f1_wd * 5;
-    (void) add_led(&labels[DIG_SLI], &cpu_2030.GF[1], 5, rect.x, rect.y, DIG_SLI);
-    rect.x += f1_wd * 5;
-    (void) add_led(&labels[DIG_SKP], &cpu_2030.GF[1], 4, rect.x, rect.y, DIG_SKP);
-    rect.x += f1_wd * 5;
-    (void) add_led(&labels[DIG_PCI], &cpu_2030.GF[1], 3, rect.x, rect.y, DIG_PCI);
-    rect.x += f1_wd * 5;
-    (void)add_led(&labels[DIG_OP], &cpu_2030.SEL_TI[1], 7, rect.x, rect.y, DIG_OP);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[24], &cpu_2030.SEL_TI[1], 6, rect.x, rect.y, 24);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[25], &cpu_2030.SEL_TI[1], 5, rect.x, rect.y, 25);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[26], &cpu_2030.SEL_TI[1], 4, rect.x, rect.y, 26);
-    rect.x += f1_wd * 6;
-    rect.x = pos_chan2[5];
-    rect.y += f1_hd * 2;
-    (void)add_led(&labels[27], &cpu_2030.SEL_TAGS[1], 15, rect.x, rect.y, 27);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[28], &cpu_2030.SEL_TAGS[1], 14, rect.x, rect.y, 28);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[29], &cpu_2030.SEL_TAGS[1], 13, rect.x, rect.y, 29);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[30], &cpu_2030.SEL_TAGS[1], 12, rect.x, rect.y, 30);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[31], &cpu_2030.SEL_TAGS[1], 11, rect.x, rect.y, 31);
+    pos += (step * 6);
 
-    rect.y -= f1_hd * 2;
-    rect.x += f1_wd * 6;
-    rect.x = pos_chan2[9];
-    (void)add_led(&labels[32], &cpu_2030.GE[1], 6, rect.x, rect.y, 32);
-    rect.x += f1_wd * 6;
-    (void)add_led(&labels[33], &cpu_2030.GE[1], 5, rect.x, rect.y, 33);
-    rect.x += f1_wd * 6;
-    pos_chan2[11] = rect.x;
-    (void)add_led(&labels[34], &cpu_2030.GE[1], 4, rect.x, rect.y, 34);
-    rect.x += f1_wd * 6;
-    pos_chan2[12] = rect.x;
-    (void)add_led(&labels[35], &cpu_2030.GE[1], 3, rect.x, rect.y, 35);
-    rect.x += f1_wd * 6;
-    pos_chan2[13] = rect.x;
-    (void)add_led(&labels[36], &cpu_2030.GE[1], 2, rect.x, rect.y, 36);
-    rect.x += f1_wd * 6;
-    pos_chan2[13] = rect.x;
-    (void)add_led(&labels[37], &cpu_2030.GE[1], 1, rect.x, rect.y, 37);
-    ADD_LABEL1(pos_chan2[2], 15 + (h2 * 39), "FLAGS");
-    ADD_LABEL1(pos_chan2[7], 15 + (h2 * 39), "TAGS");
-    ADD_LABEL1(pos_chan2[11], 15 + (h2 * 39), "CHECKS");
-    add_mark(cpu_panel, pos_chan2[5] - f1_wd, rect.y - (h2/2), f1_hd * 4, &c);
-    add_mark(cpu_panel, pos_chan2[9] - f1_wd, rect.y - (h2/2), f1_hd * 4, &c);
-    add_mark(cpu_panel, pos_chan2[5] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), &c);
-    add_mark(cpu_panel, pos_chan2[9] - f1_wd, rect.y - (h2 * 2), f1_hd - (h2/4), &c);
+    /* CPU registers */
+    reg.upper = "P!8421!8421|P!8421!8421";
+    reg.lower = "P!0123!4576|P!0123!4576";
+    reg.c_on = &con;
+    reg.c_off = &cof;
+    reg.start_bit[0] = 8;
+    reg.value[0] = &cpu_2030.R_REG;
+    reg.start_bit[1] = 8;
+    reg.value[1] = &cpu_2030.Alu_out;
+    w = pos_reg[6]-reg_start;
+    add_area(cpu_panel, reg_start, pos - 1, (hx * 3) + 5, w, &cl);
+    add_line(cpu_panel, reg_start, pos + hx, w, &c);
+    add_reg_row(cpu_panel, reg_start, pos+hx, &reg, font10, pos_reg, &c);
+    add_label_center(cpu_panel, pos_reg[0], pos, pos_reg[3],
+            "MAIN STOARAGE DATA REGISTER", font1, &c, &cl);
+    add_label_center(cpu_panel, pos_reg[3], pos, pos_reg[6]-pos_reg[3],
+            "ALU OUTPUT", font1, &c, &cl);
 
-    /* MPX register */
-    add_area(cpu_panel, 30, 10 + (h2 * 46) + (f1_hd/4), h2 * 4, wb, &cl);
-    add_line(cpu_panel, 30, 15 + (h2 * 47) + (f1_hd/4), wb, &c);
-    rect.x = 30 + f1_wd;
-    rect.y = 15 + (h2 * 48);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    pos_mpx[0] = rect.x;
-    (void) add_led(&labels[DIG_OP], &cpu_2030.MPX_TI, 7, rect.x, rect.y, DIG_OP);  /* OP IN */
-    rect.x += f1_wd * 6;
-    pos_mpx[1] = rect.x;
-    (void) add_led(&labels[24], &cpu_2030.MPX_TI, 6, rect.x, rect.y, 24);   /* ADR IN */
-    rect.x += f1_wd * 6;
-    pos_mpx[2] = rect.x;
-    (void) add_led(&labels[25], &cpu_2030.MPX_TI, 5, rect.x, rect.y, 25);  /* STAT IN */
-    rect.x += f1_wd * 6;
-    pos_mpx[3] = rect.x;
-    (void) add_led(&labels[26], &cpu_2030.MPX_TI, 4, rect.x, rect.y, 26);  /* SERV IN */
-    rect.x += f1_wd * 6;
-    pos_mpx[4] = rect.x;
-    (void) add_led(&labels[27], &cpu_2030.MPX_TAGS, 15, rect.x, rect.y, 27); /* SEL OUT */
-    rect.x += f1_wd * 6;
-    pos_mpx[5] = rect.x;
-    (void)add_led(&labels[28], &cpu_2030.MPX_TAGS, 14, rect.x, rect.y, 28); /* ADR OUT */
-    rect.x += f1_wd * 6;
-    pos_mpx[6] = rect.x;
-    (void)add_led(&labels[29], &cpu_2030.MPX_TAGS, 13, rect.x, rect.y, 29);  /* CMD OUT */
-    rect.x += f1_wd * 6;
-    pos_mpx[7] = rect.x;
-    (void)add_led(&labels[30], &cpu_2030.MPX_TAGS, 12, rect.x, rect.y, 30);  /* SERV OUT */
-    rect.x += f1_wd * 6;
-    pos_mpx[8] = rect.x;
-    (void)add_led(&labels[31], &cpu_2030.MPX_TAGS, 11, rect.x, rect.y, 31);  /* SUP OUT */
-    rect.x += f1_wd * 6;
-    pos_mpx[9] = rect.x;
-    rect.x += f1_wd * 3;
-    rect.y = 15 + (h2 * 48) - (f1_hd/2);
-    shf = 8;
-    for (i = 15; chan_one[i] != '\0'; i++) {
-        pos_mpx[i] = rect.x;
-        switch (chan_one[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': rect.x += 3 * f1_wd; continue;
-        }
-        (void)add_led(&labels[j], &cpu_2030.O_REG, shf, pos_mpx[i], rect.y, j);
-        shf--;
-        rect.x += 3*f1_wd;
-        switch (chan_onea[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': continue;
-        }
-        ctl_label[ctl_ptr].rect.x = pos_mpx[i];
-        ctl_label[ctl_ptr].rect.y = rect.y + f1_hd;
-        ctl_label[ctl_ptr].rect.h = f1_hd;
-        ctl_label[ctl_ptr].rect.w = f1_wd;
-        ctl_label[ctl_ptr].text = digit_off[j];
-        ctl_ptr++;
-    }
-    ADD_LABEL1(pos_mpx[3], 15 + (h2 * 46), "MPX CHANNEL TAGS");
-    ADD_LABEL1(pos_mpx[15], 15 + (h2 * 46), "MPX CHANNEL BUS-OUT REGISTER");
-    add_mark(cpu_panel, pos_mpx[9] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_mpx[9] - f1_wd, rect.y - h2 - (h2/4), f1_hd - (f1_hd/4), &c);
+    s = pos;  /* Save position for CPU Status and Check area's */
+    e = w + (hx * 2); /* Save Start of area */
 
-    /* Seperator */
-    add_area(cpu_panel, 30, 15 + (h2 * 50) + 4, f1_hd * 4, wb, &cl);
-    add_line(cpu_panel, 30, 15 + (h2 * 51) + 4, wb, &c);
-    rect.x = 30 + f1_wd;
-    rect.y = 10 + (h2 * 52) + (f1_hd/4);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    shf = 8;
-    k = 0;
-    for (i = 0; store_addr[i] != '\0'; i++) {
-        pos_store[i] = rect.x;
-        switch (store_addr[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': pos_store[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3 * f1_wd; continue;
-        }
-        if (k)
-            (void)add_led(&labels[j], &cpu_2030.N_REG, shf, pos_store[i], rect.y, j);
-        else
-            (void)add_led(&labels[j], &cpu_2030.M_REG, shf, pos_store[i], rect.y, j);
-        shf--;
-        if (shf == -1) {
-           k++;
-           shf = 8;
-        }
-        rect.x += 3*f1_wd;
-        switch (store_addra[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': continue;
-        }
-        ctl_label[ctl_ptr].rect.x = pos_store[i];
-        ctl_label[ctl_ptr].rect.y = rect.y + f1_hd;
-        ctl_label[ctl_ptr].rect.h = f1_hd;
-        ctl_label[ctl_ptr].rect.w = f1_wd;
-        ctl_label[ctl_ptr].text = digit_off[j];
-        ctl_ptr++;
-    }
+    pos += (step * 4) - (hx/2);
 
-    shf--;
-    (void)add_led(&labels[38], &store, 0, rect.x + f1_wd, 10 + rect.y - f1_hd, 38);
-    shf--;
-    (void)add_led(&labels[39], &store, 1, rect.x + f1_wd, 10 + rect.y + f1_hd - 5, 39);
-    ADD_LABEL1(pos_store[11] - f1_wd, 15 + (h2 * 50) + 4, "MAIN STORAGE ADDRESS REGISTER");
-    add_mark(cpu_panel, pos_store[1] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_store[5] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_store[9] - f1_wd, rect.y - h2, f1_hd * 3, &c);
-    add_mark(cpu_panel, pos_store[11] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_store[15] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_store[19] - f1_wd, rect.y + (f1_hd/4), f1_hd * 2, &c);
+    reg.start_bit[0] = 8;
+    reg.value[0] = &cpu_2030.Bbus;
+    reg.start_bit[1] = 8;
+    reg.value[1] = &cpu_2030.Abus;
+    add_area(cpu_panel, reg_start, pos - 1, (hx * 3) + 5, w , &cl);
+    add_line(cpu_panel, reg_start, pos + hx, w, &c);
+    add_reg_row(cpu_panel, reg_start, pos+hx, &reg, font10, pos_reg, &c);
+    add_label_center(cpu_panel, pos_reg[0], pos, pos_reg[3],
+            "B REGISTER", font1, &c, &cl);
+    add_label_center(cpu_panel, pos_reg[3], pos, pos_reg[6]-pos_reg[3],
+            "A REGISTER", font1, &c, &cl);
 
-    /* Seperator */
-    add_area(cpu_panel, 30, 10 + (h2 * 55), h2 * 4, f1_wd * 59, &cl);
-    add_line(cpu_panel, 30, 15 + (h2 * 56), f1_wd * 59, &c);
-    rect.x = 40 + f1_wd;
-    rect.y = 10 + (h2 * 57) + (f1_hd/2);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    shf = 8;
-    k = 0;
-    for (i = 0; data_reg[i] != '\0'; i++) {
-        pos_data[i] = rect.x;
-        switch (data_reg[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': pos_data[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3*f1_wd; continue;
-        }
-        if (k)
-            (void)add_led(&labels[j], &cpu_2030.Alu_out, shf, pos_data[i], rect.y, j);
-        else
-            (void)add_led(&labels[j], &cpu_2030.R_REG, shf, pos_data[i], rect.y, j);
-        rect.x = pos_data[i] + 3*f1_wd;
-        shf--;
-        if (shf == -1) {
-           shf = 7;
-           k++;
-        }
-    }
-    ADD_LABEL1(pos_data[0] + f1_wd, 15 + (h2 * 55), "MAIN STORAGE DATA REGISTER");
-    ADD_LABEL1(pos_data[13] - f1_wd, 15 + (h2 * 55), "ALU OUTPUT");
-    add_mark(cpu_panel, pos_data[1] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos_data[5] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos_data[9] - f1_wd, rect.y - (h2 * 2) - (h2/4), f1_hd, &c);
-    add_mark(cpu_panel, pos_data[9] - f1_wd, rect.y - h2, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_data[11] - f1_wd, rect.y, f1_hd, &c);
-    add_mark(cpu_panel, pos_data[15] - f1_wd, rect.y, f1_hd, &c);
-    add_area(cpu_panel, 30, 10 + (h2 * 60) - (f1_hd/2), (h2 * 4) + f1_hd, f1_wd * 59, &cl);
-    add_line(cpu_panel, 30, 15 + (h2 * 61), f1_wd * 59, &c);
-    rect.x = 30 + f1_wd;
-    rect.y = 15 + (h2 * 62);
-    rect.h = f1_hd;
-    rect.w = f1_wd;
-    shf = 8;
-    k = 0;
-    for (i = 0; store_addr[i] != '\0'; i++) {
-        pos_breg[i] = rect.x;
-        switch (store_addr[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': pos_breg[i] = rect.x + f1_wd + (f1_wd/2); rect.x += 3 * f1_wd; continue;
-        }
-        if (k)
-            (void)add_led(&labels[j], &cpu_2030.Bbus, shf, pos_breg[i], rect.y, j);
-        else
-            (void)add_led(&labels[j], &cpu_2030.Abus, shf, pos_breg[i], rect.y, j);
-        shf--;
-        if (shf == -1) {
-           shf = 8;
-           k++;
-        }
-        rect.x += 3*f1_wd;
-        switch (store_addra[i]) {
-        case '0': j = 0;  break;
-        case '1': j = 1;  break;
-        case '2': j = 2;  break;
-        case '3': j = 3;  break;
-        case '4': j = 4;  break;
-        case '5': j = 5;  break;
-        case '6': j = 6;  break;
-        case '7': j = 7;  break;
-        case '8': j = 8;  break;
-        case 'A': j = 10;  break;
-        case 'P': j = 16;  break;
-        case ' ': continue;
-        }
-        ctl_label[ctl_ptr].rect.x = pos_breg[i];
-        ctl_label[ctl_ptr].rect.y = rect.y + f1_hd;
-        ctl_label[ctl_ptr].rect.h = f1_hd;
-        ctl_label[ctl_ptr].rect.w = f1_wd;
-        ctl_label[ctl_ptr].text = digit_off[j];
-        ctl_ptr++;
-    }
-    ADD_LABEL1(pos_breg[3] + f1_wd, 15 + (h2 * 60) - (f1_hd/2), "B REGISTER");
-    ADD_LABEL1(pos_breg[13] - f1_wd, 15 + (h2 * 60) - (f1_hd/2), "A REGISTER");
-    add_mark(cpu_panel, pos_breg[1] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_breg[5] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_breg[9] - f1_wd, rect.y - (h2 * 2) - (h2/4), f1_hd, &c);
-    add_mark(cpu_panel, pos_breg[9] - f1_wd, rect.y - h2, f1_hd * 3, &c);
-    add_mark(cpu_panel, pos_breg[11] - f1_wd, rect.y, f1_hd * 2, &c);
-    add_mark(cpu_panel, pos_breg[15] - f1_wd, rect.y, f1_hd * 2, &c);
+    pos += (step * 4) - (hx/2);
 
-    rect.x = 40 + pos_data[17];
-    rect.y = 10 + (h2 * 55);
-    rect.h = (h2 * 9) + (h2/2);
-    rect.w = (30 + wb) - rect.x;
-    add_area_rect(cpu_panel, &rect, &cl);
-    rect.y = 15 + (h2 * 56);
-    add_line(cpu_panel, rect.x, 15 + (h2 * 56), rect.w, &c);
-    ADD_LABEL1(rect.x + (f1_wd * 3), 15 + (h2 * 55), "CPU STATUS");
-    rect.x += f1_wd;
-    pos_data[18] = rect.x;
-    rect.y += h2;       /* EX */
-    (void)add_led(&labels[40], &end_of_e_cycle, 0, rect.x, rect.y, 40);
-    rect.x += (f1_wd * 4); /* MATCH */
-    (void)add_led(&labels[41], &match, 0, rect.x, rect.y, 41);
-    rect.x += (f1_wd * 7);  /* ALLOW WRITE */
-    (void)add_led(&labels[42], &allow_write, 0, rect.x, rect.y, 42);
-    rect.y += 2*h2 + (f1_hd/2); /* 1050 Intv */
-    rect.x = pos_data[18];
-    (void)add_led(&labels[43], &cpu_2030.TT, 2, rect.x, rect.y, 43);
-    rect.x += (f1_wd * 4);
-    rect.x += (f1_wd * 7);    /* 1050 req */
-    (void)add_led(&labels[44], &t_request, 0, rect.x, rect.y, 44);
-    rect.y += 2*h2 + (f1_hd/2);
-    rect.x = pos_data[18];  /* MPX CHNL */
-    (void)add_led(&labels[45], &cpu_2030.FT, 5, rect.x, rect.y, 45);
-    rect.x += (f1_wd * 4);     /* SELCH */
-    (void)add_led(&labels[46], &cpu_2030.H_REG, 3, rect.x, rect.y, 46);
-    rect.x += (f1_wd * 7);    /* Compute */
-    (void)add_led(&labels[47], 0, 0, rect.x, rect.y, 47);
-    rect.x += (f1_wd * 8);
-    pos_data[19] = rect.x;
-    rect.y = 15 + (h2 * 57);
-    ADD_LABEL1(rect.x + (f1_wd*2), 15 + (h2 * 55), "CPU CHECKS");
-    add_mark(cpu_panel, rect.x - f1_wd, 15 + (h2 * 55), (f1_hd * 8) + (f1_hd/2), &c);
-    /* STORE ADR */
-    (void)add_led(&labels[48], &cpu_2030.MC_REG, 5, rect.x, rect.y, 48);
-    rect.x += f1_wd * 4;
-    /* STORE DATA */
-    (void)add_led(&labels[49], &cpu_2030.MC_REG, 1, rect.x, rect.y, 49);
-    rect.x = pos_data[19];
-    rect.y += 2*h2 + (f1_hd/2);
-    /* B reg */
-    (void)add_led(&labels[50], &cpu_2030.MC_REG, 7, rect.x, rect.y, 50);
-    rect.x += f1_wd * 4;
-    /* A reg */
-    (void)add_led(&labels[51], &cpu_2030.MC_REG, 6, rect.x, rect.y, 51);
-    rect.x += f1_wd * 4;
-    /* ALU */
-    (void)add_led(&labels[52], &cpu_2030.MC_REG, 0, rect.x, rect.y, 52);
-    rect.x = pos_data[19];
-    rect.y += 2*h2 + (f1_hd/2);
-    /* ROS ADDR */
-    (void)add_led(&labels[53], &cpu_2030.MC_REG, 2, rect.x, rect.y, 53);
-    rect.x += f1_wd * 4;
-    /* ROS SALS */
-    (void)add_led(&labels[54], &cpu_2030.MC_REG, 3, rect.x, rect.y, 54);
-    rect.x += f1_wd * 4;
-    /* CTL REG */
-    (void)add_led(&labels[55], &cpu_2030.MC_REG, 4, rect.x, rect.y, 55);
+    /* CPU status */
+    h = pos - s - (hx/2);
+    w = ((reg_start + reg_width - e) / 2);
+    w -= wx/2;
+    i = s + hx - (hx/2);
+    add_area(cpu_panel, e, s, h, w, &cl);
+    add_line(cpu_panel, e, s + hx, w, &c);
+    add_label_center(cpu_panel, e, s, w, "CPU STATUS", font1, &c, &cl);
+    add_light(cpu_panel, e + (wx), i + (hx), "EX", NULL, &cpu_2030.end_of_e_cycle, 0,
+                font1, &con, &cof);
+    add_light(cpu_panel, e + (wx * 5), i + (hx), "MATCH", NULL, &cpu_2030.match, 0,
+                font1, &con, &cof);
+    add_light(cpu_panel, e + (wx * 10), i + (hx), "ALLOW", "WRITE",
+                &cpu_2030.allow_write, 0, font1, &con, &cof);
+    add_light(cpu_panel, e + (wx), i + (hx * 3), "1050", "INTV", &cpu_2030.TT, 2,
+                font1, &con, &cof);
+    add_light(cpu_panel, e + (wx * 10), i + (hx * 3), "1050", "REQ",
+                &cpu_2030.t_request, 0, font1, &con, &cof);
+    add_light(cpu_panel, e + (wx), i + (hx * 5), "MPX", "CHNL", &cpu_2030.FT, 5,
+                font1, &con, &cof);
+    add_light(cpu_panel, e + (wx * 5), i + (hx * 5), "SEL", "CHNL", &cpu_2030.H_REG,
+                3, font1, &con, &cof);
+    add_light(cpu_panel, e + (wx * 10), i + (hx * 5), "COMP", "MODE", 0, 0,
+                font1, &con, &cof);
 
-    add_switch(&SYS_RST, 10, (h2 * 67), f1_wd * 10, f1_hd * 2, SW, &c3, &sw_labels[0], font1);
-    add_switch(&ROAR_RST,10, (h2 * 70), f1_wd * 10, f1_hd * 2, SW, &c3, &sw_labels[1], font1);
-    add_switch(NULL, 10, (h2 * 73), f1_wd * 10, f1_hd * 2, SW, &c, NULL, NULL);
-    add_switch(&START, 10, (h2 * 76), f1_wd * 10, f1_hd * 2, SW, &c2, &sw_labels[2], font1);
-    add_switch(NULL, 85, (h2 * 67), f1_wd * 10, f1_hd * 2, SW, &c, NULL, font1);
-    add_switch(&SET_IC, 85, (h2 * 70), f1_wd * 10, f1_hd * 2, SW, &c3, &sw_labels[3], font1);
-    add_switch(&CHECK_RST, 85, (h2 * 73), f1_wd * 10, f1_hd * 2, SW, &c3, &sw_labels[4], font1);
-    add_switch(&STOP, 85, (h2 * 76), f1_wd * 10, f1_hd * 2, SW, &c5, &sw_labels[5], font1);
-    add_switch(&INT_TMR, 160, (h2 * 67), f1_wd * 10, f1_hd * 2, ONOFF, &c3, &sw_labels[6], font1);
-    add_switch(&STORE, 160, (h2 * 70), f1_wd * 10, f1_hd * 2, SW, &c3, &sw_labels[7], font1);
-    add_switch(&LAMP_TEST, 160, (h2 * 73), f1_wd * 10, f1_hd * 2, SW, &c3, &sw_labels[8], font1);
-    add_switch(&DISPLAY, 160, (h2 * 76), f1_wd * 10, f1_hd * 2, SW, &c3, &sw_labels[9], font1);
-    add_switch(NULL, 780, (h2 * 66), f1_wd * 10, f1_hd * 2, SW, &c, &sw_labels[10], font1);
-    add_switch(&POWER, 1000, (h2 * 66), f1_wd * 10, f1_hd * 2, SW, &c5, &sw_labels[11], font1);
-    add_switch(&INTR, 780, (h2 * 79), f1_wd * 10, f1_hd * 2, SW, &c5, &sw_labels[12], font1);
-    add_switch(&LOAD, 1000, (h2 * 79), f1_wd * 10, f1_hd * 2, SW, &c3, &sw_labels[13], font1);
-    marks[mrk_ptr].x1 = 770;
-    marks[mrk_ptr].y1 = (h2 * 66) - 3;
-    marks[mrk_ptr].x2 = 1065;
-    marks[mrk_ptr].y2 = (h2 * 66) - 3;
-    marks[mrk_ptr].c = &c;
-    mrk_ptr++;
-    marks[mrk_ptr].x1 = 770;
-    marks[mrk_ptr].y1 = (h2 * 68) + 3;
-    marks[mrk_ptr].x2 = 1065;
-    marks[mrk_ptr].y2 = (h2 * 68) + 3;
-    marks[mrk_ptr].c = &c;
-    mrk_ptr++;
-    marks[mrk_ptr].x1 = 770;
-    marks[mrk_ptr].y1 = (h2 * 66) - 3;
-    marks[mrk_ptr].x2 = 770;
-    marks[mrk_ptr].y2 = (h2 * 68) + 3;
-    marks[mrk_ptr].c = &c;
-    mrk_ptr++;
-    marks[mrk_ptr].x1 = 1065;
-    marks[mrk_ptr].y1 = (h2 * 66) - 3;
-    marks[mrk_ptr].x2 = 1065;
-    marks[mrk_ptr].y2 = (h2 * 68) + 3;
-    marks[mrk_ptr].c = &c;
-    mrk_ptr++;
-    marks[mrk_ptr].x1 = 770;
-    marks[mrk_ptr].y1 = (h2 * 79) - 5;
-    marks[mrk_ptr].x2 = 1065;
-    marks[mrk_ptr].y2 = (h2 * 79) - 5;
-    marks[mrk_ptr].c = &c1;
-    mrk_ptr++;
-    marks[mrk_ptr].x1 = 770;
-    marks[mrk_ptr].y1 = (h2 * 79) - 5;
-    marks[mrk_ptr].x2 = 770;
-    marks[mrk_ptr].y2 = (h2 * 81) + 3;
-    marks[mrk_ptr].c = &c1;
-    mrk_ptr++;
-    marks[mrk_ptr].x1 = 770;
-    marks[mrk_ptr].y1 = (h2 * 81) + 3;
-    marks[mrk_ptr].x2 = 1065;
-    marks[mrk_ptr].y2 = (h2 * 81) + 3;
-    marks[mrk_ptr].c = &c1;
-    mrk_ptr++;
-    marks[mrk_ptr].x1 = 1065;
-    marks[mrk_ptr].y1 = (h2 * 79) - 5;
-    marks[mrk_ptr].x2 = 1065;
-    marks[mrk_ptr].y2 = (h2 * 81) + 3;
-    marks[mrk_ptr].c = &c1;
-    mrk_ptr++;
+    /* CPU Checks */
+    e += w + wx;
+    add_area(cpu_panel, e, s, h, w, &cl);
+    add_line(cpu_panel, e, s + hx, w, &c);
+    add_label_center(cpu_panel, e, s, w, "CPU CHECKS", font1, &c, &cl);
+    add_light(cpu_panel, e + (wx), i + (hx), "STOR", "ADR", &cpu_2030.MC_REG,
+               1, font1, &c5o, &cof);
+    add_light(cpu_panel, e + (wx * 5), i + (hx), "STOR", "DATA", &cpu_2030.MC_REG,
+               7, font1, &c5o, &cof);
+    add_light(cpu_panel, e + (wx), i + (hx * 3), "A", "REG", &cpu_2030.MC_REG,
+               6, font1, &c5o, &cof);
+    add_light(cpu_panel, e + (wx * 5), i + (hx * 3), "B", "REG", &cpu_2030.MC_REG,
+               0, font1, &c5o, &cof);
+    add_light(cpu_panel, e + (wx * 10), i + (hx * 3), "ALU", NULL, &cpu_2030.MC_REG,
+               5, font1, &c5o, &cof);
+    add_light(cpu_panel, e + (wx), i + (hx * 5), "ROS", "ADR", &cpu_2030.MC_REG,
+               2, font1, &c5o, &cof);
+    add_light(cpu_panel, e + (wx * 5), i + (hx * 5), "ROS", "SALS", &cpu_2030.MC_REG,
+               3, font1, &c5o, &cof);
+    add_light(cpu_panel, e + (wx * 10), i + (hx * 5), "CTRL", "REG", &cpu_2030.MC_REG,
+               4, font1, &c5o, &cof);
 
-    ADD_LABEL(620,(h2 * 34), (f1_wd * 40), "ROS CONTROL", c1, cc);
-    ADD_LABEL(620 + (f1_wd * 4), (h2 * 36), f1_wd*6, "INHBIT", c1, cc);
-    ADD_LABEL(620 + (f1_wd * 4), (h2 * 37), f1_wd * 7, "CF STOP", c1, cc);
-    ADD_LABEL(620, (h2 * 36), f1_wd * 40, "PROCESS", c1, cc);
-    ADD_LABEL(620 + (f1_wd * 30), (h2 * 36), f1_wd * 3, "ROS", c1, cc);
-    ADD_LABEL(620 + (f1_wd * 30), (h2 * 37), f1_wd*4, "SCAN", c1, cc);
-    add_line(cpu_panel, 620 + (f1_wd * 11), (h2 * 37), (f1_wd * 3), &c1);
-    add_line(cpu_panel, 620 + (f1_wd * 26)+1, (h2 * 37), (f1_wd * 3) - 1, &c1);
-    dial[0].boxd.x = 620 + (f1_wd * 10);
-    dial[0].boxd.y = h2 * 36;
-    dial[0].boxd.w = (f1_wd * 20);
-    dial[0].boxd.h = h2 * 5;
-    dial[0].boxu.x = 620 + (f1_wd * 20);
-    dial[0].boxu.y = h2 * 36;
-    dial[0].boxu.w = (f1_wd * 20);
-    dial[0].boxu.h = h2 * 5;
-    dial[0].center_x = 620 + (f1_wd * 20);
-    dial[0].center_y = (h2 * 40);
-    dial[0].pos_x[0] = 620 + (f1_wd * 14);
-    dial[0].pos_x[1] = 620 + (f1_wd * 20);
-    dial[0].pos_x[2] = 620 + (f1_wd * 26);
-    dial[0].pos_y[0] = h2 * 37;
-    dial[0].pos_y[1] = h2 * 37;
-    dial[0].pos_y[2] = h2 * 37;
-    dial[0].init = 1;
-    dial[0].value = &PROC_SW;
-    dial[0].max = 2;
-    dial[0].wrap = 0;
+    pos += step * 2;
+    s = 10;
+    /* Draw bottom switch panel */
+    add_area(cpu_panel, 0, pos - hx, 975 - pos + hx, 1100, &cl);
 
-    ADD_LABEL(900, (h2 * 34), (f1_wd * 23), "RATE", c1, cc);
-    ADD_LABEL(900, (h2 * 36), (f1_wd * 5), "INSTR", c1, cc);
-    ADD_LABEL(900, (h2 * 37), (f1_wd * 4), "STEP", c1, cc);
-    ADD_LABEL(900, (h2 * 36), f1_wd * 23, "PROCESS", c1, cc);
-    ADD_LABEL(900 + (f1_wd * 21), (h2 * 36), f1_wd * 5, "SINGLE", c1, cc);
-    ADD_LABEL(900 + (f1_wd * 21), (h2 * 37), f1_wd * 5, "CYCLE", c1, cc);
-    add_line(cpu_panel, 900 + (f1_wd * 5), (h2 * 37), (f1_wd * 2), &c1);
-    add_line(cpu_panel, 900 + (f1_wd * 16), (h2 * 37), (f1_wd * 3), &c1);
-    dial[1].boxd.x = 900;
-    dial[1].boxd.y = h2 * 36;
-    dial[1].boxd.w = (f1_wd * 12);
-    dial[1].boxd.h = h2 * 5;
-    dial[1].boxu.x = 900 + (f1_wd * 12);
-    dial[1].boxu.y = h2 * 36;
-    dial[1].boxu.w = (f1_wd * 12);
-    dial[1].boxu.h = h2 * 5;
-    dial[1].center_x = 900 + (f1_wd * 12);
-    dial[1].center_y = (h2 * 40);
-    dial[1].pos_x[0] = 900 + (f1_wd * 7);
-    dial[1].pos_x[1] = 900 + (f1_wd * 12);
-    dial[1].pos_x[2] = 900 + (f1_wd * 16);
-    dial[1].pos_y[0] = h2 * 37;
-    dial[1].pos_y[1] = h2 * 37;
-    dial[1].pos_y[2] = h2 * 37;
-    dial[1].init = 1;
-    dial[1].value = &RATE_SW;
-    dial[1].max = 2;
-    dial[1].wrap = 0;
+    add_button(cpu_panel, s, pos + hx, hx * 2, wx * 10, "SYSTEM", "RESET",
+               &SYS_RST, font10, &c, &c3, 0);
+    add_button(cpu_panel, s, pos + (hx * 3) + (hx/2), hx * 2, wx * 10, "ROAR", "RESET",
+               &ROAR_RST, font10, &c, &c3, 0);
+    add_blank(cpu_panel, s, pos + (hx * 6), hx * 2, wx * 10, &c);
+    add_button(cpu_panel, s, pos + (hx * 8) + (hx/2), hx * 2, wx * 10, "START", NULL,
+               &START, font10, &c, &c2, 0);
 
-    ADD_LABEL(620, (h2 * 46), (f1_wd * 40), "ADDRESS COMPARE", c1, cc);
-    ADD_LABEL(620, (h2 * 48) - (f1_hd/2), f1_wd*40, "PROCESS", c1, cc);
-    ADD_LABEL3(620, (h2 * 48), "ROAR SYNC", c1, cc);
-    add_line(cpu_panel, 620 + (f1_wd * 10), (h2 * 49), (f1_wd * 5), &c1);
-    ADD_LABEL3(620, (h2 * 50), "ROAR STOP", c1, cc);
-    add_line(cpu_panel, 620 + (f1_wd * 10), (h2 * 51), (f1_wd * 4), &c1);
-    ADD_LABEL3(620, (h2 * 52), "EARLY ROAR", c1, cc);
-    add_line(cpu_panel, 620 + (f1_wd * 10), (h2 * 53), (f1_wd * 4), &c1);
-    ADD_LABEL3(620, (h2 * 53), "STOP", c1, cc);
-    ADD_LABEL3(620, (h2 * 55), "ROAR RESTART", c1, cc);
-    ADD_LABEL3(620, (h2 * 56), "WITHOUT RESET", c1, cc);
-    ADD_LABEL(620, (h2 * 56), f1_wd*40, "ROAR", c1, cc);
-    ADD_LABEL(620, (h2 * 57), f1_wd*40, "RESTART", c1, cc);
-    ADD_LABEL3(620 + (f1_wd * 29), (h2 * 48), "SAR DELAYED", c1, cc);
-    add_line(cpu_panel, 620 + (f1_wd * 26) + 1, (h2 * 49), (f1_wd * 2), &c1);
-    ADD_LABEL3(620 + (f1_wd * 29), (h2 * 49), "STOP", c1, cc);
-    ADD_LABEL3(620 + (f1_wd * 32), (h2 * 51) - (f1_hd/2), "SAR STOP", c1, cc);
-    add_line(cpu_panel, 620 + (f1_wd * 26) + 1, (h2 * 51), (f1_wd * 4), &c1);
-    ADD_LABEL3(620 + (f1_wd * 29), (h2 * 53) - (f1_hd/2), "SAR RESTART", c1, cc);
-    add_line(cpu_panel, 620 + (f1_wd * 26) + 1, (h2 * 53), (f1_wd * 2), &c1);
-    ADD_LABEL3(620 + (f1_wd * 28), (h2 * 55), "ROAR RESTART", c1, cc);
-    ADD_LABEL3(620 + (f1_wd * 28), (h2 * 56), "STORE BYPASS", c1, cc);
-    dial[2].boxd.x = 620 + (f1_wd * 10);
-    dial[2].boxd.y = h2 * 48;
-    dial[2].boxd.w = (f1_wd * 10);
-    dial[2].boxd.h = h2 * 5;
-    dial[2].boxu.x = 620 + (f1_wd * 20);
-    dial[2].boxu.y = h2 * 48;
-    dial[2].boxu.w = (f1_wd * 10);
-    dial[2].boxu.h = h2 * 5;
-    dial[2].center_x = 620 + (f1_wd * 20);
-    dial[2].center_y = (h2 * 52);
-    dial[2].pos_x[0] = 620 + (f1_wd * 20);
-    dial[2].pos_x[1] = 620 + (f1_wd * 26);
-    dial[2].pos_x[2] = 620 + (f1_wd * 26);
-    dial[2].pos_x[3] = 620 + (f1_wd * 26);
-    dial[2].pos_x[4] = 620 + (f1_wd * 26);
-    dial[2].pos_x[5] = 620 + (f1_wd * 20);
-    dial[2].pos_x[6] = 620 + (f1_wd * 14);
-    dial[2].pos_x[7] = 620 + (f1_wd * 14);
-    dial[2].pos_x[8] = 620 + (f1_wd * 14);
-    dial[2].pos_x[9] = 620 + (f1_wd * 15);
-    dial[2].pos_y[0] = h2 * 49;
-    dial[2].pos_y[1] = (h2 * 49);
-    dial[2].pos_y[2] = (h2 * 51);
-    dial[2].pos_y[3] = (h2 * 53);
-    dial[2].pos_y[4] = (h2 * 55);
-    dial[2].pos_y[5] = (h2 * 56);
-    dial[2].pos_y[6] = (h2 * 56);
-    dial[2].pos_y[7] = (h2 * 53);
-    dial[2].pos_y[8] = (h2 * 51);
-    dial[2].pos_y[9] = h2 * 49;
-    dial[2].init = 0;
-    dial[2].value = &MATCH_SW;
-    dial[2].max = 9;
-    dial[2].wrap = 1;
+    s += wx * 12;
+    add_blank(cpu_panel, s, pos + hx, hx * 2, wx * 10, &c);
+    add_button(cpu_panel, s, pos + (hx * 3) + (hx/2), hx * 2, wx * 10, "SET", "IC",
+               &SET_IC, font10, &c, &c3, 0);
+    add_button(cpu_panel, s, pos + (hx * 6), hx * 2, wx * 10, "CHECK", "RESET",
+               &CHECK_RST, font10, &c, &c3, 0);
+    add_button(cpu_panel, s, pos + (hx * 8) + (hx/2), hx * 2, wx * 10, "STOP", NULL,
+               &STOP, font10, &c, &c5, 0);
 
-    ADD_LABEL(900, (h2 * 46), f1_wd*23, "CHECK CONTROL", c1, cc);
-    ADD_LABEL3(900 - (f1_wd *5), (h2 * 48) + (f1_hd/2), "DISABLE", c1, cc);
-    add_line(cpu_panel, 900 + (f1_wd * 3), (h2 * 49), (f1_wd * 4), &c1);
-    ADD_LABEL3(900 - (f1_wd*5), (h2 * 50) + (f1_hd/2), "DIAGNOSTIC", c1, cc);
-    ADD_LABEL(900, (h2 * 48) - (f1_hd/2), f1_wd*23, "PROCESS", c1, cc);
-    ADD_LABEL(900 + (f1_wd * 24), (h2 * 48) + (f1_hd/2), f1_wd*4, "STOP", c1, cc);
-    add_line(cpu_panel, 900 + (f1_wd * 16), (h2 * 49), (f1_wd * 6), &c1);
-    ADD_LABEL(900 + (f1_wd * 21), (h2 * 50) + (f1_hd/2), f1_wd*7, "RESTART", c1, cc);
-    dial[3].boxd.x = 900;
-    dial[3].boxd.y = h2 * 48;
-    dial[3].boxd.w = (f1_wd * 12);
-    dial[3].boxd.h = h2 * 5;
-    dial[3].boxu.x = 900 + (f1_wd * 12);
-    dial[3].boxu.y = h2 * 48;
-    dial[3].boxu.w = (f1_wd * 12);
-    dial[3].boxu.h = h2 * 5;
-    dial[3].center_x = 900 + (f1_wd * 12);
-    dial[3].center_y = (h2 * 52);
-    dial[3].pos_x[0] = 900 + (f1_wd * 6);
-    dial[3].pos_x[1] = 900 + (f1_wd * 7);
-    dial[3].pos_x[2] = 900 + (f1_wd * 12);
-    dial[3].pos_x[3] = 900 + (f1_wd * 16);
-    dial[3].pos_x[4] = 900 + (f1_wd * 18);
-    dial[3].pos_y[0] = h2 * 51;
-    dial[3].pos_y[1] = (h2 * 49);
-    dial[3].pos_y[2] = (h2 * 49);
-    dial[3].pos_y[3] = (h2 * 49);
-    dial[3].pos_y[4] = (h2 * 51);
-    dial[3].init = 2;
-    dial[3].value = &CHK_SW;
-    dial[3].max = 4;
-    dial[3].wrap = 0;
-    PROC_SW = dial[0].init;
-    RATE_SW = dial[1].init;
-    MATCH_SW = dial[2].init;
-    CHK_SW = dial[3].init;
+    s += wx * 12;
+    add_timer(cpu_panel, s, pos + hx, hx * 2, wx * 10, "INT_TMR", &INT_TMR,
+              font10, &c, &c3);
+    add_button(cpu_panel, s, pos + (hx * 3) + (hx/2), hx * 2, wx * 10, "STORE", NULL,
+               &STORE, font10, &c, &c3, 0);
+    add_button(cpu_panel, s, pos + (hx * 6), hx * 2, wx * 10, "LAMP", "TEST",
+               &LAMP_TEST, font10, &c, &c3, 1);
+    add_button(cpu_panel, s, pos + (hx * 8) + (hx/2), hx * 2, wx * 10, "DISPLAY", NULL,
+               &START, font10, &c, &c3, 0);
 
-    rect.x = 250;
-    for (i = 0; i < 8; i++ ) {
-        hex_dial[i].rect.x = rect.x + f1_wd;
-        hex_dial[i].rect.y = (h2 * 73);
-        hex_dial[i].rect.w = 64;
-        hex_dial[i].rect.h = 64;
-        hex_dial[i].boxu.x = rect.x + f1_wd;
-        hex_dial[i].boxu.y = (h2 * 73);
-        hex_dial[i].boxu.w = 32;
-        hex_dial[i].boxu.h = 64;
-        hex_dial[i].boxd.x = rect.x + f1_wd + 32;
-        hex_dial[i].boxd.y = (h2 * 73);
-        hex_dial[i].boxd.w = 32;
-        hex_dial[i].boxd.h = 64;
-        if (i == 3) {
-            rect.x += (f1_wd * 15);
-        }
-        hex_ptr++;
-        rect.x += (f1_wd * 15);
-    }
+    s += wx * 16;
+    p = pos + (2 * hx) + (h1 * 4) + (h1/2);
+    pos_reg[0] = s;
+    add_hex_dial(cpu_panel, s, p, &A_SW);
+    s += 80;
+    pos_reg[1] = s;
+    add_hex_dial(cpu_panel, s, p, &B_SW);
+    s += 80;
+    pos_reg[2] = s;
+    add_hex_dial(cpu_panel, s, p, &C_SW);
+    s += 80;
+    pos_reg[3] = s;
+    add_hex_dial(cpu_panel, s, p, &D_SW);
+    s += 80;
+    pos_reg[4] = s;
+    add_store_dial(cpu_panel, s, p - 8, &E_SW);
+    E_SW = 0x10;
+    s += 80 + 8;
+    pos_reg[5] = s;
+    add_hex_dial(cpu_panel, s, p, &F_SW);
+    s += 80;
+    pos_reg[6] = s;
+    add_hex_dial(cpu_panel, s, p, &G_SW);
+    s += 80;
+    pos_reg[7] = s;
+    add_hex_dial(cpu_panel, s, p, &H_SW);
+    s += 80;
+    pos_reg[8] = s;
+    add_hex_dial(cpu_panel, s, p, &J_SW);
+    s += 80;
+    pos_reg[9] = s;
 
-    rect.x = 250 + (f1_wd * 58);
-    store_dial[0].rect.x = rect.x + f1_wd;
-    store_dial[0].rect.y = (h2 * 73);
-    store_dial[0].rect.w = 80;
-    store_dial[0].rect.h = 80;
-    store_dial[0].boxu.x = rect.x;
-    store_dial[0].boxu.y = (h2 * 73);
-    store_dial[0].boxu.w = 40;
-    store_dial[0].boxu.h = 80;
-    store_dial[0].boxd.x = rect.x + 32;
-    store_dial[0].boxd.y = (h2 * 73);
-    store_dial[0].boxd.w = 40;
-    store_dial[0].boxd.h = 80;
-    store_ptr = 1;
+    e = pos_reg[3] + 70;
+    h = p;
+    p = pos + (2 * hx);
+    add_mark(cpu_panel, pos_reg[0] - 3, p, h1 + 2, &c);
+    add_area(cpu_panel, pos_reg[0] - 3, p, h1, (e - (pos_reg[0] -3)), &c);
+    add_label_center(cpu_panel, pos_reg[0] - 3, p,
+            (e - (pos_reg[0] - 3)), "COMPARE ADDRSS", font1, &c1, &cl);
+    add_mark(cpu_panel, e, p, h1 + 2, &c);
 
-    hex_dial[0].digit = &A_SW;
-    hex_dial[1].digit = &B_SW;
-    hex_dial[2].digit = &C_SW;
-    hex_dial[3].digit = &D_SW;
-    hex_dial[4].digit = &F_SW;
-    hex_dial[5].digit = &G_SW;
-    hex_dial[6].digit = &H_SW;
-    hex_dial[7].digit = &J_SW;
-    store_dial[0].digit = &E_SW;
-    store_dial[0].sel = 0;
-    *store_dial[0].digit = 0;
+    p += h1 + 4;
+    add_mark(cpu_panel, pos_reg[0] - 3, p, h - p + 2, &c);
+    add_area(cpu_panel, pos_reg[0] - 3, p, h1, (e - (pos_reg[0]-3)), &c);
+    add_label_center(cpu_panel, pos_reg[0] - 3, p,
+            (e - (pos_reg[0] - 3)), "MAIN STORAGE ADDRSS", font1, &c1, &cl);
+    add_mark(cpu_panel, e, p, h - p + 2, &c);
 
-    rect.x= hex_dial[0].boxu.x;
-    rect.y=h2 * 69 - (h2 / 2);
-    rect.h=h2;
-    rect.w= (hex_dial[3].boxd.x + hex_dial[3].boxd.w) - rect.x;
-    add_area_rect(cpu_panel, &rect, &c);
-    ADD_LABEL(rect.x, rect.y, rect.w, "COMPARE ADDRESS", c1, c);
-    add_area(cpu_panel, rect.x, rect.y, h2 + h2/3, 2, &c);
-    add_area(cpu_panel, rect.x + rect.w, rect.y, h2 + h2/3, 2, &c);
+    e = pos_reg[4] + 80;
+    p = pos + (2 * hx);
+    add_mark(cpu_panel, pos_reg[4] - 3, p, h - p + 2, &c);
+    add_area(cpu_panel, pos_reg[4] - 3, p, h1, (e - (pos_reg[4] -3)), &c);
+    add_label_center(cpu_panel, pos_reg[4] - 3, p,
+            (e - (pos_reg[4] - 3)), "DISPLAY STOR", font1, &c1, &cl);
+    add_mark(cpu_panel, e, p, h - p + 2, &c);
 
-    rect.x= hex_dial[0].boxu.x;
-    rect.y=h2 * 70;
-    rect.h=h2;
-    rect.w= (hex_dial[3].boxd.x + hex_dial[3].boxd.w) - rect.x;
-    add_area_rect(cpu_panel, &rect, &c);
-    ADD_LABEL(rect.x, rect.y, rect.w, "MAIN STORAGE ADDRESS", c1, c);
-    add_area(cpu_panel, rect.x, rect.y, h2 + (3 * f1_hd), 2, &c);
-    add_area(cpu_panel, rect.x + rect.w, rect.y, h2 + (3 * f1_hd), 2, &c);
+    e = pos_reg[8] + 70;
+    add_mark(cpu_panel, pos_reg[5] - 3, p, h - p + 2, &c);
+    add_area(cpu_panel, pos_reg[5] - 3, p, h1, (e - (pos_reg[5] -3)), &c);
+    add_label_center(cpu_panel, pos_reg[5] - 3, p, (e - (pos_reg[5] - 3)),
+                           "INSTRUCTION ADDRESS - ROS ADDRESS", font1, &c1, &cl);
+    add_mark(cpu_panel, e, p, h1 + 2, &c);
 
-    rect.x= store_dial[0].rect.x;
-    rect.y=h2 * 69 - (h2 / 2);
-    rect.h=h2;
-    rect.w= store_dial[0].rect.w;
-    add_area_rect(cpu_panel, &rect, &c);
-    ADD_LABEL3(rect.x + (f1_wd/2), rect.y, "DISPLAY STOR SEL", c1, c);
-    add_area(cpu_panel, rect.x, rect.y, h2 + (5*f1_hd), 2, &c);
-    add_area(cpu_panel, rect.x + rect.w,  rect.y, h2 + (5*f1_hd), 2, &c);
+    p += (h1) + 4;
+    add_mark(cpu_panel, pos_reg[6] - 3, p, h - p + 2, &c);
+    add_area(cpu_panel, pos_reg[6] - 3, p, h1, (e - (pos_reg[6] -3)), &c);
+    add_label_center(cpu_panel, pos_reg[6] - 3, p,
+            (e - (pos_reg[6] - 3)), "LOAD UNIT", font1, &c1, &cl);
+    add_mark(cpu_panel, e, p, h1 + 2, &c);
 
-    rect.x= hex_dial[4].boxu.x;
-    rect.y=h2 * 69 - (h2/2);
-    rect.h=h2;
-    rect.w= (hex_dial[7].boxd.x + hex_dial[7].boxd.w) - rect.x;
-    add_area_rect(cpu_panel, &rect, &c);
-    ADD_LABEL(rect.x, rect.y, rect.w, "INSTRUCTION ADDRESS - ROS ADDRESS", c1, c);
-    add_area(cpu_panel, rect.x, rect.y, h2 + (5 * f1_hd), 2, &c);
-    add_area(cpu_panel, rect.x + rect.w, rect.y, h2 + (h2 / 3), 2, &c);
-    rect.x= hex_dial[5].boxu.x;
-    rect.y=h2 * 70;
-    rect.h=h2;
-    rect.w= (hex_dial[7].boxd.x + hex_dial[7].boxd.w) - rect.x;
-    add_area_rect(cpu_panel, &rect, &c);
-    ADD_LABEL(rect.x, rect.y, rect.w, "LOAD UNIT", c1, c);
-    add_area(cpu_panel, rect.x, rect.y, h2 + (3 * f1_hd), 2, &c);
-    add_area(cpu_panel, rect.x + rect.w, rect.y, h2 + (h2 / 3), 2, &c);
+    p += (h1) + 4;
+    add_mark(cpu_panel, pos_reg[7] - 3, p, h - p + 2, &c);
+    add_area(cpu_panel, pos_reg[7] - 3, p, h1, (e - (pos_reg[7] -3)), &c);
+    add_label_center(cpu_panel, pos_reg[7] - 3, p,
+            (e - (pos_reg[6] - 3)), "DATA", font1, &c1, &cl);
+    add_mark(cpu_panel, e, p, h - p + 2, &c);
 
-    rect.x= hex_dial[6].boxu.x;
-    rect.y=h2 * 71 + (h2/2);
-    rect.h=h2;
-    rect.w= (hex_dial[7].boxd.x + hex_dial[7].boxd.w) - rect.x;
-    add_area_rect(cpu_panel, &rect, &c);
-    ADD_LABEL(rect.x, rect.y, rect.w, "DATA", c1, c);
-    add_area(cpu_panel,rect.x, rect.y, h2 + f1_hd, 2, &c);
-    add_area(cpu_panel,rect.x + rect.w, rect.y, h2 + f1_hd, 2, &c);
-    ADD_LABEL2(790+(f1_wd * 10), (h2 * 78) + (h2/2), "SYS");
-    ADD_LABEL2(790+(f1_wd * 15), (h2 * 78) + (h2/2), "MAN");
-    ADD_LABEL2(790+(f1_wd * 20), (h2 * 78) + (h2/2), "WAIT");
-    ADD_LABEL2(790+(f1_wd * 25), (h2 * 78) + (h2/2), "TEST");
-    ADD_LABEL2(790+(f1_wd * 30), (h2 * 78) + (h2/2), "LOAD");
+
+    add_button(cpu_panel, pos_reg[5], pos - hx + 3, hx * 2, wx * 10, "POWER", "ON",
+               &POWER, font10, &c1, &c, 0);
+    add_button(cpu_panel, pos_reg[8], pos -hx + 3, hx * 2, wx * 10, "POWER", "OFF",
+               &POWER, font10, &c, &c5, 0);
+    add_button(cpu_panel, pos_reg[5], h + 70, hx * 2, wx * 10, "INTERRUPT", NULL,
+               &INTR, font1, &c, &c5, 0);
+    add_button(cpu_panel, pos_reg[8], h + 70, hx * 2, wx * 10, "LOAD", NULL,
+               &LOAD, font10, &c, &c3, 0);
 
     /* Add in status lights */
-    lamp[0].rect.x = 790 + (f1_wd * 10);
-    lamp[0].rect.y = h2 * 79 + (h2/2);
-    lamp[0].rect.h = 15;
-    lamp[0].rect.w = 15;
-    lamp[0].col = 0;
-    SET_INDICATOR8(&lamp[0].ind, &clock_start_lch, 0, 0);
-    lamp[1].rect.x = 790 + (f1_wd * 15);
-    lamp[1].rect.y = h2 * 79 + (h2/2);
-    lamp[1].rect.h = 15;
-    lamp[1].rect.w = 15;
-    lamp[1].col = 0;
-    SET_INDICATOR8(&lamp[1].ind, &allow_man_operation, 0, 0);
-    lamp[2].rect.x = 790 + (f1_wd * 20);
-    lamp[2].rect.y = h2 * 79 + (h2/2);
-    lamp[2].rect.h = 15;
-    lamp[2].rect.w = 15;
-    lamp[2].col = 0;
-    SET_INDICATOR8(&lamp[2].ind, &wait, 0, 0);
-    lamp[3].rect.x = 790 + (f1_wd * 25);
-    lamp[3].rect.y = h2 * 79 + (h2/2);
-    lamp[3].rect.h = 15;
-    lamp[3].rect.w = 15;
-    lamp[3].col = 1;
-    SET_INDICATOR8(&lamp[3].ind, &test_mode, 0, 0);
-    lamp[4].rect.x = 790 + (f1_wd * 30);
-    lamp[4].rect.y = h2 * 79 + (h2/2);
-    lamp[4].rect.h = 15;
-    lamp[4].rect.w = 15;
-    lamp[4].col = 0;
-    SET_INDICATOR8(&lamp[4].ind, &load_mode, 0, 0);
-    lamp_ptr = 5;
+    add_lamp(cpu_panel, pos_reg[6], h + 80, "SYS", &cpu_2030.clock_start_lch, font1,
+             LAMP_WHITE, &c1);
+    add_lamp(cpu_panel, pos_reg[6] + 30, h + 80, "MAN",
+             &cpu_2030.allow_man_operation, font1, LAMP_WHITE, &c1);
+    add_lamp(cpu_panel, pos_reg[6] + 60, h + 80, "WAIT", &cpu_2030.wait, font1,
+             LAMP_WHITE, &c1);
+    add_lamp(cpu_panel, pos_reg[6] + 90, h + 80, "TEST", &cpu_2030.test_mode,
+             font1, LAMP_RED, &c1);
+    add_lamp(cpu_panel, pos_reg[6] + 120, h + 80, "LOAD", &cpu_2030.load_mode,
+             font1, LAMP_WHITE, &c1);
+
+    /* Draw knobs */
+    s = pos_reg[5] - 20;
+    for (i = 0; i < 12; i++) {
+        label.upper[i] = NULL;
+        label.lower[i] = NULL;
+    }
+
+    label.upper[0] = "PROCESS";
+    label.value[0] = 1;
+    label.upper[1] = "ROS";
+    label.lower[1] = "SCAN";
+    label.value[1] = 2;
+    label.value[2] = -1;
+    label.value[10] = -1;
+    label.upper[11] = "INHIBIT";
+    label.lower[11] = "CF STOP";
+    label.value[11] = 0;
+    add_dial(cpu_panel, s + 35, control_row, 100, 150, &label, &PROC_SW,
+              0, font1, &c1);
+    add_label_center(cpu_panel, s + 40, control_row-hx, 150, "ROS CONTROL",
+              font10, &c1, &cl);
+
+    label.upper[0] = "PROCESS";
+    label.value[0] = 1;
+    label.upper[1] = "SINGLE CYCLE";
+    label.lower[1] = NULL;
+    label.value[1] = 2;
+    label.value[2] = -1;
+    label.value[10] = -1;
+    label.upper[11] = "INSTR STEP";
+    label.lower[11] = NULL;
+    label.value[11] = 0;
+    add_dial(cpu_panel, s + 240, control_row, 100, 200, &label, &RATE_SW,
+              0, font1, &c1);
+    add_label_center(cpu_panel, s + 240, control_row-hx, 200, "RATE",
+              font10, &c1, &cl);
+
+    label.upper[0] = "PROCESS";
+    label.value[0] = 0;
+    label.upper[1] = "SAR DELAYED";
+    label.lower[1] = "STOP";
+    label.value[1] = 1;
+    label.upper[2] = "SAR STOP";
+    label.value[2] = 2;
+    label.upper[3] = NULL;
+    label.upper[4] = "SAR RESTART";
+    label.value[4] = 3;
+    label.upper[5] = "ROAR RESTART";
+    label.lower[5] = "STORE BYPASS";
+    label.value[5] = 4;
+    label.upper[6] = "ROAR";
+    label.lower[6] = "RESTART";
+    label.value[6] = 5;
+    label.upper[7] = "ROAR RESTART";
+    label.lower[7] = "WITHOUT RESET";
+    label.value[7] = 6;
+    label.upper[8] = "EARLY ROAR";
+    label.lower[8] = "STOP";
+    label.value[8] = 7;
+    label.upper[9] = NULL;
+    label.upper[10] = "ROAR STOP";
+    label.value[10] = 8;
+    label.upper[11] = "ROAR SYNC";
+    label.value[11] = 9;
+    add_dial(cpu_panel, s, control_row + 90, 100, 220, &label, &MATCH_SW,
+              1, font1, &c1);
+    add_label_center(cpu_panel, s, control_row + 90-hx, 220,
+              "ADDRESS COMPARE", font10, &c1, &cl);
+
+    for (i = 0; i < 12; i++) {
+        label.upper[i] = NULL;
+        label.lower[i] = NULL;
+    }
+
+    label.upper[0] = "PROCESS";
+    label.value[0] = 2;
+    label.upper[1] = "STOP";
+    label.value[1] = 3;
+    label.upper[2] = "RESTART";
+    label.value[1] = 4;
+    label.value[2] = -1;
+    label.value[9] = -1;
+    label.upper[10] = "DIAGNOSTIC";
+    label.value[10] = 0;
+    label.upper[11] = "DISABLE";
+    label.value[11] = 1;
+    add_dial(cpu_panel, s + 240, control_row + 90, 100, 200, &label, &CHK_SW,
+              0, font1, &c1);
+    add_label_center(cpu_panel, s + 240, control_row + 90-hx, 200,
+              "CHECK CONTROL", font10, &c1, &cl);
+
 }
 
