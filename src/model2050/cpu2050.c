@@ -620,18 +620,18 @@ cycle_2050()
     /* Handle interval timer */
     if (timer_event) {
         timer_event = 0;
-        if (!INT_TMR && allow_man_operation == 0) {
+        if (!INT_TMR && cpu_2050.allow_man_operation == 0) {
            log_trace("Update timer\n");
            timer_update = 1;
         }
     }
 
     if (RATE_SW == 2 && START) {
-        allow_man_operation = 1;
+        cpu_2050.allow_man_operation = 1;
     }
 
     cpu_2050.OPPANEL = 0;
-    exc = allow_man_operation | wait;
+    exc = cpu_2050.allow_man_operation | wait;
     if (stop_mode == 0) {
         if (timer_update || ((INTR | timer_irq) && (cpu_2050.MASK & BIT7) != 0))
             exc = 1;
@@ -652,11 +652,11 @@ cycle_2050()
     }
 
     /* Convert panel switches to microcode functions */
-    if ((STORE | SET_IC) && allow_man_operation) {
+    if ((STORE | SET_IC) && cpu_2050.allow_man_operation) {
         cpu_2050.OPPANEL |= 0x1;
     }
 
-    if (SET_IC && allow_man_operation) {
+    if (SET_IC && cpu_2050.allow_man_operation) {
         cpu_2050.OPPANEL |= 0x2;
     }
 
@@ -665,26 +665,26 @@ cycle_2050()
     }
 
     if (SAR_CMP && cpu_2050.SAR_REG == cpu_2050.AKEYS) {
-        allow_man_operation = 1;
+        cpu_2050.allow_man_operation = 1;
     }
 
     if (START) {
         stop_mode = 0;
-        allow_man_operation = 0;
+        cpu_2050.allow_man_operation = 0;
         if (RATE_SW == 0 && (DISPLAY & SET_IC) == 0 && wait == 0)
             cpu_2050.OPPANEL |= 1;
     }
 
     if (STOP) {
         STOP = 0;
-        allow_man_operation = 1;
+        cpu_2050.allow_man_operation = 1;
     }
 
     if (LOAD) {
         log_trace("Load\n");
         load_mode = 1;
         stop_mode = 0;
-        allow_man_operation = 0;
+        cpu_2050.allow_man_operation = 0;
         for (i = 0; i < 4; i++) {
             cpu_2050.TAGS[i] = 0;
             cpu_2050.TAGS_IN[i] = 0;
@@ -716,7 +716,7 @@ cycle_2050()
     /* Reset system */
     if (SYS_RST) {
         cpu_2050.ROAR = 0x242;
-        allow_man_operation = 1;
+        cpu_2050.allow_man_operation = 1;
         for (i = 0; i < 4; i++) {
             cpu_2050.TAGS[i] = 0;
             cpu_2050.TAGS_IN[i] = 0;
@@ -760,7 +760,7 @@ cycle_2050()
     /* Handle Reset ROAR function */
     if (ROAR_RST) {
         cpu_2050.ROAR = 0x2c2;
-        allow_man_operation = 1;
+        cpu_2050.allow_man_operation = 1;
         cpu_2050.init_mem = 0;
         cpu_2050.init_bump_mem = 0;
         cpu_2050.bump_mem = 0;
@@ -799,6 +799,7 @@ cycle_2050()
              if (cpu_2050.init_mem | cpu_2050.init_bump_mem | cpu_2050.update_d)
                  goto channel;
              break;
+
     case R2:
              cpu_2050.mem_state = R3;
              if (!cpu_2050.update_d || sal->tr == 29) {
@@ -820,6 +821,7 @@ cycle_2050()
              if (cpu_2050.init_mem | cpu_2050.init_bump_mem | cpu_2050.update_d)
                  goto channel;
              break;
+
     case R3:
              log_mem("mem cycle read 3 %06X %08x i=%d ib=%d b=%d SA=%08x\n", cpu_2050.SAR_REG,
                    cpu_2050.SDR_REG, cpu_2050.init_mem, cpu_2050.init_bump_mem, cpu_2050.bump_mem, SA);
@@ -837,6 +839,7 @@ cycle_2050()
                  }
              }
              break;
+
     case 0:  /* Memory cycle at system reset */
              cpu_2050.SDR_REG = M[SA >> 2];
              cpu_2050.mem_state = W1;
@@ -898,6 +901,11 @@ cycle_2050()
                  log_itrace_s(" ");
             }
         }
+        log_freg_s(" ");
+        for (i = 0; i < 8; i+=2) {
+            log_freg_c(" FR%1d = %08x %08x", i, cpu_2050.LS[0x20 + i], cpu_2050.LS[0x21 + i]);
+        }
+        log_freg("\n");
     }
 
     /* Disassemble micro instruction */
@@ -1088,166 +1096,222 @@ cycle_2050()
     case 0: /*  0  */
             a_bit = 0;
             break;
+
     case 1: /*  1  */
             a_bit = 1;
             break;
+
     case 2: /* S0 */
             a_bit = ((cpu_2050.S_REG & BIT0) != 0);
             break;
+
     case 3: /* S1 */
             a_bit = ((cpu_2050.S_REG & BIT1) != 0);
             break;
+
     case 4: /* S2 */
             a_bit = ((cpu_2050.S_REG & BIT2) != 0);
             break;
+
     case 5: /* S3 */
             a_bit = ((cpu_2050.S_REG & BIT3) != 0);
             break;
+
     case 6: /* S4 */
             a_bit = ((cpu_2050.S_REG & BIT4) != 0);
             break;
+
     case 7: /* S5 */
             a_bit = ((cpu_2050.S_REG & BIT5) != 0);
             break;
+
     case 8: /* S6 */
             a_bit = ((cpu_2050.S_REG & BIT6) != 0);
             break;
+
     case 9: /* S7 */
             a_bit = ((cpu_2050.S_REG & BIT7) != 0);
             break;
+
     case 10: /* CSTAT carry status */
             a_bit = (cpu_2050.CAR != 0);
             break;
+
     case 11: /* Undefined */
             break;
+
     case 12: /* 1SYLS */
             a_bit = (cpu_2050.SYLS1);
             break;
+
     case 13: /* LSGNS  L sign status */
             a_bit = (cpu_2050.LSGNS);
             break;
+
     case 14: /* XSGNS  L sign ^ R Sign. */
             a_bit = (cpu_2050.LSGNS ^ cpu_2050.RSGNS);
             break;
+
     case 15: /* Unknown */
             break;
+
     case 16: /* CRMD, mask condition codes */
             a_bit = (cpu_2050.MD_REG & (8 >> cpu_2050.CC)) != 0;
             break;
+
     case 17: /* W = 0 */
             a_bit = (cpu_2050.w_bus == 0);
             break;
+
     case 18: /* WL = 0 */
             a_bit = ((cpu_2050.w_bus & 0xf0) == 0);
             break;
+
     case 19: /* WR = 0 */
             a_bit = ((cpu_2050.w_bus & 0x0f) == 0);
             break;
+
     case 20: /* MD = FP, Valid FP register */
             a_bit = ((cpu_2050.MD_REG & 0x9) == 0);
             break;
+
     case 21: /* MB = 3 */
             a_bit = (cpu_2050.MB_REG == 3);
             break;
+
     case 22: /* MD3= 0 */
             a_bit = !(cpu_2050.MD_REG & 1);
             break;
+
     case 23: /* G1 == 0 */
             a_bit = ((cpu_2050.G_REG & 0xf0) == 0);
             break;
+
     case 24: /* G1NEG */
             a_bit = (cpu_2050.G1NEG != 0);
             break;
+
     case 25: /* G<4 */
             a_bit = (cpu_2050.G_REG < 4) | (cpu_2050.G1NEG != 0);
             break;
+
     case 26: /* G1MBZ */
             a_bit = ((cpu_2050.G_REG & 0xf0) == 0) | (cpu_2050.MB_REG == 0);
             break;
+
     case 27: /* IO Stat 0 to CPU */
             a_bit = (cpu_2050.IOSTAT[cpu_2050.CH]  & BIT0) != 0;
             break;
+
     case 28: /* IO Stat 2  */
             a_bit = (cpu_2050.IOSTAT[cpu_2050.CH]  & BIT2) != 0;
             break;
+
     case 29: /* R(31)  */
             a_bit = ((cpu_2050.R_REG & 1) != 0);
             break;
+
     case 30: /* F(2)  */
             a_bit = ((cpu_2050.F_REG & 2) != 0);
             break;
+
     case 31: /* L(0)  */
             a_bit = ((cpu_2050.L_REG & MSIGN) != 0);
             break;
+
     case 32: /* F=0  */
             a_bit = (cpu_2050.F_REG == 0);
             break;
+
     case 33: /* UNORM,  T8-11 zero and not S0  */
             a_bit = ((cpu_2050.aob_latch & 0x00f00000) == 0 &&
                         (cpu_2050.S_REG & BIT0) == 0);
             break;
+
     case 34: /* TZ*BS */
             a_bit = ((cpu_2050.alu_out & BS_MASK[cpu_2050.BS_REG]) == 0);
             break;
+
     case 35: /* EDITPAT  */
             a_bit = ((cpu_2050.ED_STAT & 0x2) != 0);
             b_bit = ((cpu_2050.ED_STAT & 0x1) != 0);
             break;
+
     case 36: /* PROB, in problem state */
             a_bit = (cpu_2050.AMWP & 1) != 0;
             break;
+
     case 37: /* TIMUP, timer update signal  */
             if (timer_update)
                a_bit = 1;
             timer_update = 0;
             break;
+
     case 38: /* Undefined */
             break;
+
     case 39: /*  GZ/MB3 */
             a_bit = (cpu_2050.G_REG == 0 || (cpu_2050.MB_REG == 3));
             break;
+
     case 40: /* Undefined  */
             break;
+
     case 41: /* LOG, log trigger  */
             break;
+
     case 42: /* STC=0, Scan test counter  */
             break;
+
     case 43: /* G2<=LB  */
             a_bit = ((cpu_2050.G_REG & 0xf) <= cpu_2050.LB_REG);
             break;
+
     case 44: /* Undefined  */
             break;
+
     case 45: /* D(7), test SDR bit 7   */
             a_bit = (cpu_2050.SDR_REG & 0x1000000) != 0;
             break;
+
     case 46: /* SCPS  */
             break;
+
     case 47: /* SCFS  */
             break;
+
     case 48: /* CROS storage protection violation  */
             break;
+
     case 49: /* W(67)-AB  */
             a_bit = (cpu_2050.w_bus & 02) != 0;
             b_bit = (cpu_2050.w_bus & 1) != 0;
             break;
+
     case 50: /* Z23!=0 T16-31 != 0  */
             a_bit = (cpu_2050.alu_out & 0xFFFF) != 0;
             break;
+
     case 51: /* CCW2OK T5-7 == 0 && T16-31 != 0  */
             a_bit = ((cpu_2050.alu_out & 0xFFFF) == 0) |
                      ((cpu_2050.alu_out & 0x07000000) != 0);
             break;
+
     case 52: /* MXBIO  bus in bit 0  */
             a_bit = (cpu_2050.BUS_IN[0] & 0x80) != 0;
             break;
+
     case 53: /* IBFULL IB full  */
             a_bit = cpu_2050.IBFULL;
             break;
+
     case 54: /* CANG: (29-31) != 0, CA not good  */
             a_bit = ((cpu_2050.alu_out & 0x7) != 0) || cpu_2050.IVA;
             break;
+
     case 55: /* CHLOG, channel log   */
             break;
+
     case 56: /* I-FETCH,   */
             if (exc) {
                a_bit = 1;
@@ -1259,9 +1323,11 @@ cycle_2050()
                }
             }
             break;
+
     case 57: /* IA(30)  */
             a_bit = ((cpu_2050.IA_REG & 0x2) != 0);
             break;
+
     case 58: /* EXT,CHIRPT  */
             if (timer_update) {   /* Timer update, give it priority */
                b_bit = 1;
@@ -1274,15 +1340,20 @@ cycle_2050()
                a_bit = 1;
             }
             break;
+
     case 59: /* CROS: Direct date hold sense branch  */
             break;
+
     case 60: /* PSS,  */
             break;
+
     case 61: /* IO Stat 4  */
             a_bit = ((cpu_2050.IOSTAT[cpu_2050.CH]  & BIT4) != 0);
             break;
+
     case 62: /*  Undefined   */
             break;
+
     case 63: /*  RX.S0     */
             a_bit = 0;
             if ((cpu_2050.S_REG & BIT0) != 0 &&
@@ -1296,94 +1367,125 @@ cycle_2050()
     case 0: /*  0  */
             b_bit |= 0;
             break;
+
     case 1: /*  1  */
             b_bit |= 1;
             break;
+
     case 2: /* S0 */
             b_bit |= ((cpu_2050.S_REG & BIT0) != 0);
             break;
+
     case 3: /* S1 */
             b_bit |= ((cpu_2050.S_REG & BIT1) != 0);
             break;
+
     case 4: /* S2 */
             b_bit |= ((cpu_2050.S_REG & BIT2) != 0);
             break;
+
     case 5: /* S3 */
             b_bit |= ((cpu_2050.S_REG & BIT3) != 0);
             break;
+
     case 6: /* S4 */
             b_bit |= ((cpu_2050.S_REG & BIT4) != 0);
             break;
+
     case 7: /* S5 */
             b_bit |= ((cpu_2050.S_REG & BIT5) != 0);
             break;
+
     case 8: /* S6 */
             b_bit |= ((cpu_2050.S_REG & BIT6) != 0);
             break;
+
     case 9: /* S7 */
             b_bit |= ((cpu_2050.S_REG & BIT7) != 0);
             break;
+
     case 10: /* RSGNS Right sign status */
             b_bit |= cpu_2050.RSGNS;
             break;
+
     case 11: /* HSCH HS  channel special branch */
             /* Set to one if High speed channel or 256 sub channel option */
             break;
+
     case 12: /* EXC  exception branch */
             b_bit |= exc;
             break;
+
     case 13: /* WR=0 MVR LTH 4-7 eq zero */
             b_bit |= ((cpu_2050.w_bus & 0xf) == 0);
             break;
+
     case 14: /* Unknown */
             break;
+
     case 15: /* T13=0 bits 8-31 == 0 */
             b_bit |= ((cpu_2050.aob_latch & 0x00ffffff) == 0);
             break;
+
     case 16: /* T(0) */
             b_bit |= ((cpu_2050.aob_latch & MSIGN) != 0);
             break;
+
     case 17: /* T = 0 */
             b_bit |= (cpu_2050.aob_latch == 0);
             break;
+
     case 18: /* TZ*BS */
             b_bit |= ((cpu_2050.aob_latch & BS_MASK[cpu_2050.BS_REG]) == 0);
             break;
+
     case 19: /* W = 1 */
             b_bit = (cpu_2050.w_bus == 1);
             break;
+
     case 20: /* LB=0 */
             b_bit |= (cpu_2050.LB_REG == 0);
             break;
+
     case 21: /* LB=3 */
             b_bit |= (cpu_2050.LB_REG == 3);
             break;
+
     case 22: /* MD= 0 */
             b_bit |= (cpu_2050.MD_REG == 0);
             break;
+
     case 23: /* G2=0 */
             b_bit |= ((cpu_2050.G_REG & 0x0f) == 0);
             break;
+
     case 24: /* G2NEG */
             b_bit |= cpu_2050.G2NEG;
             break;
+
     case 25: /* G2LBZ */
             b_bit |= ((cpu_2050.G_REG & 0x0f) == 0 || (cpu_2050.LB_REG == 0));
             break;
+
     case 26: /* IO Stat 1 to CPU */
             b_bit |= (cpu_2050.IOSTAT[cpu_2050.CH]  & BIT1) != 0;
             break;
+
     case 27: /* MD/JI MD Odd gt 8 or J odd gt 8 */
             b_bit |= ((cpu_2050.MD_REG & 0x9) != 0 || (cpu_2050.J_REG & 0x9) != 0);
             break;
+
     case 28: /* IVA  */
             b_bit = cpu_2050.IVA;
             break;
+
     case 29: /* IO Stat 3 */
             b_bit |= (cpu_2050.IOSTAT[cpu_2050.CH]  & BIT3) != 0;
             break;
+
     case 30: /* (CAR) branch on carry latch  */
             break;
+
     case 31: /* (Z00) looks at current T */
             break;
     }
@@ -1393,68 +1495,90 @@ cycle_2050()
             switch (sal->zf) {
             case 0:  /* Undefined */
                      break;
+
             case 1:  /* Undefined */
                      break;
+
             case 2:  /* D->ROAR,SCAN */
                      cpu_2050.NROAR = ((cpu_2050.SDR_REG >> 1) & 0xfff);
                      cpu_2050.io_mode = ((cpu_2050.SDR_REG & BIT7) != 0);
                      break;
+
             case 3:  /* Undefined */
                      break;
+
             case 4:  /* Undefined */
                      break;
+
             case 5:  /* Undefined */
                      break;
+
             case 6:  /* M(03)->ROAR */
                      cpu_2050.NROAR |= ((cpu_2050.M_REG >> 28) & 0xf) << 2;
                      break;
+
             case 7:  /* Undefined */
                      break;
+
             case 8:  /* M(47)->ROAR */
                      cpu_2050.NROAR |= ((cpu_2050.M_REG >> 24) & 0xf) << 2;
                      break;
+
             case 9:  /* Undefined */
                      break;
+
             case 10:  /* F->ROAR */
                      cpu_2050.NROAR |= (cpu_2050.F_REG & 0xf) << 2;
                      break;
+
             case 11:  /* Undefined */
                      break;
+
             case 12:  /* ED->ROAR exp diff */
                      cpu_2050.NROAR |= (cpu_2050.ED_REG & 0xf) << 2;
                      break;
+
             case 13:  /* Undefined */
                      break;
+
             case 14:  /* RETURN->ROAR */
                      rest_roar = 1;
                      break;
+
             case 15:  /* Undefined */
                      break;
             }
             break;
+
     case 1: /* SMIF suppress memory instruction fetch */
             /* By order IV7 if refetch == 0 and IAR bit 30 == 1 */
             cpu_2050.NROAR |= sal->zf << 2;
             break;
+
     case 2: /* A|(B=0)->A */
             a_bit |= !b_bit;
             cpu_2050.NROAR |= sal->zf << 2;
             break;
+
     case 3: /* A|(B=1)->A */
             a_bit |= b_bit;
             cpu_2050.NROAR |= sal->zf << 2;
             break;
+
     case 4: /* Normal no change */
             cpu_2050.NROAR |= sal->zf << 2;
             break;
+
     case 5: /* Force Invalid Op trap address */
             /* Not used. */
             cpu_2050.NROAR |= sal->zf << 2;
             break;
+
     case 6: /* B|(A=0)->B */
             b_bit |= !a_bit;
             cpu_2050.NROAR |= sal->zf << 2;
             break;
+
     case 7: /* B|(A=1)->B */
             b_bit |= a_bit;
             cpu_2050.NROAR |= sal->zf << 2;
@@ -1499,27 +1623,34 @@ cycle_2050()
     case 0: /*  0  */
             cpu_2050.left_bus = 0;
             break;
+
     case 1: /*  L  */
             cpu_2050.left_bus = cpu_2050.L_REG;
             break;
+
     case 2: /*  SGN  */
             cpu_2050.left_bus = MSIGN;
             break;
+
     case 3: /*  E  CE bit < 1 */
             cpu_2050.left_bus = sal->ce << 1;
             break;
+
     case 4: /*  LRL  */
             cpu_2050.left_bus = (cpu_2050.L_REG & 0xffff) << 16;
             break;
+
     case 5: /*  LWA  */
             cpu_2050.left_bus = cpu_2050.L_REG | 3;
             break;
+
     case 6: /* Complement of IOC register */
             if (cpu_2050.io_mode) /* IOC */
                 cpu_2050.left_bus = 0x3 ^ (cpu_2050.IO_REG & 3);
             else /*  4  */
                 cpu_2050.left_bus = 4;
             break;
+
     case 7: /*  64C  */
             /* IO Reg in I/O mode */
             if (cpu_2050.io_mode)
@@ -1533,24 +1664,31 @@ cycle_2050()
     case 0: /*  0  */
             cpu_2050.right_bus = 0;
             break;
+
     case 1: /*  R  */
             cpu_2050.right_bus = cpu_2050.R_REG;
             break;
+
     case 2: /*  M  */
             cpu_2050.right_bus = cpu_2050.M_REG;
             break;
+
     case 3: /*  M23 */
             cpu_2050.right_bus = cpu_2050.M_REG & 0xffff;
             break;
+
     case 4: /*  H  */
             cpu_2050.right_bus = cpu_2050.H_REG;
             break;
+
     case 5: /*  SEMT  */
             cpu_2050.right_bus = 0;
             break;
+
     case 6: /*  Unknown  */
             cpu_2050.right_bus = 0;
             break;
+
     case 7: /*  Unknown  */
             cpu_2050.right_bus = 0;
             break;
@@ -1578,34 +1716,41 @@ cycle_2050()
                        Gate mpx channel buffer 2 to buffer in bus.  */
                     bib = cpu_2050.BFR2;
                     break;
+
             case 1: /* CHPOSTEST.
                        Initiate selector channel position test */
                     cpu_2050.chpostest = 1;
                     break;
+
             case 2: /* BFR2>BUSO.
                        Gate MPX channel buffer 1 to buffer in bus,
                        Gate MPX channel buffer 2 to bus out (I/O interface) */
                     bib = cpu_2050.BFR1;
                     break;
+
             case 3: /* BFR1>BIB.
                        Gate MPX channel buffer 1 to buffer in bus. */
                     bib = cpu_2050.BFR1;
                     break;
+
             case 4: /* BOB>BFR1.
                        Gate MPX channel buffer 1 to buffer in bus.
                        Then Gate buffer out bus to channel buffer 1. */
                     bib = cpu_2050.BFR1;
                     break;
+
             case 5: /* BOB>BFR2.
                        Gate MPX channel buffer 1 to buffer in bus.
                        Then Gate buffer out bus to channel buffer 2. */
                     bib = cpu_2050.BFR1;
                     break;
+
             case 6: /* BUSI>BFR1.
                        Gate MPX channel buffer 1 to buffer in bus.
                        Then bus in (I/O interface) to channel buffer 1 */
                     bib = cpu_2050.BFR1;
                     break;
+
             case 7: /* BUSI>BFR2.
                        Gate MPX channel buffer 1 to buffer in bus.
                        Then bus in (I/O interface) to channel buffer 2 */
@@ -1617,14 +1762,17 @@ cycle_2050()
             case 0: /* BFR2>BIB.
                        Gate mpx channel buffer 2 to buffer in bus.  */
                     break;
+
             case 1: /* CHPOSTEST.
                        Initiate selector channel position test */
                     cpu_2050.chpostest = 1;
                     break;
+
             case 2: /* BFR2>BUSO.
                        Gate MPX channel buffer 1 to buffer in bus,
                        Gate MPX channel buffer 2 to bus out (I/O interface) */
                     break;
+
             case 3: /* BFR1>BIB.
                        Gate MPX channel buffer 1 to buffer in bus. */
                     if (cpu_2050.CHPOS[cpu_2050.CH] == BIT7) {  /* .IRPT */
@@ -1633,18 +1781,22 @@ cycle_2050()
                          bib = 0;
                     }
                     break;
+
             case 4: /* BOB>BFR1.
                        Gate MPX channel buffer 1 to buffer in bus.
                        Then Gate buffer out bus to channel buffer 1. */
                     break;
+
             case 5: /* BOB>BFR2.
                        Gate MPX channel buffer 1 to buffer in bus.
                        Then Gate buffer out bus to channel buffer 2. */
                     break;
+
             case 6: /* BUSI>BFR1.
                        Gate MPX channel buffer 1 to buffer in bus.
                        Then bus in (I/O interface) to channel buffer 1 */
                     break;
+
             case 7: /* BUSI>BFR2.
                        Gate MPX channel buffer 1 to buffer in bus.
                        Then bus in (I/O interface) to channel buffer 2 */
@@ -1658,26 +1810,33 @@ cycle_2050()
         switch ((sal->up << 1) | sal->md) {
         case 0:  /* Nop */
                 break;
+
         case 1:  /* BIB(03)>IOS */
                 cpu_2050.IOSTAT[cpu_2050.CH]  = (bib) & 0xf0;
                 break;
+
         case 2:  /* BIB(47)>IOS */
                 cpu_2050.IOSTAT[cpu_2050.CH]  = (bib & 0xf) << 4;
                 break;
+
         case 3:  /* BIB03>IOS*E */
                 cpu_2050.IOSTAT[cpu_2050.CH]  &= ~(sal->ce << 4);
                 cpu_2050.IOSTAT[cpu_2050.CH]  |= (bib & 0xf0) & (sal->ce << 4);
                 break;
+
         case 4:  /* BIB47>IOS*E */
                 cpu_2050.IOSTAT[cpu_2050.CH]  &= ~(sal->ce << 4);
                 cpu_2050.IOSTAT[cpu_2050.CH]  |= (bib & sal->ce & 0xf) << 4;
                 break;
+
         case 5:  /* IOS|E */
                 cpu_2050.IOSTAT[cpu_2050.CH]  |= sal->ce << 4;
                 break;
+
         case 6:  /* IOS.~E */
                 cpu_2050.IOSTAT[cpu_2050.CH]  &= ~(sal->ce << 4);
                 break;
+
         case 7:  /* BIB4.ERR>IOS */
                  /* IOS1 < BUSIN(0|2|3|6|7) or BIT(1&!5).
                     Busin:
@@ -1700,25 +1859,32 @@ cycle_2050()
         case 0:  /* 0 */
                 cpu_2050.u_bus = 0;
                 break;
+
         case 1:  /* MD,F */
                 cpu_2050.u_bus = (cpu_2050.MD_REG << 4) | cpu_2050.F_REG;
                 break;
+
         case 2:  /* R3 */
                 cpu_2050.u_bus = cpu_2050.R_REG & 0xff;
                 break;
+
         case 3:  /* BIB->U */
                 /* Gate multiplexer input to LU bus */
                 cpu_2050.u_bus = bib;
                 break;
+
         case 4:  /* LU0 */
                 cpu_2050.u_bus = (cpu_2050.L_REG >> 24) & 0xff;
                 break;
+
         case 5:  /* LU1 */
                 cpu_2050.u_bus = (cpu_2050.L_REG >> 16) & 0xff;
                 break;
+
         case 6:  /* LU2 */
                 cpu_2050.u_bus = (cpu_2050.L_REG >> 8) & 0xff;
                 break;
+
         case 7:  /* LU3 */
                 cpu_2050.u_bus = (cpu_2050.L_REG ) & 0xff;
                 break;
@@ -1746,29 +1912,36 @@ cycle_2050()
         case 0: /* BFR2>BIB.
                    Gate mpx channel buffer 2 to buffer in bus.  */
                 break;
+
         case 1: /* CHPOSTEST.
                    Initiate selector channel position test */
                 cpu_2050.chpostest = 1;
                 break;
+
         case 2: /* BFR2>BUSO.
                    Gate MPX channel buffer 1 to buffer in bus,
                    Gate MPX channel buffer 2 to bus out (I/O interface) */
                 break;
+
         case 3: /* BFR1>BIB.
                    Gate MPX channel buffer 1 to buffer in bus. */
                 break;
+
         case 4: /* BOB>BFR1.
                    Gate MPX channel buffer 1 to buffer in bus.
                    Then Gate buffer out bus to channel buffer 1. */
                 break;
+
         case 5: /* BOB>BFR2.
                    Gate MPX channel buffer 1 to buffer in bus.
                    Then Gate buffer out bus to channel buffer 2. */
                 break;
+
         case 6: /* BUSI>BFR1.
                    Gate MPX channel buffer 1 to buffer in bus.
                    Then bus in (I/O interface) to channel buffer 1 */
                 break;
+
         case 7: /* BUSI>BFR2.
                    Gate MPX channel buffer 1 to buffer in bus.
                    Then bus in (I/O interface) to channel buffer 2 */
@@ -1780,15 +1953,19 @@ cycle_2050()
         case 0:  /* 0 */
                 cpu_2050.u_bus = 0;
                 break;
+
         case 1:  /* MD,F */
                 cpu_2050.u_bus = (cpu_2050.MD_REG << 4) | cpu_2050.F_REG;
                 break;
+
         case 2:  /* R3 */
                 cpu_2050.u_bus = cpu_2050.R_REG & 0xff;
                 break;
+
         case 3:  /* DCI->U Gate direct input to lu bus */
                 cpu_2050.u_bus = 0;
                 break;
+
         case 4:  /* XTR  Gate external interrupt register to lu bus */
                 if (timer_irq) {
                     cpu_2050.u_bus = BIT0;
@@ -1798,14 +1975,17 @@ cycle_2050()
                     INTR = 0;
                 }
                 break;
+
         case 5:  /* PSW4 ILC,CC, Progmask */
                 cpu_2050.u_bus = (cpu_2050.ILC << 6) | (cpu_2050.CC << 4) |
                                   (cpu_2050.PMASK);
                 break;
+
         case 6:  /* LMB */
                 cpu_2050.u_bus = (cpu_2050.L_REG >>
                                      ((3 - cpu_2050.MB_REG) * 8)) & 0xff;
                 break;
+
         case 7:  /* LLB */
                 cpu_2050.u_bus = (cpu_2050.L_REG >>
                                      ((3 - cpu_2050.LB_REG) * 8)) & 0xff;
@@ -1817,14 +1997,17 @@ cycle_2050()
         case 0:   /* 0 */
                 cpu_2050.v_bus = 0;
                 break;
+
         case 1:   /* MLB */
                 cpu_2050.v_bus = (cpu_2050.M_REG >>
                                      ((3 - cpu_2050.LB_REG) * 8)) & 0xff;
                 break;
+
         case 2:   /* MMB */
                 cpu_2050.v_bus = (cpu_2050.M_REG >>
                                      ((3 - cpu_2050.MB_REG) * 8)) & 0xff;
                 break;
+
         case 3:   /* Undefined */
                 cpu_2050.v_bus = 0;
                 break;
@@ -1855,24 +2038,31 @@ cycle_2050()
                 case 0: /* Cross */
                         cpu_2050.w_bus = (cpu_2050.u_bus & 0x0f) << 4;
                         break;
+
                 case 1: /* Straight */
                         cpu_2050.w_bus = cpu_2050.u_bus & 0xf0;
                         break;
+
                 case 2: /* And  */
                         cpu_2050.w_bus = (cpu_2050.v_bus & cpu_2050.u_bus) & 0xf0;
                         break;
+
                 case 3: /* Left */
                         cpu_2050.w_bus = cpu_2050.v_bus & 0xf0;
                         break;
+
                 case 4: /* Or */
                         cpu_2050.w_bus = (cpu_2050.v_bus | cpu_2050.u_bus) & 0xf0;
                         break;
+
                 case 5: /* Right */
                         cpu_2050.w_bus = cpu_2050.u_bus & 0xf0;
                         break;
+
                 case 6: /* Xor */
                         cpu_2050.w_bus = (cpu_2050.v_bus ^ cpu_2050.u_bus) & 0xf0;
                         break;
+
                 case 7:  /* Unknown */
                         cpu_2050.w_bus = 0;
                         break;
@@ -1882,24 +2072,31 @@ cycle_2050()
                 case 0: /* Cross */
                         cpu_2050.w_bus = (cpu_2050.u_bus & 0x0f) << 4;
                         break;
+
                 case 1: /* Or */
                         cpu_2050.w_bus = (cpu_2050.v_bus | cpu_2050.u_bus) & 0xf0;
                         break;
+
                 case 2: /* And  */
                         cpu_2050.w_bus = (cpu_2050.v_bus & cpu_2050.u_bus) & 0xf0;
                         break;
+
                 case 3: /* Xor */
                         cpu_2050.w_bus = (cpu_2050.v_bus ^ cpu_2050.u_bus) & 0xf0;
                         break;
+
                 case 4: /* char */
                         cpu_2050.w_bus = cpu_2050.u_bus & 0xf0;
                         break;
+
                 case 5: /* Zone */
                         cpu_2050.w_bus = cpu_2050.u_bus & 0xf0;
                         break;
+
                 case 6: /* Numeric */
                         cpu_2050.w_bus = cpu_2050.v_bus & 0xf0;
                         break;
+
                 case 7:  /* Unknown */
                         cpu_2050.w_bus = 0;
                         break;
@@ -1928,24 +2125,31 @@ cycle_2050()
                            over 128. */
                         cpu_2050.w_bus |= (cpu_2050.u_bus & 0x70) >> 4;
                         break;
+
                 case 1: /* Straight */
                         cpu_2050.w_bus |= cpu_2050.u_bus & 0x0f;
                         break;
+
                 case 2: /* And  */
                         cpu_2050.w_bus |= (cpu_2050.v_bus & cpu_2050.u_bus) & 0x0f;
                         break;
+
                 case 3: /* Left */
                         cpu_2050.w_bus |= cpu_2050.u_bus & 0x0f;
                         break;
+
                 case 4: /* Or */
                         cpu_2050.w_bus |= (cpu_2050.v_bus | cpu_2050.u_bus) & 0x0f;
                         break;
+
                 case 5: /* Right */
                         cpu_2050.w_bus |= cpu_2050.v_bus & 0x0f;
                         break;
+
                 case 6: /* Xor */
                         cpu_2050.w_bus |= (cpu_2050.v_bus ^ cpu_2050.u_bus) & 0x0f;
                         break;
+
                 case 7:  /* Unknown */
                         break;
                 }
@@ -1954,24 +2158,31 @@ cycle_2050()
                 case 0: /* Cross */
                         cpu_2050.w_bus |= (cpu_2050.u_bus & 0xf0) >> 4;
                         break;
+
                 case 1: /* Or */
                         cpu_2050.w_bus |= (cpu_2050.v_bus | cpu_2050.u_bus) & 0x0f;
                         break;
+
                 case 2: /* And  */
                         cpu_2050.w_bus |= (cpu_2050.v_bus & cpu_2050.u_bus) & 0x0f;
                         break;
+
                 case 3: /* Xor */
                         cpu_2050.w_bus |= (cpu_2050.v_bus ^ cpu_2050.u_bus) & 0x0f;
                         break;
+
                 case 4: /* char */
                         cpu_2050.w_bus |= cpu_2050.u_bus & 0x0f;
                         break;
+
                 case 5: /* Zone */
                         cpu_2050.w_bus |= cpu_2050.v_bus & 0x0f;
                         break;
+
                 case 6: /* Numeric */
                         cpu_2050.w_bus |= cpu_2050.u_bus & 0x0f;
                         break;
+
                 case 7:  /* Unknown */
                         break;
                 }
@@ -1985,9 +2196,11 @@ cycle_2050()
          switch (sal->iv) {  /* CT */
          case 0:  /* Nop */
                  break;
+
          case 1:  /* FIRSTCYLE, if not first cycle, channel check */
                  log_trace("First cycle %d\n", cpu_2050.first_cycle);
                  break;
+
          case 2:  /* DTC1 send ingate timing to channel */
                  /* For RST0, Clock 0. */
                  /* For RST0, Clock 0. set LW, flags, ER. */
@@ -2005,6 +2218,7 @@ cycle_2050()
                  }
                  dtc1 = 1;
                  break;
+
          case 3:  /* DTC2 send outgate timing to channel */
                  /* For CCW1 IOS1 = SMS */
                  /* For CCW2, Clock 0 IOS2 = TIC, IOS1 = FW/BKWD */
@@ -2025,6 +2239,7 @@ cycle_2050()
                  }
                  dtc2 = 1;
                  break;
+
          case 4:  /* IA/4->A,IA, initiate storage read,
                        inhibit invalid address, set flag */
                  if (cpu_2050.IA_REG & 1) {
@@ -2039,10 +2254,13 @@ cycle_2050()
                      }
                  }
                  break;
+
          case 5:  /* Undefined */
                  break;
+
          case 6:  /* Undefined */
                  break;
+
          case 7:  /* Undefined */
                  break;
          }
@@ -2064,9 +2282,11 @@ cycle_2050()
         case 15:
                 carry_in = 0;
                 break;
+
         case 2:  /* BCF0 */
                 carry_in = (cpu_2050.F_REG == 0);
                 break;
+
         case 9: /* DC0 */
         case 10: /* DDC0 */
         case 12: /* DCBS */
@@ -2078,22 +2298,26 @@ cycle_2050()
          switch (sal->iv) {
          case 0:  /* Nop */
                  break;
+
          case 1:  /* WL->IVD, trap if mover output bits 0-3 greater 9 */
                  if ((cpu_2050.w_bus & 0xf0) > 0x90) {
                      cpu_2050.NROAR = IVD;
                  }
                  break;
+
          case 2:  /* WR->IVD, trap if mover output bits 4-7 greater 9 */
                  if ((cpu_2050.w_bus & 0x0f) > 0x09) {
                      cpu_2050.NROAR = IVD;
                  }
                  break;
+
          case 3:  /* W->IVD, trap if mover output bits 0-3 or 4-7 greater 9 */
                  if ((cpu_2050.w_bus & 0xf0) > 0x90 ||
                               (cpu_2050.w_bus & 0x0f) > 0x09) {
                      cpu_2050.NROAR = IVD;
                  }
                  break;
+
          case 4:  /* IA/4->A,IA, initiate storage read,
                              inhibit invalid address, set flag */
                  if (cpu_2050.IA_REG & 1) {
@@ -2108,6 +2332,7 @@ cycle_2050()
                      }
                  }
                  break;
+
          case 5:  /* IA+2/4 based on ILC if ILC == 0 or 1,
                              IAR+= 2, ILC = 2 or 3, IAR+=4 */
                  if ((cpu_2050.ILC & 02) == 0)
@@ -2115,9 +2340,11 @@ cycle_2050()
                  else
                      cpu_2050.IA_REG += 4;
                  break;
+
          case 6:  /* IA+2 */
                  cpu_2050.IA_REG += 2;
                  break;
+
          case 7:  /* IA+0/2->A */
                  if (sal->zn == 1) {  /* SMIF */
                     if (cpu_2050.REFETCH == 0 && (cpu_2050.IA_REG & 0x2) != 0)
@@ -2140,33 +2367,40 @@ cycle_2050()
          switch (sal->dg) {
          case 0: /*  */
                  break;
+
          case 1: /* CSTAT->ADDER */
                  carry_in = cpu_2050.CAR;
                  break;
+
          case 2: /* HOT1->ADDER */
                  carry_in = 1;
                  break;
+
          case 3: /* G1-1  */
                  cpu_2050.G1NEG |= ((cpu_2050.G_REG & 0xf0) == 0);
                  cpu_2050.G_REG = (cpu_2050.G_REG & 0x0f) |
                                        ((cpu_2050.G_REG - 0x10) & 0xf0);
                  break;
+
          case 4: /* HOT1,G-1 */
                  cpu_2050.G1NEG |= (cpu_2050.G_REG == 0);
                  cpu_2050.G2NEG |= ((cpu_2050.G_REG & 0xf) == 0);
                  cpu_2050.G_REG = cpu_2050.G_REG - 1;
                  carry_in = 1;
                  break;
+
          case 5: /* G2-1 */
                  cpu_2050.G2NEG |= ((cpu_2050.G_REG & 0x0f) == 0);
                  cpu_2050.G_REG = (cpu_2050.G_REG & 0xf0) |
                             ((cpu_2050.G_REG - 0x01) & 0x0f);
                  break;
+
          case 6: /* G-1 */
                  cpu_2050.G2NEG |= ((cpu_2050.G_REG & 0x0f) == 0);
                  cpu_2050.G1NEG |= (cpu_2050.G_REG == 0);
                  cpu_2050.G_REG = cpu_2050.G_REG - 1;
                  break;
+
          case 7: /* G1,2-1 */
                  cpu_2050.G1NEG |= ((cpu_2050.G_REG & 0xf0) == 0);
                  cpu_2050.G2NEG |= ((cpu_2050.G_REG & 0x0f) == 0);
@@ -2189,13 +2423,16 @@ cycle_2050()
         case 2:  /* BCF0 */
         case 3:  /* Unknown */
                 break;
+
         case 4:  /* BC0 */ /* Set carry based out sum out */
                 carry_out = ((carries & CPOS0) != 0);
                 cpu_2050.CAR = carry_out;
                 break;
+
         case 5: /* BC^C */  /* Set carry based on xor of carry from 0 and 1 */
                 carry_out = ((carries ^ (carries << 1)) & CPOS0) != 0;
                 break;
+
         case 6: /* BC1B */ /* Set carry out from position 1 */
                            /* Block carry between 8 and 7 */
                            /* When AL == 23 (1>FPSR4>F) force hot carry to
@@ -2216,6 +2453,7 @@ cycle_2050()
                 carry_out = (carries & CPOS1) != 0;
                 cpu_2050.CAR = carry_out;
                 break;
+
         case 7: /* BC8 */
                 t1 = (cpu_2050.left_bus & 0xff000000) +
                                        (cpu_2050.right_bus & 0xff000000);
@@ -2235,6 +2473,7 @@ cycle_2050()
                 if (cpu_2050.AUX_REG)
                     l_update |= 0x60000000;
                 break;
+
         case 9: /* DC0 */
                     /* Set L to 6 if carry out of sum between digits */
                 t1 = 0x88888888 & ~carries;
@@ -2245,6 +2484,7 @@ cycle_2050()
                     s_update &= ~BIT1;     /* <-- */
                 }
                 break;
+
         case 10: /* DDC0 */
                      /* Set L to 6 if sum out is 5 or greater. */
                 l_update = 0;
@@ -2259,12 +2499,14 @@ cycle_2050()
                     s_update &= ~BIT1;     /* <-- */
                 }
                 break;
+
         case 11: /* DHH */
                      /* Same as DC0, Aux carry set to right most digit bit 2 */
                 t1 = 0x22222222 & cpu_2050.alu_out;
                 l_update = (t1 >> 3) | (t1 >> 4);
                 cpu_2050.AUX_REG = (t1 & 0x2) != 0;
                 break;
+
         case 12: /* DCBS */
                 t1 = 0x88888888 & ~carries;
                 l_update = ((t1 >> 1) | (t1 >> 2));
@@ -2284,10 +2526,13 @@ cycle_2050()
                         s_update |= BIT1;     /* <-- */
                 }
                 break;
+
         case 13:
                 break;
+
         case 14:
                 break;
+
         case 15:
                 break;
         }
@@ -2303,22 +2548,29 @@ cycle_2050()
          switch (sal->zn) {
          case 0: /* Use ZF function */
                  break;
+
          case 1: /* SMIF suppress memory instruction fetch */
                  /* By order IV7 if refetch == 0 and IAR bit 30 == 1 */
                  break;
+
          case 2: /* A|(B=0)->A */
                  a_bit |= !b_bit;
                  break;
+
          case 3: /* A|(B=1)->A */
                  a_bit |= b_bit;
                  break;
+
          case 4: /* Normal no change */
                  break;
+
          case 5: /* Force Invalid Op trap address */
                  break;
+
          case 6: /* B|(A=0)->B */
                  b_bit |= !a_bit;
                  break;
+
          case 7: /* B|(A=1)->B */
                  b_bit |= a_bit;
                  break;
@@ -2333,6 +2585,7 @@ cycle_2050()
     case 0: /* Normal */
             cpu_2050.aob_latch = cpu_2050.alu_out;
             break;
+
     case 1: /* Q->SR1->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 1);
             if (cpu_2050.Q_REG)
@@ -2340,60 +2593,73 @@ cycle_2050()
             cpu_2050.F_REG = ((cpu_2050.alu_out & 1) << 3) |
                        (cpu_2050.F_REG >> 1);
             break;
+
     case 2: /* L0,-S4-> */
             t1 = ((cpu_2050.S_REG & BIT4) == 0) ? MSIGN : 0;     /* <-- */
             cpu_2050.aob_latch = t1 | (cpu_2050.L_REG & 0x7f000000) |
                            (cpu_2050.alu_out & 0xffffff);
             break;
+
     case 3: /* +SGN-> */
             cpu_2050.aob_latch = cpu_2050.alu_out & 0x7fffffff;
             break;
+
     case 4: /* -SGN-> */
             cpu_2050.aob_latch = cpu_2050.alu_out | MSIGN;
             break;
+
     case 5: /* L0,S4-> */
             t1 = ((cpu_2050.S_REG & BIT4) != 0) ? MSIGN : 0;     /* <-- */
             cpu_2050.aob_latch = t1 | (cpu_2050.L_REG & 0x7f000000) |
                            (cpu_2050.alu_out & 0xffffff);
             break;
+
     case 6: /* IA->H */
             cpu_2050.H_REG = (cpu_2050.H_REG & 0xff000000) |
                      (cpu_2050.IA_REG & 0xffffff);
             cpu_2050.aob_latch = cpu_2050.alu_out;
             break;
+
     case 7: /* Q->SL->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | (cpu_2050.Q_REG);
             cpu_2050.F_REG = (((cpu_2050.alu_out >>31) & 1) |
                      (cpu_2050.F_REG << 1)) & 0xf;
             cpu_2050.F_REG ^= 0x1;
             break;
+
     case 8: /* Q->SL1->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | (cpu_2050.Q_REG);
             cpu_2050.F_REG = (((cpu_2050.alu_out >>31) & 1) |
                      (cpu_2050.F_REG << 1)) & 0xf;
             break;
+
     case 9: /* F->SL1->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1) |
                      ((cpu_2050.F_REG & 8) != 0);
             cpu_2050.F_REG = (((cpu_2050.alu_out & BIT0L) != 0) |
                                        (cpu_2050.F_REG << 1)) & 0xf;
             break;
+
     case 10: /* SL1->Q */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1);
             cpu_2050.Q_REG = ((cpu_2050.alu_out & BIT0L) != 0);
             break;
+
     case 11: /* Q->SL1 */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 1) | (cpu_2050.Q_REG);
             break;
+
     case 12: /* SR1->F */
             cpu_2050.aob_latch = cpu_2050.alu_out >> 1;
             cpu_2050.F_REG = ((cpu_2050.alu_out & 1) << 3) |
                      (cpu_2050.F_REG >> 1);
             break;
+
     case 13: /* SR1->Q */
             cpu_2050.aob_latch = cpu_2050.alu_out >> 1;
             cpu_2050.Q_REG = cpu_2050.alu_out & 1;
             break;
+
     case 14: /* Q->SR1->Q */
             cpu_2050.aob_latch = cpu_2050.alu_out >> 1;
             if (cpu_2050.Q_REG)
@@ -2406,24 +2672,29 @@ cycle_2050()
             cpu_2050.F_REG = (cpu_2050.F_REG << 1);
             cpu_2050.Q_REG = ((cpu_2050.alu_out & BIT0L) != 0);
             break;
+
     case 16: /* SL4->F */
             cpu_2050.aob_latch = cpu_2050.alu_out << 4;
             cpu_2050.F_REG = ((cpu_2050.alu_out >> 28) & 0xf);
             break;
+
     case 17: /* F->SL4->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out << 4) |
                      (cpu_2050.F_REG & 0xf);
             cpu_2050.F_REG = ((cpu_2050.alu_out >> 28) & 0xf);
             break;
+
     case 18: /* FPSL4 */
             cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) |
                                    (cpu_2050.alu_out & 0xff000000);
             break;
+
     case 19: /* F->FPSL4 */
             cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) |
                                    (cpu_2050.alu_out & 0xff000000) |
                                     (cpu_2050.F_REG & 0xf);
             break;
+
     case 20: /* SR4->F */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4);
             cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
@@ -2433,15 +2704,18 @@ cycle_2050()
                      ((cpu_2050.F_REG & 0xf) << 28);
             cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
+
     case 22: /* FPSR4->F */
             cpu_2050.aob_latch = ((cpu_2050.alu_out & 0x00ffffff) >> 4);
             cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
+
     case 23: /* 1->FPSR4->F */
             cpu_2050.aob_latch = ((cpu_2050.alu_out & 0xffffff) >> 4) |
                                    (cpu_2050.alu_out & 0xff000000) | 0x100000;
             cpu_2050.F_REG = (cpu_2050.alu_out & 0xf);
             break;
+
     case 24: /* SR4->H */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4);
             cpu_2050.H_REG = ((cpu_2050.alu_out & 0xF) << 28) |
@@ -2449,23 +2723,27 @@ cycle_2050()
             cpu_2050.R_REG = ((cpu_2050.alu_out &   0x0F000000) << 4) |
                                   (cpu_2050.R_REG & 0x0fffffff);
             break;
+
     case 25: /* F->SR4 */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 4) |
                                  (((uint32_t)cpu_2050.F_REG & 0xf) << 28);
             break;
+
     case 26: /* E->FPSL4 */
             cpu_2050.aob_latch = ((cpu_2050.alu_out << 4) & 0xfffff0) |
                                   (cpu_2050.alu_out & 0xff000000) |
                                  (sal->ce & 0xf);
             break;
+
     case 27: /* F->SR1->Q */
             cpu_2050.aob_latch = (cpu_2050.alu_out >> 1) |
                                  (((uint32_t)cpu_2050.F_REG & 0x1) << 31);
             cpu_2050.Q_REG = (cpu_2050.alu_out & 1);
             break;
+
     case 28: /* DKEY-> */
             cpu_2050.aob_latch = cpu_2050.DKEYS;
-            if (allow_man_operation && SEL_ENTER) {
+            if (cpu_2050.allow_man_operation && SEL_ENTER) {
                     uint16_t   data = (cpu_2050.DKEYS >> 24) & 0xff;
                     int        ch = (cpu_2050.CH + 1) & 3;
                     if (cpu_2050.AKEYS & 1)
@@ -2483,6 +2761,7 @@ cycle_2050()
                     cpu_2050.BUS_IN[ch] = data | odd_parity[data];
             }
             break;
+
     case 29: /* CH>, gate selector channels to latch  */
                 /* CHPOS
                  *    BIT 0 - .STIO/.CCW1
@@ -2528,9 +2807,11 @@ cycle_2050()
                 cpu_2050.IOSTAT[cpu_2050.CH] |= BIT3;
             }
             break;
+
     case 30: /* D-> gate storage to latch, hold off it not ready */
             cpu_2050.aob_latch = cpu_2050.SDR_REG;
             break;
+
     case 31: /* AKEY-> */
             cpu_2050.aob_latch = cpu_2050.AKEYS;
             break;
@@ -2544,9 +2825,11 @@ cycle_2050()
             cpu_2050.CC = (((cpu_2050.SDR_REG & BS_MASK[cpu_2050.BS_REG]) &
                                     0x80808080) != 0);
             break;
+
     case 36: /* L(0)->LSGNS */
             cpu_2050.LSGNS = (cpu_2050.L_REG & MSIGN) != 0;
             break;
+
     case 37: /* R(0)->RSGNS */
             cpu_2050.RSGNS = (cpu_2050.R_REG & MSIGN) != 0;
             break;
@@ -2556,6 +2839,7 @@ cycle_2050()
     switch (sal->tr) {
     case 0:  /* T */
             break;
+
     case 1:  /* R */
             cpu_2050.R_REG = cpu_2050.aob_latch;
             if (sal->al == 24) { /* SR4->H */
@@ -2563,13 +2847,16 @@ cycle_2050()
                                   (cpu_2050.aob_latch & 0x0fffffff);
             }
             break;
+
     case 2:  /* R0 */
             cpu_2050.R_REG = (cpu_2050.aob_latch & 0xff000000) |
                              (cpu_2050.R_REG & 0x00ffffff);
             break;
+
     case 3:  /* M */
             cpu_2050.M_REG = cpu_2050.aob_latch;
             break;
+
     case 4:  /* D */
             /* Check storage protection */
             if (cpu_2050.KEY != 0 &&
@@ -2580,18 +2867,22 @@ cycle_2050()
             cpu_2050.SDR_REG = cpu_2050.aob_latch;
             cpu_2050.update_d = 1;
             break;
+
     case 5:  /* L0 */
             l_update = (cpu_2050.aob_latch & 0xff000000) |
                              (cpu_2050.L_REG & 0x00ffffff);
             break;
+
     case 6:  /* R,A Initiate main storage read */
             cpu_2050.R_REG = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = (cpu_2050.aob_latch & 0xffffff);
             cpu_2050.init_mem = 1;
             break;
+
     case 7:  /* L */
             l_update = cpu_2050.aob_latch;
             break;
+
     case 8:  /* HA->A */
              /* Generate hardwired address */
              /* Emit x000 write main storage address 80 */
@@ -2628,6 +2919,7 @@ cycle_2050()
                      break;
             }
             break;
+
     case 9:  /* R,AN, initiate memory request,
                             suppress invalid memory address trap */
             cpu_2050.R_REG = cpu_2050.aob_latch;
@@ -2638,6 +2930,7 @@ cycle_2050()
                 cpu_2050.init_mem = 1;
             }
             break;
+
     case 10:  /* R,AW, initiate memory request,
                            invalid address trap if not word boundry  */
             cpu_2050.R_REG = cpu_2050.aob_latch;
@@ -2647,6 +2940,7 @@ cycle_2050()
             else
                 cpu_2050.init_mem = 1;
             break;
+
     case 11:  /* R,AD  memory request,
                             invalid address trap if not double boundry */
             cpu_2050.R_REG = cpu_2050.aob_latch;
@@ -2656,10 +2950,12 @@ cycle_2050()
             else
                 cpu_2050.init_mem = 1;
             break;
+
     case 12:  /* D->IAR interlock with storage timing rinmmg */
             /* Read */
             cpu_2050.IA_REG = cpu_2050.SDR_REG;
             break;
+
     case 13:  /* SCAN->D */
             /* Check storage protection */
             if (cpu_2050.KEY != 0 &&
@@ -2670,14 +2966,17 @@ cycle_2050()
             cpu_2050.SDR_REG = 0;
             cpu_2050.update_d = 1;
             break;
+
     case 14:  /* R13 */
             cpu_2050.R_REG = (cpu_2050.R_REG & 0xff000000) |
                              (cpu_2050.aob_latch & 0x00ffffff);
             break;
+
     case 15:  /* A initiate memory request */
             cpu_2050.SAR_REG = cpu_2050.aob_latch & 0xffffff;
             cpu_2050.init_mem = 1;
             break;
+
     case 16:  /* L,A initiate memory request */
             l_update = cpu_2050.aob_latch;
             cpu_2050.SAR_REG = cpu_2050.aob_latch & 0xffffff;
@@ -2686,6 +2985,7 @@ cycle_2050()
             }
             cpu_2050.init_mem = 1;
             break;
+
     case 17:  /* R,D  */
             cpu_2050.R_REG = cpu_2050.aob_latch;
             /* Check storage protection */
@@ -2706,26 +3006,34 @@ cycle_2050()
             cpu_2050.SDR_REG = cpu_2050.aob_latch;
             cpu_2050.update_d = 1;
             break;
+
     case 18:  /* Undefined  */
             break;
+
     case 19:  /* R,IO   */
             cpu_2050.R_REG = cpu_2050.aob_latch;
             cpu_2050.IO_REG = cpu_2050.aob_latch & 0x3;
             break;
+
     case 20:  /* H */
             cpu_2050.H_REG = cpu_2050.aob_latch;
             break;
+
     case 21:  /*  */
             cpu_2050.IA_REG = (cpu_2050.aob_latch & 0x00ffffff);
             break;
+
     case 22:  /* FOLD->D */
             break;
+
     case 23:  /* undefined */
             break;
+
     case 24:  /* L,M  */
             l_update = cpu_2050.aob_latch;
             cpu_2050.M_REG = cpu_2050.aob_latch;
             break;
+
     case 25:  /* MLJK */
             l_update = cpu_2050.aob_latch;
             cpu_2050.M_REG = cpu_2050.aob_latch;
@@ -2742,15 +3050,18 @@ cycle_2050()
             cpu_2050.ILC += ((cpu_2050.aob_latch & 0xc0000000) != 0);
             cpu_2050.ILC += ((cpu_2050.aob_latch & 0xc0000000) == 0xc0000000);
             break;
+
     case 26:  /* MHL */
             cpu_2050.M_REG = (cpu_2050.M_REG & 0xffff0000) |
                        ((cpu_2050.aob_latch >> 16) & 0xffff);
             cpu_2050.MD_REG = (cpu_2050.aob_latch >> 28) & 0xF;  /* 0-3 */
             l_update = cpu_2050.aob_latch;
             break;
+
     case 27:  /* MD */
             cpu_2050.MD_REG = (cpu_2050.aob_latch >> 20) & 0xF;  /* 8-11 */
             break;
+
     case 28:  /* M,SP gate adder to M, bits 8-11 to key */
               /* D*BI under I/O mode */
             if (cpu_2050.io_mode) {
@@ -2769,6 +3080,7 @@ cycle_2050()
                 cpu_2050.KEY = (cpu_2050.aob_latch >> 20) & 0xf;
             }
             break;
+
     case 29:  /* D,BS gate D to SDR based on BS */
             /* Check storage protection */
             if (cpu_2050.KEY != 0 &&
@@ -2780,10 +3092,12 @@ cycle_2050()
                            (cpu_2050.aob_latch & BS_MASK[cpu_2050.BS_REG]);
             cpu_2050.update_d = 1;
             break;
+
     case 30:  /* L13 */
             l_update = (cpu_2050.L_REG & 0xff000000) |
                              (cpu_2050.aob_latch & 0x00ffffff);
             break;
+
     case 31:  /* J, gate adder bits 12-15 to J */
             if (cpu_2050.io_mode) {
                 if (cpu_2050.OP_REG[cpu_2050.CH] == 0x6) {
@@ -2816,6 +3130,7 @@ cycle_2050()
                  cpu_2050.FLAGS_REG[cpu_2050.CH] |= CHAN_PROG; /* Program check */
             }
             break;
+
         case 4:   /* CATEST
                      Send program check to select channel if.
                      Adder_output 29-31 bits not zero (adder check) */
@@ -2891,8 +3206,8 @@ cycle_2050()
                        cpu_2050.GP_REG[cpu_2050.CH] |= (byte & 3) << 3;
                        cpu_2050.GP_REG[cpu_2050.CH] |= last_forw[byte];
                        break;
-                   }
-               }
+                }
+            }
             break;
 
         case 7:   /* Undefined */
@@ -2900,21 +3215,25 @@ cycle_2050()
         }
     }
 
-
     /* Preform State function */
     /* Depends on u_bus, w_bus, alu_out, aob_latch */
     switch (sal->ss) {
     case 0: /* NOP */
             break;
+
     case 1: /* undefined */
             break;
+
     case 2: /* undefined */
             break;
+
     case 3: /* D->CR*BS */
             /* Done before */
             break;
+
     case 4: /* E->SCHANCTL */
             break;
+
     case 5: /* L,RSGNS */
             /*  If U < 01010 force invalid digit trap,
              *  if B or D turn on L sign, invert Rsign,
@@ -2930,6 +3249,7 @@ cycle_2050()
                cpu_2050.LSGNS = 0;
             }
             break;
+
     case 6: /* IVD/RSGNS */
             t = cpu_2050.u_bus & 0xf;
             /* If minus, clear R sign, input in U */
@@ -2940,6 +3260,7 @@ cycle_2050()
                cpu_2050.RSGNS = !cpu_2050.RSGNS;
             }
             break;
+
     case 7: /* EDITSGN */
             t = cpu_2050.w_bus & 0xf;
             if (t > 0x9) {
@@ -2951,21 +3272,26 @@ cycle_2050()
                cpu_2050.RSGNS = 0;
             }
             break;
+
     case 8: /* E->S03 */
             s_update &= 0xf;     /* <-- */
             s_update |= (sal->ce & 0xf) << 4;     /* <-- */
             break;
+
     case 9: /* S03|E,1->LSGNS */
             cpu_2050.LSGNS = 1;
             s_update |= (sal->ce & 0xf) << 4;     /* <-- */
             break;
+
     case 10: /* S03|E */
             s_update |= (sal->ce & 0xf) << 4;     /* <-- */
             break;
+
     case 11: /* S03|E,0->BS */
             cpu_2050.BS_REG = 0;
             s_update |= (sal->ce & 0xf) << 4;     /* <-- */
             break;
+
     case 12: /* X0,B0,1SYL */
             s_update &= ~(BIT0|BIT1);     /* <-- */
             if ((cpu_2050.aob_latch & 0x000f0000) == 0)
@@ -2978,6 +3304,7 @@ cycle_2050()
                 cpu_2050.SYLS1 = 0;
             }
             break;
+
     case 13: /* FPZERO, set S0 if floating point 0. */
             if ((cpu_2050.aob_latch & 0x00ffffff) == 0 &&
                    cpu_2050.F_REG == 0 && (s_update & BIT3) != 0)     /* <-- */
@@ -2985,6 +3312,7 @@ cycle_2050()
             else
                 s_update &= ~BIT0;     /* <-- */
             break;
+
     case 14: /* FPZER,E->FN*/
             if ((cpu_2050.aob_latch & 0x00ffffff) == 0 &&
                    cpu_2050.F_REG == 0 && (s_update & BIT3) != 0)     /* <-- */
@@ -2994,6 +3322,7 @@ cycle_2050()
             cpu_2050.LSA &= 0xf;
             cpu_2050.LSA |= (sal->ce & 0x3) << 4;
             break;
+
     case 15: /* B0,1SYL */
             s_update &= ~(BIT1);     /* <-- */
             if ((cpu_2050.aob_latch & 0xf0000000) == 0)
@@ -3004,44 +3333,56 @@ cycle_2050()
                 cpu_2050.SYLS1 = 0;
             }
             break;
+
     case 16: /* S03.!E */
             /* Hack, if restoring and in S3 wait loop, ignore this update */
             s_update &= ~((sal->ce & 0xf) << 4);     /* <-- */
             break;
+
     case 17: /* (T=0)->S3 */
             s_update &= ~(BIT3);     /* <-- */
             if (cpu_2050.aob_latch == 0)
                 s_update |= BIT3;     /* <-- */
             break;
+
     case 18: /* E->BS,T30->S3 */
             cpu_2050.BS_REG = (sal->ce & 0xf);
             s_update &= ~(BIT3);     /* <-- */
             if ((cpu_2050.aob_latch & 02) != 0)
                 s_update |= BIT3;     /* <-- */
             break;
+
     case 19: /* E->BS */
             cpu_2050.BS_REG = (sal->ce & 0xf);
             break;
+
     case 20: /* 1->BS*MB */
             cpu_2050.BS_REG |= 8 >> cpu_2050.MB_REG;
             break;
+
     case 21: /* DIRCTL->E */
             break;
+
     case 22: /* Undefined */
             break;
+
     case 23: /* MANUAL->STOP */
-            stop_mode |= allow_man_operation;
+            stop_mode |= cpu_2050.allow_man_operation;
             break;
+
     case 24: /* E->S47 */
             s_update &= 0xf0;     /* <-- */
             s_update |= (sal->ce & 0xf);     /* <-- */
             break;
+
     case 25: /* S47|E */
             s_update |= (sal->ce & 0xf);     /* <-- */
             break;
+
     case 26: /* S47&~E */
             s_update &= 0xf0 | ~(sal->ce & 0xf);     /* <-- */
             break;
+
     case 27: /* S47,ED*FP */
             s_update &= 0xf0;     /* <-- */
             t = (cpu_2050.alu_out >> 24) & 0xff;
@@ -3091,50 +3432,64 @@ cycle_2050()
             if (cpu_2050.ED_REG == 0)
                 s_update |= BIT7;     /* <-- */
             break;
+
     case 28: /* OPPANEL->S47 */
             s_update &= 0xf0;     /* <-- */
             s_update |= cpu_2050.OPPANEL;     /* <-- */
             break;
+
     case 29: /* CAR,(T!=0)->CR */
             cpu_2050.CC = carry_out << 1;
             cpu_2050.CC |= (cpu_2050.alu_out != 0);
             break;
+
     case 30: /* KEY->F */
             cpu_2050.F_REG = cpu_2050.MP[cpu_2050.SAR_REG >> 11];
             break;
+
     case 31: /* F->KEY */
             cpu_2050.MP[cpu_2050.SAR_REG >> 11] = cpu_2050.F_REG;
             break;
+
     case 32: /* 1->LSGNS */
             cpu_2050.LSGNS = 1;
             break;
+
     case 33: /* 0->LSGNS */
             cpu_2050.LSGNS = 0;
             break;
+
     case 34: /* 1->RSGNS */
             cpu_2050.RSGNS = 1;
             break;
+
     case 35: /* 0->RSGNS */
             cpu_2050.RSGNS = 0;
             break;
+
     case 36: /* L(0)->LSGNS */
             /* Done before */
             break;
+
     case 37: /* R(0)->RSGNS */
             /* Done before */
             break;
+
     case 38: /* E(13)->WFN */
             if (cpu_2050.io_mode)
                 cpu_2050.io_mvfnc = sal->ce & 07;
             else
                 cpu_2050.mvfnc = sal->ce & 07;
             break;
+
     case 39: /* E(23)->FN */
             cpu_2050.FN = (sal->ce & 03) << 4;
             break;
+
     case 40: /* E(23)->CR */
             cpu_2050.CC = sal->ce & 03;
             break;
+
     case 41: /* SETCRALG */
              /* CC = 0 if aob_latch == 0,
                 CC = 1 if aob_latch<0> == 1,
@@ -3147,6 +3502,7 @@ cycle_2050()
                 cpu_2050.CC = 2;
             }
             break;
+
     case 42: /* SETCRLOG */
              /* CC = 0 if aob_latch & BS == 0, CC = 1 if */
             if ((cpu_2050.aob_latch & BS_MASK[cpu_2050.BS_REG]) == 0) {
@@ -3155,26 +3511,34 @@ cycle_2050()
                 cpu_2050.CC = carry_out + 1;
             }
             break;
+
     case 43: /* !S4,S4->CR */
             cpu_2050.CC = (cpu_2050.S_REG & BIT4) ? 1 : 2;     /* <-- */
             break;
+
     case 44: /* S4,!S4->CR */
             cpu_2050.CC = (cpu_2050.S_REG & BIT4) ? 2 : 1;     /* <-- */
             break;
+
     case 45: /* 1->REFETCH */
             cpu_2050.REFETCH = 1;
             break;
+
     case 46: /* SYNC->OPPANEL */
             if (ADR_CMP == 1)
-                allow_man_operation = 1;
+                cpu_2050.allow_man_operation = 1;
             break;
+
     case 47: /* SCAN*E,10 */
             break;
+
     case 48: /* 1>SUPROUT */
             cpu_2050.TAGS[0] |= CHAN_SUP_OUT;
             break;
+
     case 49: /* MPX RESET */
             break;
+
     case 50: /* E(0)->IBFULL */
             if ((sal->ce & 8) != 0) {
                 cpu_2050.IBFULL = 1;
@@ -3184,8 +3548,10 @@ cycle_2050()
                 cpu_2050.TAGS[0] &= ~CHAN_SUP_OUT;
             }
             break;
+
     case 51: /* undefined */
             break;
+
     case 52: /* E->CH */
             /* 0000   Selector channel interrupt routine in process, gen S3 immediate */
             /* 0001   Reset common channel */
@@ -3218,6 +3584,7 @@ cycle_2050()
                    }
                    s_update |= BIT3;     /* <-- */
                    break;
+
                    /* Fall through */
             case 9:  /* Issue proc with irpt */
                    log_selchn("Proceed interrupt\n");
@@ -3271,43 +3638,53 @@ cycle_2050()
                    break;
             }
             break;
+
     case 53: /* undefined */
             break;
+
     case 54: /* 1->TIMERIRPT */
             timer_irq = 1;
             break;
+
     case 55: /* T->PSW,IPL->T */
             l_update = (A_SW << 8) | (B_SW << 28) | (C_SW << 24);
                                                          /* MG field */
             break;
+
     case 56: /* T->PSW T(12-15) to PSW */
             log_trace("PSW aob=%08x\n", cpu_2050.aob_latch);
             cpu_2050.AMWP = (cpu_2050.aob_latch >> 16) & 0xf;
             wait = ((cpu_2050.AMWP & 0x2) != 0);
             break;
+
     case 57: /* SCAN*E,00 */
             break;
+
     case 58: /* 1->IOMODE */
             cpu_2050.io_mode = 1;
             break;
+
     case 59: /* 0->IOMODE */
             cpu_2050.io_mode = 0;
             break;
+
     case 60: /* 1->SELOUT */
             cpu_2050.TAGS[0] |= CHAN_SEL_OUT|CHAN_HLD_OUT;
             break;
+
     case 61: /* 1->ADROUT */
             cpu_2050.TAGS[0] |= CHAN_ADR_OUT;
             break;
+
     case 62: /* 1->COMOUT */
             cpu_2050.TAGS[0] |= CHAN_CMD_OUT;
             break;
+
     case 63: /* 1->SERVOUT */
             cpu_2050.TAGS[0] |= CHAN_SRV_OUT;
             break;
     }
 
-    /* set local storage address */
     if (cpu_2050.io_mode) {
         /* Set local storage address */
         switch (sal->ws) {
@@ -3336,36 +3713,7 @@ cycle_2050()
                 cpu_2050.LSA = (cpu_2050.CH << 2) | 3;
                 break;
         }
-    } else {
-        /* Set local storage address */
-        switch (sal->ws) {
-        case 0: /* No access  */
-                break;
-        case 1: /* WS1->LSA */
-                cpu_2050.LSA = 0x11;
-                break;
-        case 2: /* WS2->LSA */
-                cpu_2050.LSA = 0x12;
-                break;
-       case 3: /* WS,E->LSA */
-                cpu_2050.LSA = 0x10 | (sal->ce & 0xf);
-                break;
-        case 4: /* FN,J->LSA */
-                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.J_REG & 0xf);
-                break;
-        case 5: /* FN,J|1->LSA */
-                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.J_REG & 0xf) | 1;
-                break;
-        case 6: /* FN,MD->LSA */
-                cpu_2050.LSA = (cpu_2050.FN) | (md_old & 0xf);
-                break;
-        case 7: /* FN,MD|1->LSA */
-                cpu_2050.LSA = (cpu_2050.FN) | (md_old & 0xf) | 1;
-                break;
-        }
-    }
 
-    if (cpu_2050.io_mode) {
         switch (sal->wm) {
         case 0: /* Nop */
         case 1:
@@ -3481,8 +3829,33 @@ cycle_2050()
                 cpu_2050.last_cycle = 1;
                 break;
         }
-
     } else {
+        /* Set local storage address */
+        switch (sal->ws) {
+        case 0: /* No access  */
+                break;
+        case 1: /* WS1->LSA */
+                cpu_2050.LSA = 0x11;
+                break;
+        case 2: /* WS2->LSA */
+                cpu_2050.LSA = 0x12;
+                break;
+       case 3: /* WS,E->LSA */
+                cpu_2050.LSA = 0x10 | (sal->ce & 0xf);
+                break;
+        case 4: /* FN,J->LSA */
+                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.J_REG & 0xf);
+                break;
+        case 5: /* FN,J|1->LSA */
+                cpu_2050.LSA = (cpu_2050.FN) | (cpu_2050.J_REG & 0xf) | 1;
+                break;
+        case 6: /* FN,MD->LSA */
+                cpu_2050.LSA = (cpu_2050.FN) | (md_old & 0xf);
+                break;
+        case 7: /* FN,MD|1->LSA */
+                cpu_2050.LSA = (cpu_2050.FN) | (md_old & 0xf) | 1;
+                break;
+        }
         /* Store Mover output */
         switch (sal->wm) {
         case 0: /* No change */
@@ -3712,7 +4085,6 @@ cycle_2050()
         }
     }
 
-
     /* Fetch/store local storage */
     switch (sal->sf) {
     case 0: /* R>LS */
@@ -3777,6 +4149,7 @@ cycle_2050()
         }
     }
 
+    /* Restore and set flag S3 */
     if (cpu_2050.rest_cycle) {
         cpu_2050.rest_cycle = 0;
         if (cpu_2050.s3_set) {
@@ -3785,9 +4158,11 @@ cycle_2050()
            log_trace("Set S3\n");
         }
     }
+
+    /* Return to previous microcode sequence */
     if (rest_roar) {
-            cpu_2050.ROAR = cpu_2050.PROAR;
-            cpu_2050.rest_cycle = 1;
+        cpu_2050.ROAR = cpu_2050.PROAR;
+        cpu_2050.rest_cycle = 1;
     }
 
 
@@ -3896,6 +4271,7 @@ channel:
                     }
                 }
                 break;
+
     case 0x88:  /*  RTA2  Routine A2 - QV230 */
                 log_trace("Routine A2\n");
                 /* A3 <- input, service in, not service out, (BR 3 or BR 7) */
@@ -3977,6 +4353,7 @@ channel:
                     }
                 }
                 break;
+
     case 0x02:  /*  RTC0  Routine C0 - QV260 */
     case 0x8c:  /*  RTA3  Routine A3 - QV240 */
                 log_trace("Routine A3 %d\n", cpu_2050.MPX_LST);
@@ -4723,23 +5100,6 @@ channel:
          dev->bus_func(dev, &cpu_2050.TAGS_IN[0], cpu_2050.BUS_OUT[0], &cpu_2050.BUS_IN[0]);
     }
 
-#if 0
-    /* If we are polling and get Request in, enable select. */
-    if (cpu_2050.polling[0] && cpu_2050.ROUTINE[3] == 0x00) {
-        if ((cpu_2050.TAGS_IN[0] & CHAN_REQ_IN) != 0) {
-            cpu_2050.TAGS[0] |= CHAN_SEL_OUT|CHAN_HLD_OUT;
-            log_trace("Request in\n");
-        }
-        if ((cpu_2050.TAGS_IN[0] & (CHAN_ADR_IN|CHAN_OPR_IN)) == (CHAN_ADR_IN|CHAN_OPR_IN)) {
-            log_trace("Device select\n");
-            cpu_2050.polling[0] = 0;
-            cpu_2050.ROUTINE[3] = 0x80;  /* RTA0 */
-            cpu_2050.break_in |= 8;
-            cpu_2050.BI_REG = 0x3;
-        }
-    }
-#endif
-
     /* Drop suppress in when Select out rises */
     if ((cpu_2050.TAGS[0] & CHAN_SEL_OUT) != 0) {
         log_trace("Clear Suppress out\n");
@@ -4810,20 +5170,8 @@ channel:
         }
     }
 
-#if 0
-uint8_t     D1[4];              /* Channel flag D1 */  /* Not used? */
-uint8_t     D2[4];              /* Channel flag D2 */  /* Indicates TICH */
-uint8_t     C1[4];              /* Channel flag C1 */  /* Indicates C_FULL with CD */
-uint8_t     C2[4];              /* Channel flag C2 */  /* Indicates Interface check during selection */
-uint8_t     C3[4];              /* Channel flag C3 */  /* Indicates PCI or status only interrupt */
-uint8_t     C4[4];              /* Channel flag C4 */  /* Not used */
-uint8_t     CD[4];              /* Data chain flag */
-uint8_t     IF_STOP[4];         /* Stop I/O after count exhausted */
-uint16_t    CHCLK[4];           /* Channel clock register */
-#endif
-
     /* Process Selector channels */
-   if (cpu_2050.last_cycle || cpu_2050.break_out == 0) {
+    if (cpu_2050.last_cycle || cpu_2050.break_out == 0) {
          for (i = 0; i < 3; i++) {
              int    mask = 1 << (i);
              if (cpu_2050.CHPOS[i] != 0 || cpu_2050.break_out || (cpu_2050.break_in & mask) != 0) {
@@ -4910,7 +5258,6 @@ uint16_t    CHCLK[4];           /* Channel clock register */
              cpu_2050.CHREQ[i] = 0;
         }
     }
-
 
     /* Flags register holds CCW flags in upper byte, check flags in lower byte */
     for (i = 0; i < 3; i++) {
@@ -5763,8 +6110,9 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                                    break;
                                 }
                            }
-                       }
+                        }
                         break;
+
                 case 6:     /* Read backward */
                         if (cpu_2050.C_FULL[i] == 0) {
                             int      byte = 3 - ((cpu_2050.GP_REG[i] >> 5) & 0x3);
@@ -5809,6 +6157,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                            }
                         }
                         break;
+
                 case 1:     /* Write */
                         if (cpu_2050.C_FULL[i] == 1) {
                             int      byte = 3 - ((cpu_2050.GP_REG[i] >> 5) & 0x3);
@@ -5827,7 +6176,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                                     log_device("Set C Empty last %02x  %02x\n", cpu_2050.GP_REG[i],
                                               ((cpu_2050.GP_REG[i] >> 2) ^ cpu_2050.GP_REG[i]) & 0x18);
                                     cpu_2050.C_FULL[i] = 0;
-                           /* Check if Empty and LS is empty and data chaining */
+                                    /* Check if Empty and LS is empty and data chaining */
                                     if (cpu_2050.CD[i]) {
                                          cpu_2050.CHREQ[i] = BIT4;
                                          cpu_2050.C1[i] = 1;
@@ -5845,6 +6194,7 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                         }
                         break;
                 }
+
                 /* PCI */
                 if ((cpu_2050.FLAGS_REG[i] & (CHAN_PCI_FLAG << 8)) != 0) {
                      log_selchn("PCI\n");
@@ -5903,673 +6253,16 @@ uint16_t    CHCLK[4];           /* Channel clock register */
                   cpu_2050.LS[i<<2], cpu_2050.LS[(i << 2)|1], cpu_2050.LS[(i << 2)| 2], cpu_2050.LS[(i << 2)|3], cpu_2050.FLAGS_REG[i],
                   cpu_2050.CD[i], (cpu_2050.GP_REG[i] >> 5) & 3, (cpu_2050.GP_REG[i]>> 3) & 3, cpu_2050.polling[i], cpu_2050.EOR[i] );
     }
+
     /* Handle break in cycle */
     if (cpu_2050.last_cycle && (cpu_2050.break_in & (1 << cpu_2050.CH)) != 0) {
         dtc_latch = 0;
-            cpu_2050.ROAR = cpu_2050.ROUTINE[cpu_2050.CH];
-             log_trace("Tranfer to %03x\n", cpu_2050.ROAR);
-               cpu_2050.break_in &= ~(1 << cpu_2050.CH);
-    cpu_2050.first_cycle = 0;
+        cpu_2050.ROAR = cpu_2050.ROUTINE[cpu_2050.CH];
+        log_trace("Tranfer to %03x\n", cpu_2050.ROAR);
+        cpu_2050.break_in &= ~(1 << cpu_2050.CH);
+        cpu_2050.first_cycle = 0;
     }
     cpu_2050.last_cycle = 0;
-
-
-#if 0
-142  STPR  Storage protection
-149  DATA  Invalid Decimal data or sign
-1c0  IVAD  Invalid Opnd address
-1c2  SPEC  Addr Spec violation
-
-240  IPL
-242  System reset.
-2c2  PSW restarton IPL-IN
-
-
-Select
-004  IRPT  Interrupt routine
-008  UAFT  Unit Address Fetch routine
-00c  ENDU  End Update routine
-010  STIO  Start I/O
-014  COMP  Compare routine.
-020  WFCH  Write Fetch routine.
-024  RST0  Read Store routine
-028  CCW1  Load CCW1
-02c  TICH  Transfer in channel
-030  CCW2  Load CCW2
-040  LSRD  Local Store read routine
-044  LSWR  Local Store write routine
-
-F = 0000  Start IO
-F = 0100  Test IO
-F = 0010  Halt IO
-F = 1000  Test Chan
-
-
- A -> 080 + n<<2
- B -> 0A0 + n<<2
- C -> 082 + n<<2
- D -> 0A2 + n<<2
-
-Selector:
-
-    GP      12   Byte cnt
-            34   End reg
-            567  OP/LW reg
-            890  flags
-
-    12 = bits 30/31 AOB
-    34 = bits 30/31 AOB
-    567  bit  4-7   AOB
-    8910 bits 0-3   AOB
-    CD
-    CC
-    SLI
-    SKIP
-    PCI
-
-         4567
-    xxxx xx01  Write  output                  0110
-    xxxx xx10  Read   input forward           0000
-    xxxx xx11  Control output                 0110
-    xxxx 0100  Sense  input forward           0000
-    xxxx 1100  Read   input backard           0001
-    xxxx 1000  TIC
-
-         bit 4&!bit7 -> bit 7
-         bit 7       -> bit 5,6
-         0           -> bit 4
-
-     0 input fwd
-     1 input back
-     3 skip
-     4 end stat and not WLR
-     5 end stat and WLR
-     6 output
-     7 stop
-
-   Request register 2 & 4         -> Unit select.
-                        4 & Pri 3 -> SIO routine
-                    2     & Pri 3 -> UA Fetch
-                    3     & Pri 3 -> END routine
-                    1     & Pri 3 -> INTR routine
-                       5 & Pri 3 -> Compare ok, INTR routine
-
-                    0    & Pri 2 -> Empty Write fetch.
-
-     0 Empty Write fetch    020
-     1 Interrupt routine.   004
-     2 UA Fetch             008
-     3 End routine          00c
-     4 SIO                  010/028/02c
-     5 Compare              014
-
-004  IRPT  Interrupt routine
-008  UAFT  Unit Address Fetch routine
-00c  ENDU  End Update routine
-010  STIO  Start I/O
-014  COMP  Compare routine.
-020  WFCH  Write Fetch routine.
-024  RST0  Read Store routine
-028  CCW1  Load CCW1
-02c  TICH  Transfer in channel
-030  CCW2  Load CCW2
-040  LSRD  Local Store read routine
-044  LSWR  Local Store write routine
-
-    SIO  qv100-j1    L=UA,00,CH,UA R=CAW, M=op,Addr CHPOSTEST
-               g2    L= ""         R= "", M=""      DTC2       aob = L
-               j3    L= CA+8       R= CA, M=""      CHPOSTEST
-               g4    L=05,DA       R=CA   M=op,Addr DTC2       aob = op,da
-    TICH qv101
-    CCW1 qv102
-               DTC1 if chain data latch off
-                     B <- aob_latch.
-               Step 0 A1.
-               if chain data latch off
-                     C <- B. Request CCW2
-                     GP<0-4,5-7> = 0;
-               DTC1 step 1 A0.
-                    if chain data latch off
-                        OP <- aob_latch.
-                        B <- aob_latch.
-                    else
-                        if read bkwd
-                           CH <- ~aob_latch & 3;GP<1,2> = 1;
-                        else
-                           CH <- aob_latch & 3; OP<1,2> = 1;
-                    if OP == TIC {
-                        Request TICH
-                        if (instruct latch or D1) {
-                             if (D1 not) {
-                                 STAT2 <- 1;
-                             } else
-                                Prog check.
-                        }
-                    } else {
-                        D1 <- 0.
-                        GP<5-7> <- OP.
-                    }
-
-     IOS2 IOS1
-       0  0   For input
-       0  1   Back input
-       1  x   Tic
-    CCW2 qv103 j1      ""          R=CA+8   ""      CHPOSTEST
-               g2    L=05,DA       R=05,DA M=op,addr
-               c3    L=UA,00,CH,UA R=05,5FE, M=op,addr  DTC2
-               e4    L=UA,0001     R=05,5FE, M=op,addr  DTC2 CCW2TEST
-               a5    L=UA,02,0001  R=000002    M=op,addr   CHPOSTEST
-               e6    L=05,DA       R=dev,02,0003 M=op,adr  DTC2 LSWDTEST
-
-    ENDU qv106   IOS4,1   00=Normal 10=Error, 11/01 = WR Chain  IOS3 CA False
-
-    ITRP qv107   IOS0,IOS3 00 Normal, 10 Status only, 11 Poll Proceed
-
-Multiplex
-080  RTA0  Routine A0 - adr in, poll control
-084  RTA1  Routine A1 - a0, brctrl 0
-088  RTA2  Routine A2 - a1, brctrl 1, output, not status in |
-                        a1, brctrl 2, input, fwd/bkwd service_in |
-                        b3, brctrl 7, service_in, input, status == 0, not skip |
-                        b3, brctrl 7, service_in, input, status == 0, skip |
-                        b3, brctrl 7, status != 0, not input |
-                        d3, brctrl 1, not prog ck, status == 0, new cc flag, service in, not skip, input |
-                        d3, brctrl 1, not prog ck, status == 0, new cc flag, not input |
-                        d3, brctrl 1, not prog ck, status == 0, not new cc flag, not input |
-                        d3, brctrl 1, not prog ck, status == 0, not new cc flag, input, not skip, service in |
-                        d7, (brctrl 1 | brctrl 3), not input |
-                        d7, (brctrl 1 | brctrl 3), input, not skip, service in
-08c  RTA3  Routine A3   a1, brctrl 3, stop, input skip, not service in |
-                        a2, service in, not service out, (bc3 | brctrl 7), input |
-                        a2, service in, not service out, (bc3 | brctrl 7), output |
-                        a3, brctrl 7, not service out, service in, input |
-                        a3, brctrl 7, output, count > 1 |
-                        a7, brctrl 7, (prot ck | inv addr), cda flag, service in, not service out |
-                        a7, brctrl 7, not cda flag, ervice in, not service out, input |
-                        a7, brctrl 7, not cda flag, service in, not service out, output |
-                        d3, brctrl 3, not prot ck, status == 0, input, skip, service in, not new cc flag |
-                        d3, brctrl 3, not prot ck, status == 0, input, skip, service in, new cc flag |
-                        brctrl 7, d7, service in |
-                        d7, service in, input, skip, (brctrl 1 | brctrl 3)
-090  RTA4  Routine A4   a1, brctrl 1, output, status in, not cc trg on |
-                        d7, brctrl 7, not service in, status in, not cc trg off |
-                        c-br, status in, cc latch off
-094  RTA5  Routine A5   a1, brctrl 1, output, status in, cc trg on |
-                        d7, brctrl 7, not service in, status in, cc trg on |
-                        c-br, status in, cc latch on
-098  RTA6  Routine A6   active, brctrl 5, a4, ib not full | a4, ib not full, brctrl 6, not active |
-                        a4, brctrl 7, ib full | not sili flag, count != 0, (brctrl 5|brctrl 7), a5 |
-                        (brctrl 5|brctrl 7), a5, ((((status mod, not device end) | unit exctp | unit ck | busy | atten), sili flag) | count === 0)
-                        (brctrl 5|brctrl 7), a5, count == 0 | (sili flag, not ch end, device end, seq ctrl 5, not cc end rcvd) |
-                        d3, brctrl 5, ib not full, prog ck | d3, brctrl 5, ib not full, not prog ck, new cc flag, unit status==error |
-                        not prog ck, new cc flag, unit status==error, d3, brctrl 7, ib full | d3, brctrl 7, ib full, prog ck
-09c  RTA7  Routine A7   (inv adr | prot ck), a2, input | a2, input, brctrl 5, decr count == 0 |
-                        a2, output, (brctrl 3|brctrl 7), decr count == 1 |
-                        a2, output, (brctrl 3|brctrl 7), inv adr |
-                        (inv adr | prot ck) | a3, input, brctrl 5, decr count == 0 |
-                        a3, brctrl 7, output, decr count == 1 |
-                        a3, brctrl 7, output, (inv adr | prot ck)
-
-0a0  RTB0  Routine B0  - Any ch0 op, poll ctrl-no req-in, not test channel
-0a4  RTB1  Routine B1  - b0, brctrl 0, start i/o
-0a8  RTB2  Routine B2  - b1, brctrl 6, seq ctrls idle, op in, adr in
-0ac  RTB3  Routine B3  - b2, brctrl 4, sta in
-
-0b4  RTB5  Routine B5  - c-br, not sta in, not op in, ucw store trg on, any ck off | any ck on & a-ck | b7, brctrl 11 | a5, brctrl 3, ch end, no dev end
-0b8  RTB6  Routine B6  - b5, brctrl 2 | d5, brctrl 0 i/o stat code = start
-0bc  RTB7  Routine B7  - c-br, not sta in, not op in, ucw store trg on, any ck on | any ck on & a-ck
-
-002  RTC0  Routine C0  - no inh i/o fixed adr, pci mpx req
-086  RTC1  Routine C1  - b0, brctrl 0, (test i/o | int test i/o)
-08a  RTC2  Routine C2  - c1, brctrl 6, op in, adr in, (dev end,attn in, idle) | c7, brctrl 6, op in, adr in
-08e  RTC3  Routine C3  - c2, brctrl 2, adr in, sta in
-092  RTC4  Routine C4
-096  RTC5  Routine C5  - b1, brctrl 6, seq ctr idle, op in, sta in, no sel in | c1, brctrl 6, not op in, not int test i/o (dev end, attn, idle) |
-                         c6, brctrl 6, no op in, sta in | c7, brctrl 6, not op in, not int test i/o
-09a  RTC6  Routine C6  - b0, brctrl 0, halt i/o
-09e  RTC7  Routine C7  - c1, brctrl 1, ch end | c1, brctrl 1, ch end, test i/o
-
-0a2  RTD0  Routine D0  - a5, brctrl 6, (cc end recv | (ch end, dev end)) | a7, brctrl 6, cda flag, not inv adr, not prot ck |
-                         b3, brctrl 6, cc flag, ch end, dev end | d4, brctrl 1, m/op==tic, val adr, not prev tic |
-                         d3, brctrl 6, not prog ck, new cc flag, status equal, not error, dev end
-0a6  RTD1  Routine D1  - cda, d0, brctrl 1 | d0, brctrl 1, not cda, not op in
-0aa  RTD2  Routine D2  - d1, brctrl 6, op in, adr in | m/op invalid, d4, brctrl 6, cc | d4, brctrl6, cc, m/op valid, not tic
-0ae  RTD3  Routine D3  - d2, brctrl 2, sta in
-0b2  RTD4  Routine D4  - d1, brctrl 2
-0b6  RTD5  Routine D5  - prog ck, b1, brctrl 1, seq ctrl idle | b1, brctrl 1, seq ctrl idle, (tic | inv op) |
-                         cc flag, status err, b3, brctrl 15 | b3, brctrl 15, not cc flag, status != 0) |
-                         (any busy | status mod), c3, brctrl 3 | c3, brctrl 3, !(any busy|status mod), (ch end | dev end queued) |
-                         c5, brctrl 3 | c6, brctrl 6, op in, adr in, wait for not op in | c7, brctrl 3
-0be  RTD7  Routine D7  - d1, brctrl 3 | prev tic, valid adr, m/op=tic, (d4 | brctrl3 | cda) |
-                           (d4 | brctrl3 | cda), invalid adr, m/op=tic |
-                           (d4 | brctrl3 | cda), m/op invalid |
-                           (d4 | brctrl3 | cda), m/op valid, not tic
-
-resume polling - seq ctrl idle, b0, brctrl 0, foul on st i/o |
-                 b0, brctrl 0, foul on st i/o, seq brctrl 5 busy |
-                 b0, brctrl 6, inv bump adr | b1, brctrl 2, seq ctrl is active |
-                 b1, brctrl 6, seq ctrl idel, op in, sel in, b6, no op in, not status in |
-                 (busy | ch end recv), c1, brctrl 2 | c1, brctrl 2, ch end in ib, test i/o ua != ib ua |
-                 c3, brctrl 2, status == 0, (not any busy | not status mod), (not ch end, dev end queued) |
-                 c6, brctrl 1, (ch end in IB| ch end queued) | c6, brctrl 6, sel in, not op in, not status in |
-                 c7, brctrl 2, ucw ua != test i/o ua |
-                 d5, not op in, not status in | d7, brctrl 7, not service in, not op in, not status in, ucw store tag off
-                 not op in, not status in, ucw store tgr off, c-br
-
-log    -   a0, brctrl 6, inv bump adr | b2, brctrl 1, ucw ua != inter ua |
-           c1, brctrl 6, (ib = dev end|ib = atten | idle), not op in, intr test i/o |
-           c2, brctrl 1, instr ua != inter ua | c7, brctrl 6, not op in, intr test i/o, (status in|sel in) |
-           d1, brctrl 6, not op in, (status in | sel in)
-
-Start channel by W->CHCTL opcode.
-OPPanel
-
-0000 nil
-0001 Instr step, not start
-0010 set ic
-0011 repeat inst
-010x addr sync
-011x enter channel
-1yyz store display
-  yy 00 main storage
-     01 protect tags
-     10 local store
-     11 mpx bump
-  z  0 display 1 store
-
-Multiplex
-W->CHCTL branch B0
-W->CHCTL branch STIO
-
-  E->CH E=1001    Set GPS3
-
-B0 sequencial controlles:
-
-    xx00    Idle.
-    xx10    Dev end or att in IB
-    xxx1    Active
-
-bfr2 =
-     0 input fwd
-     1 input back
-     3 skip
-     4 end stat and not WLR
-     5 end stat and WLR
-     6 output
-     7 stop
-
-Seq controls
-     0  idle
-     1  busy
-     3  CC end read
-     5  CC end in IB
-     6  Dev end/atten in IB
-     7  CC End Queued
-
-Channel status
-     0  PCI
-     1  WLR
-     2  Program Check
-     3  Protect Check
-     4  Channel Data Check
-     5  Channel Control check
-     6  Interface Control check
-     7  Chaining check
-
-F
-    0000  Start I/O
-    0001  Foul on Start I/O
-    0100  Test I/O
-    0010  Halt I/O
-    1000  Test Channel
-    0000  Proceed with interrupt.
-
-    B0 brctl 0, startio -> B1
-
-    B1 brtcl 6, seq ctrls idle, op in, adr in -> B2
-
-    B2 brctl 4, status in -> B3
-
-    C-br, not status in, not op in, ucw store trg on, any chk off -> B5
-    A-ck, any chk off -> B5
-    B7  brctl 11 -> B5
-    A5  brctl 3, ch end, not dev end -> B5
-
-    B5  brctl 2 -> B6
-    D5  brctl 0, io/state code = start -> B6
-    C-br Not status in, not op in, UCW store trg on, any check on -> B7
-    C-br status in, cc latch off -> A4
-    C-br status in, cc latch on -> A5
-    C-br not status in, not op in, ucw store tgr on, any ck off -> B5
-    C-br not service in, not op in, not status in, ucw store tgr off  -> polling
-    A-ck any chk on -> B7
-    A-ck Any ck off -> B5
-
-    not inhibit I/O, PCI MPX request to ROAR -> C0
-    Any ch0 op code, poll ctrl, no request in, not test channel -> B0
-    poll control, addr in -> A0
-
-    A0  brctl 0 -> A1
-        brctl 6 -> Invalid address.
-          Set COM OUT.
-                       BFR1 = UA  BFR2 = FL OP
-    A1  brctl 1, output, not status in -> A2
-    A1  brctl 1, output, status in, not cc tgr on -> A4
-    A1  brctl 1, output, status in, cc trg on -> A5
-    A1  brctl 2, input, fwd/back, service in -> A2
-    A1  brctl 3, stop, input skip, not service in -> A3
-       A1  IOS0, PCI, IOS1,2,3 OP  BFR2 FL OP
-         State A1 Service in -> A2
-         State A1 IOS=3,7 -> A3
-         State A1 Status In BFR1.1 == 0 -> A4
-         State A1 Status In BFR1.1 == 1 -> A5
-
-    A2  brctl 3, service in, not service out, input -> A3
-    A2  brctl 3, service in, not service out, output -> A3
-    A2  brctl 5, input, count == 0 -> A7
-    A2  brctl 7, service in, not service out, input -> A3
-    A2  brctl 7, service in, not service out, output -> A3
-       A2  IOS0, PCI, IOS1,2,3 OP  BFR1 DAB, BFR2 Data byte
-         brctl 5 -> A7
-         Service in not service out -> A3
-       IOS0 -> Set PCI request trigger.
-
-    A3  brctl 5, input, count == 0 -> A7
-    A3  brctl 7, not servie out, service in, input -> A3
-    A3  brctl 7, output, count > 1 -> A3
-       A3  IOS0, PCI, IOS1,2,3 OP  BFR1 DAB, BFR2 Data byte
-
-           brctl 5 if count == 0.
-    A4  brctl 5, IB not full, active  -> A6
-    A4  brctl 6, IB not full, not active -> A6
-    A4  brctl 7, IB full -> A6
-       A4 IOS0, PCI, IOS1  IOS2 SILI IOS3 Active        BRF1 PCI OP, SEQ BFR2 Status
-                        1     0       0   SILI Not WLR
-                        1     1       1   Not SILI(WLR)
-
-          Accept or stack status
-
-    A5  brctl 3, chn end, not device end -> B5
-    A5  brctl 5, not sili flag, count != 0 -> A6
-    A5  brctl 5, (((not device end, status mod bit) | unit expc | unit chk | busy | attent), SILI flag) | count == 0 -> A5
-    A5  brctl 5, Count == 0 | (SILI flag, not ch end, device end, seq ctl 5, not cc end rec) -> A5
-    A5  brctl 6, (cc end rec | (ch end, dev end)) -> D0
-    A5  brctl 7, not sili flag, count != 0 -> A6
-    A5  brctl 7, (((not device end, status mod bit) | unit expc | unit chk | busy | attent), SILI flag) | count == 0 -> A5
-    A5  brctl 7, Count == 0 | (SILI flag, not ch end, device end, seq ctl 5, not cc end rec) -> A5
-           IOS0 PCI, IOS2 Stat mod, IOS2 0(CC) IOS3 0(not TIC)  BFR1 PCI,OP, FLAG BFR2 Status
-           IOS0 0, IOS2 1, IOS2 0 IOS3 WLR  BFR1 PCI,OP, FLAG BFR2 Status
-    A7  brctl 6, CDA flag, not inv add, not prot ck -> D0
-    A7  brctl 7, service in, not service out, (prot chk|inv addr), cda flag -> A3
-    A7  brctl 7, service in, not service out, not cda flag, input -> A3
-    A7  brctl 7, service in, not service out, not cda flag, output -> A3
-           CDA and not STO Chk
-         IOS0 PCI, IOS1 0 no stat mod, IOS2 1 CDA, IOS3 0 no tic  BFR1 DAB, BFR2 FL STOP
-           CDA and STO chk
-         IOS0 PCI, IOS1,2,3 111 STOP BFR1 UA, BFR2 FL STOP
-           NO CDA
-         IOS0 PCI, ISO1,2,3 111 STOP BFR1 UA, BFR2 FL STOP
-    B0  brctl 0, (test i/o| int test i/o) -> C1
-    B0  brctl 0, halt i/o -> C6
-    B0  brctl 0, start i/O  -> B1
-    B0  brctl 0, foul on st i/o, seq ctl idle -> polling
-    B0  brctl 0, foul on st i/o, seq ctl 5 busy -> polling
-    B0  brctl 6, inv bump adr -> polling  CC=3, GS3
-         IOS0,1,2,3 Seq cont, BFR1 Seq cntrl, BFR2 MOD OP
-            F == 0000  -> B1
-            F == 0100  -> C1
-            F == 0010  -> C6
-            F == 1000   Test chan
-
-    B1  brctl 1, seq ctrl idle, prog ck -> D5
-    B1  brctl 1, seq ctrl idle, (TIC | invalid op) -> D5
-    B1  brctl 2, seq ctrl active -> polling  Set CC2, GSS3
-    B1  brctl 6,  op in, sel in -> polling
-    B1  brctl 6, seq ctrl idle, op in, address in -> B2
-    B1  brctl 6, seq ctrl idle, op in, status in -> C5
-          IOS0,1,2,3 = 00x1     BFR1 = 0, BFR2 = 0
-          IOS0,1,2,3 = 00x0     BFR1 = OP, BFR2 = Mod OP
-              Set address out.
-              bctrl 1 -> D5
-              bctrl 2 -> GPS3=1, CC=2  break out
-              bctrl 6 & IVA -> polling.
-              bctrl 6 & addr In -> B2     /* Select */
-              bctrl 6 & status in -> C5   /* Device quick busy */
-
-    B2  brctl 4, status in -> B3
-          IOS0 CDA, IOS1 CC and NO CDA IOS2 SILI and NO CDA, IOS3 Skip, BFR1=10001000 BFR2=FL OP
-        brctl 1, LOGOUT  UA != device.
-            Set Command out.
-            Brctl 4 & status in -> B3
-    B3  brctl 3, CC=0 -> A2
-    B3  brctl 6, CC flag, ch end, dev end -> D0
-    B3  brctl 7, service in, input, status=0 -> A2
-    B3  brctl 7, service in, input, status=0 -> A2
-    B3  brctl 7, status == 0, not input -> A2
-    B3  brctl 15, CC flag, status error -> D5
-    B3  brctl 15, not CC flag, status != 0, (any busy | status mod) -> D5
-        IOS0 PCI IOS1,2,3 OP  BFR1 0000,DAB BFR2 Flags OP
-        IOS0 x   IOS1,2,3 100  BFR1 0000 0011 BFR2 FL OP
-        IOS0 PCI, IOS1 Stat Mod IOS2,3 00  BFR1 Status, BFR2 FLAGS OP
-            CC set Suppess out. or Service out.
-    B5  brctl 2 -> B6
-    B6           not op in, not status in, (busy | ch end rec) -> polling
-    B7  brctl 11 -> B5
-    C0  IOS0 0 NOPCI, IOS1,2,3 OP, BFR1 DAB, BFR2 Data
-    C0   -> End
-    C1  brctl 1, ch end queued -> C7
-    C1  brctl 1, ch end in IB, test I/O ua = IB ua -> C7
-    C1  brctl 2, (busy | ch end rec) -> polling
-    C1  brctl 2, ch end in ib, test i/o ua != IB ua -> polling
-    C1  brctl 6, op in, addr in, (device end | attn in IB | idle) -> C2
-    C1  brctl 6, not op in, not int test i/o, (dev end | attn in ib | idle) -> C5
-         IOS 1100   BFR1 (INST UA, BFR2 (INST UA ^ UCW UA
-              set ADR out. Sel out if Idle.
-         brctl 6 addr in, opr in -> C2
-         brctl 1 -> C7
-         brctl 2 -> CC=2 -> Polling  GPS3 = 1
-    C2  brctl 2, addr in, status in -> C3
-          Send Comm out.
-        brctl 2 status in -> C3
-        brctl 1, log out.
-    C3  brctl 2, status == 0, (not any busy|not status mod | not ch end|device end queue) -> polling
-    C3  brctl 3, (any busy|status mod bit) -> D5
-    C3  brctl 3, !(any busy|status mod bit), (chn end | dev end queue) -> D5
-           No Chan end
-         IOS = 1000  BFR1 = US
-           Chan end
-         IOS = 1100  BFR1 = US
-         Respond Sev out.
-         brctl 3 -> D5
-         brctl 2 -> CC=0 GPS3 = 1
-    C5  brctl 3  -> D5
-         Not from HALTIO
-         IOS = 0100   BFR1 = (US)
-         From Halt IO
-         IOS = 0101   BFR1 = (US) BFR2 = 10110111
-             DTC2 reset Select out.
-    C6  brctl 6, op in, addr in, wait for not op in -> D5
-    C6  brctl 1, (ch end in IB| ch end queued) -> polling
-    C6  brctl 6, select in, not op in, not status in -> polling
-        brctl 2 -> set CC0
-         IOS = 0101  BFR1 = 00000111 BFR2 = 10110111
-         Addr out.
-         Sel out.
-         BRctl 6 op in, addr -> D5
-
-    C7  brctl 2, ucw ua != test i/o ua -> polling
-    C7  brctl 3  -> D5
-    C7  brctl 6, op in, addr in -> C2
-    C7  brctl 6, not op in status in -> C5
-    C7  brctl 6, not op in, not int test i/o -> C5
-        IOS0=1 IOS1 =0 IOS2 = PCI IOS3 = 1, BFR1 INT CODE, BFR2 US
-    D0  brctl 1, CDA -> D1
-    D0  brctl 1, not CDA, not op in -> D1
-        IOS0 PCI, IOS1 Status mod, IOS2 CC CDA, IOS3=0 (For tic tic), BFR1=CHS,RO BFR2=Unit status
-    D1  brctl 1 -> D4
-    D1  brctl 3 -> D7
-    D1  brctl 6, op in, addr in -> D2
-          IOS0 PCI, IOS1=1(Prog ck), IOS2 CC CDA, IOS3=prev tic BFR1-CH.S.R BFR2=UA
-    D2  brctl 2, status in -> D3
-          Not prog ck
-          IOS0 Old PCI, IOS1 New CC, IOS2 0 Not prog ck, IOS3 New skip BFR1 FL OP BFR2 MOD OP
-          Not valid CA
-          TIC-TIC Cnt flag test
-          IOS0 old PCI  IOS1 0       IOS2 1 prog ck,  IOS3 0   BFR1 0000PCI HALT, BFR2 UA
-    D3  brctl 1, not prog ck, status == 0, new cc flag, input, not skip, service in -> A2
-    D3  brctl 1, not prog ck, status == 0, new cc flag, not input -> A2
-    D3  brctl 1, not prog ck, status == 0, not new cc flag, not input -> A2
-    D3  brctl 1, not prog ck, status == 0, not new cc flag, input, not skip, service in -> A2
-    D3  brctl 3, not prog ck, status = 0, input, skip, service in, not new cc flag -> A3
-    D3  brctl 3, not prog ck, status = 0, input, skip, service in, new cc flag -> A3
-    D3  brctl 5, ib not full, prog ck -> A6
-    D3  brctl 5, ib not full, not prog ck, new cc flag, unit status = error -> A6
-    D3  brctl 6, not prog ck, new cc flag, status equal, not error, device end -> D0
-    D3  brctl 7, ib full, not prog ck, new cc flag, unit status = error -> A6
-    D3  brctl 7, ib full, prog ck -> A6
-         IOS0=PCI, IOS1=Status mod, IOS2=0(CC), IOS3=0(No tic), BFR1=1011,PCI,OP BFR2=status
-    D4  brctl 1, M/op = TIC, valid addr, not prev tic -> D0
-    D4|brctl 3|CDA, m/op invalid -> D7
-    D4|brctl 3|CDA, m/op valid, not tic -> D7
-    D4|brctl 3|CDA, m/op TIC, invalid addr -> D7
-    D4|brctl 3|CDA, m/op TIC, valid addr -> D7
-    D4  brctl 6, CC, M/op invalid -> D2
-    D4  brctl 6, CC, M/op valid, not TIC -> D2
-         IOS0 Old PCI, IOS1 Prog chk, IOS2 CC CDA IOS3 Prev Tic BFR1=(CH.S.R.PCI OP), BFR2 (M OP)
-    D5  brctl 0, i/o stat code=start -> B6
-         brctl 8 = startio
-         Set GPS2 = 1.
-         E->CH 0 set GPS3,
-    D7  brctl 1, not input -> A2
-    D7  brctl 1, input, not skip, service in -> A2
-    D7  brctl 1, input, skip -> A3
-    D7  brctl 3, input, skip -> A3
-    D7  brctl 3, not input -> A2
-    D7  brctl 3, input, not skip, service in -> A2
-    D7  brctl 7, service in -> A3
-    D7  brctl 7, not service in, status in, not cc tgr off -> A4
-    D7  brctl 7, not service in, status in, cc trg on -> A5
-    D7  brctl 7, not service in, not op in, not status in, ucw store tgr off  -> polling
-         IOS0 OLD+NEWPCI IOS1,2,3 OP BFR1 =0000 DAB, BFR2 FL OP
-            prog ck
-         IOS0 PCI OLD/NEW, IOS1,2,3=1 STOP, BFR1 = UA, BFR2 = 0000 PCI 111
-
-
-
-
-
-
-
-    A0 brctl 0 -> A1, IVA trap
-    A1 brctl 1 output BFR2=06 Status in == 0 -> A2
-       brctl 2 input BFR2=0|1 service in > A2
-       brctl 3 stop, inputskip BFR2=3, no service in > A3
-       brctl 1 output, BFR2=06 status in, not cc trg on -> A4
-       brctl 1 output, BFR2=06 status in, not cc trg off -> A5
-
-    A2 (brctl 7|BC3), (input|output), service in, not service out -> A3
-       brctl 5, count=0, input -> A7
-       input, (invalid addr | prot chk) -> A7
-        brctl 3, brctl7, output, count=1 -> A7
-        brctl 3, brctl7, output, invalid -> A7
-
-Multiplex
-080  RTA0  Routine A0 - adr in, poll control
-084  RTA1  Routine A1 - a0, brctrl 0
-088  RTA2  Routine A2 - a1, brctrl 1, output, not status in |
-                        a1, brctrl 2, input, fwd/bkwd service_in |
-                        b3, brctrl 7, service_in, input, status == 0, not skip |
-                        b3, brctrl 7, service_in, input, status == 0, skip |
-                        b3, brctrl 7, status != 0, not input |
-                        d3, brctrl 1, not prog ck, status == 0, new cc flag, service in, not skip, input |
-                        d3, brctrl 1, not prog ck, status == 0, new cc flag, not input |
-                        d3, brctrl 1, not prog ck, status == 0, not new cc flag, not input |
-                        d3, brctrl 1, not prog ck, status == 0, not new cc flag, input, not skip, service in |
-                        d7, (brctrl 1 | brctrl 3), not input |
-                        d7, (brctrl 1 | brctrl 3), input, not skip, service in
-08c  RTA3  Routine A3   a1, brctrl 3, stop, input skip, not service in |
-                        a2, service in, not service out, (bc3 | brctrl 7), input |
-                        a2, service in, not service out, (bc3 | brctrl 7), output |
-                        a3, brctrl 7, not service out, service in, input |
-                        a3, brctrl 7, output, count > 1 |
-                        a7, brctrl 7, (prot ck | inv addr), cda flag, service in, not service out |
-                        a7, brctrl 7, not cda flag, ervice in, not service out, input |
-                        a7, brctrl 7, not cda flag, service in, not service out, output |
-                        d3, brctrl 3, not prot ck, status == 0, input, skip, service in, not new cc flag |
-                        d3, brctrl 3, not prot ck, status == 0, input, skip, service in, new cc flag |
-                        brctrl 7, d7, service in |
-                        d7, service in, input, skip, (brctrl 1 | brctrl 3)
-090  RTA4  Routine A4   a1, brctrl 1, output, status in, not cc trg on |
-                        d7, brctrl 7, not service in, status in, not cc trg off |
-                        c-br, status in, cc latch off
-094  RTA5  Routine A5   a1, brctrl 1, output, status in, cc trg on |
-                        d7, brctrl 7, not service in, status in, cc trg on |
-                        c-br, status in, cc latch on
-098  RTA6  Routine A6   active, brctrl 5, a4, ib not full | a4, ib not full, brctrl 6, not active |
-                        a4, brctrl 7, ib full | not sili flag, count != 0, (brctrl 5|brctrl 7), a5 |
-                        (brctrl 5|brctrl 7), a5, ((((status mod, not device end) | unit exctp | unit ck | busy | atten), sili flag) | count === 0)
-                        (brctrl 5|brctrl 7), a5, count == 0 | (sili flag, not ch end, device end, seq ctrl 5, not cc end rcvd) |
-                        d3, brctrl 5, ib not full, prog ck | d3, brctrl 5, ib not full, not prog ck, new cc flag, unit status==error |
-                        not prog ck, new cc flag, unit status==error, d3, brctrl 7, ib full | d3, brctrl 7, ib full, prog ck
-09c  RTA7  Routine A7   (inv adr | prot ck), a2, input | a2, input, brctrl 5, decr count == 0 |
-                        a2, output, (brctrl 3|brctrl 7), decr count == 1 |
-                        a2, output, (brctrl 3|brctrl 7), inv adr |
-                        (inv adr | prot ck) | a3, input, brctrl 5, decr count == 0 |
-                        a3, brctrl 7, output, decr count == 1 |
-                        a3, brctrl 7, output, (inv adr | prot ck)
-
-0a0  RTB0  Routine B0  - Any ch0 op, poll ctrl-no req-in, not test channel
-0a4  RTB1  Routine B1  - b0, brctrl 0, start i/o
-0a8  RTB2  Routine B2  - b1, brctrl 6, seq ctrls idle, op in, adr in
-0ac  RTB3  Routine B3  - b2, brctrl 4, sta in
-
-0b4  RTB5  Routine B5  - c-br, not sta in, not op in, ucw store trg on, any ck off | any ck on & a-ck | b7, brctrl 11 | a5, brctrl 3, ch end, no dev end
-0b8  RTB6  Routine B6  - b5, brctrl 2 | d5, brctrl 0 i/o stat code = start
-0bc  RTB7  Routine B7  - c-br, not sta in, not op in, ucw store trg on, any ck on | any ck on & a-ck
-
-002  RTC0  Routine C0  - no inh i/o fixed adr, pci mpx req
-086  RTC1  Routine C1  - b0, brctrl 0, (test i/o | int test i/o)
-08a  RTC2  Routine C2  - c1, brctrl 6, op in, adr in, (dev end,attn in, idle) | c7, brctrl 6, op in, adr in
-08e  RTC3  Routine C3  - c2, brctrl 2, adr in, sta in
-092  RTC4  Routine C4
-096  RTC5  Routine C5  - b1, brctrl 6, seq ctr idle, op in, sta in, no sel in | c1, brctrl 6, not op in, not int test i/o (dev end, attn, idle) |
-                         c6, brctrl 6, no op in, sta in | c7, brctrl 6, not op in, not int test i/o
-09a  RTC6  Routine C6  - b0, brctrl 0, halt i/o
-09e  RTC7  Routine C7  - c1, brctrl 1, ch end | c1, brctrl 1, ch end, test i/o
-
-0a2  RTD0  Routine D0  - a5, brctrl 6, (cc end recv | (ch end, dev end)) | a7, brctrl 6, cda flag, not inv adr, not prot ck |
-                         b3, brctrl 6, cc flag, ch end, dev end | d4, brctrl 1, m/op==tic, val adr, not prev tic |
-                         d3, brctrl 6, not prog ck, new cc flag, status equal, not error, dev end
-0a6  RTD1  Routine D1  - cda, d0, brctrl 1 | d0, brctrl 1, not cda, not op in
-0aa  RTD2  Routine D2  - d1, brctrl 6, op in, adr in | m/op invalid, d4, brctrl 6, cc | d4, brctrl6, cc, m/op valid, not tic
-0ae  RTD3  Routine D3  - d2, brctrl 2, sta in
-0b2  RTD4  Routine D4  - d1, brctrl 2
-0b6  RTD5  Routine D5  - prog ck, b1, brctrl 1, seq ctrl idle | b1, brctrl 1, seq ctrl idle, (tic | inv op) |
-                         cc flag, status err, b3, brctrl 15 | b3, brctrl 15, not cc flag, status != 0) |
-                         (any busy | status mod), c3, brctrl 3 | c3, brctrl 3, !(any busy|status mod), (ch end | dev end queued) |
-                         c5, brctrl 3 | c6, brctrl 6, op in, adr in, wait for not op in | c7, brctrl 3
-0be  RTD7  Routine D7  - d1, brctrl 3 | prev tic, valid adr, m/op=tic, (d4 | brctrl3 | cda) |
-                           (d4 | brctrl3 | cda), invalid adr, m/op=tic |
-                           (d4 | brctrl3 | cda), m/op invalid |
-                           (d4 | brctrl3 | cda), m/op valid, not tic
-
-resume polling - seq ctrl idle, b0, brctrl 0, foul on st i/o |
-                 b0, brctrl 0, foul on st i/o, seq brctrl 5 busy |
-                 b0, brctrl 6, inv bump adr | b1, brctrl 2, seq ctrl is active |
-                 b1, brctrl 6, seq ctrl idel, op in, sel in, b6, no op in, not status in |
-                 (busy | ch end recv), c1, brctrl 2 | c1, brctrl 2, ch end in ib, test i/o ua != ib ua |
-                 c3, brctrl 2, status == 0, (not any busy | not status mod), (not ch end, dev end queued) |
-                 c6, brctrl 1, (ch end in IB| ch end queued) | c6, brctrl 6, sel in, not op in, not status in |
-                 c7, brctrl 2, ucw ua != test i/o ua |
-                 d5, not op in, not status in | d7, brctrl 7, not service in, not op in, not status in, ucw store tag off
-                 not op in, not status in, ucw store tgr off, c-br
-
-log    -   a0, brctrl 6, inv bump adr | b2, brctrl 1, ucw ua != inter ua |
-           c1, brctrl 6, (ib = dev end|ib = atten | idle), not op in, intr test i/o |
-           c2, brctrl 1, instr ua != inter ua | c7, brctrl 6, not op in, intr test i/o, (status in|sel in) |
-           d1, brctrl 6, not op in, (status in | sel in)
-
-#endif
 }
 
 

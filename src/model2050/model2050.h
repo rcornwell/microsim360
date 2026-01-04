@@ -227,12 +227,12 @@ uint16_t    FLAGS_REG[4];       /* Selector Flags register */
  */
 uint8_t     inst_latch;
 uint8_t     IO_KEY;             /* Key for last I/O operation */
-uint8_t     D1[4];              /* Channel flag D1 */
-uint8_t     D2[4];              /* Channel flag D2 */
-uint8_t     C1[4];              /* Channel flag C1 */
-uint8_t     C2[4];              /* Channel flag C2 */
-uint8_t     C3[4];              /* Channel flag C3 */
-uint8_t     C4[4];              /* Channel flag C4 */
+uint8_t     D1[4];              /* Channel flag D1, Not used? */
+uint8_t     D2[4];              /* Channel flag D2, Indicates TICH */
+uint8_t     C1[4];              /* Channel flag C1, Indicates C_FULL with CD */
+uint8_t     C2[4];              /* Channel flag C2, Indicates Interface check during selection */
+uint8_t     C3[4];              /* Channel flag C3, Indicates PCI or status only interrupt */
+uint8_t     C4[4];              /* Channel flag C4, Not used */
 uint8_t     CD[4];              /* Data chain flag */
 uint32_t    B_REG[4];           /* Select channel B regiser */
 uint32_t    C_REG[4];           /* Select channel C regiser */
@@ -250,6 +250,9 @@ uint16_t    CHREQ[4];           /* Channel position request register */
 uint16_t    CHCLK[4];           /* Channel clock register */
 uint8_t     EOR[4];             /* End of record on channel */
 uint8_t     BCHI;               /* Interrupt pending */
+
+uint16_t    clock_start_lch;
+uint16_t    allow_man_operation;
 
 } cpu_2050;
 

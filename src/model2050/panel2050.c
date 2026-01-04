@@ -861,14 +861,14 @@ setup_fp2050(void *rend)
     lamp[lamp_ptr].rect.h = 15;
     lamp[lamp_ptr].rect.w = 15;
     lamp[lamp_ptr].col = 0;
-    SET_INDICATOR8(&lamp[lamp_ptr].ind, &clock_start_lch, 0, 0);
+    SET_INDICATOR16(&lamp[lamp_ptr].ind, &cpu_2050.clock_start_lch, 0, 0);
     lamp_ptr++;
     lamp[lamp_ptr].rect.x = 820 + (f1_wd * 15);
     lamp[lamp_ptr].rect.y = h2 * 78 + (h2/2);
     lamp[lamp_ptr].rect.h = 15;
     lamp[lamp_ptr].rect.w = 15;
     lamp[lamp_ptr].col = 0;
-    SET_INDICATOR8(&lamp[lamp_ptr].ind, &allow_man_operation, 0, 0);
+    SET_INDICATOR16(&lamp[lamp_ptr].ind, &cpu_2050.allow_man_operation, 0, 0);
     lamp_ptr++;
     lamp[lamp_ptr].rect.x = 820 + (f1_wd * 20);
     lamp[lamp_ptr].rect.y = h2 * 78 + (h2/2);
