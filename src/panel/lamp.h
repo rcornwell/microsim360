@@ -1,7 +1,7 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim360 - GUI Draws lamp indicator.
  *
- * Copyright 2023, Richard Cornwell
+ * Copyright 2025, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,15 +24,16 @@
  */
 
 
-#ifndef _LABEL_H_
-#define _LABEL_H_
-#include <SDL_ttf.h>
+#ifndef _LAMP_H_
+#define _LAMP_H_
 #include "widgets.h"
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+#define LAMP_WHITE 0
+#define LAMP_RED   1
+#define LAMP_GREEN 2
 
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+Widget
+add_lamp(Panel win, int x, int y, char *label1, uint16_t *value, TTF_Font *font,
+                   int color, SDL_Color *t_col);
 
 #endif

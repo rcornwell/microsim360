@@ -345,6 +345,7 @@ extern int toggle_ptr;
 
 extern TTF_Font   *font0;
 extern TTF_Font   *font1;
+extern TTF_Font   *font10;
 extern TTF_Font   *font12;
 extern TTF_Font   *font14;
 

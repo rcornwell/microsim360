@@ -1,7 +1,7 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim359 - GUI draw ROS rows.
  *
- * Copyright 2023, Richard Cornwell
+ * Copyright 2025, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,15 +24,22 @@
  */
 
 
-#ifndef _LABEL_H_
-#define _LABEL_H_
-#include <SDL_ttf.h>
+#ifndef _ROS_ROW_H_
+#define _ROS_ROW_H_
 #include "widgets.h"
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+/* Hold label information */
+typedef struct _ros_row {
+      char       *upper;
+      char       *lower;
+      int        start_bit;
+      SDL_Color  *c_on;
+      SDL_Color  *c_off;
+} ros_row, *Ros_row;
 
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+Widget add_ros_row(Panel win, int x, int y, Ros_row row, 
+              TTF_Font *font, uint32_t *bits, int *pos, SDL_Color *cmark);
+
+int ros_row_width(Panel win, Ros_row row, TTF_Font *font);
 
 #endif

@@ -58,8 +58,11 @@ typedef struct _widget_t {
     /* Called when the control is updated */
     void        (*update)(struct _widget_t *w);
 
-    /* Check if there is an update to the widget */
-    int         (*click)(struct _widget_t *w, int x, int y);
+    /* If there is a mouse down event in this widget, let it know */
+    void        (*click)(struct _widget_t *w, int x, int y);
+
+    /* Mouse button released this widget */
+    void        (*release)(struct _widget_t *w);
 
     /* Clean up any data held by widget */
     void        (*close)(struct _widget_t *w);

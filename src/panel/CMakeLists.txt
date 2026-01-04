@@ -18,7 +18,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_library(panellib panel.c area.c label.c light.c line.c)
+add_library(panellib panel.c area.c label.c light.c line.c ros_row.c
+            reg_row.c button.c hex_dial.c store_dial.c dial.c timer.c
+            lamp.c)
 target_include_directories(panellib PUBLIC ${includes}
                                             ${SDL2_INCLUDE_DIRS}
                                             ${SDL2_IMAGE_INCLUDE_DIRS}

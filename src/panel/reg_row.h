@@ -1,7 +1,7 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim359 - GUI draw REG rows.
  *
- * Copyright 2023, Richard Cornwell
+ * Copyright 2025, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,15 +24,26 @@
  */
 
 
-#ifndef _LABEL_H_
-#define _LABEL_H_
-#include <SDL_ttf.h>
+#ifndef _REG_ROW_H_
+#define _REG_ROW_H_
 #include "widgets.h"
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+/* Hold label information */
+typedef struct _reg_row {
+      char       *upper;
+      char       *lower;
+      SDL_Color  *c_on;
+      SDL_Color  *c_off;
+      int         start_bit[4];
+      uint16_t    *value[4];
+} reg_row, *Reg_row;
 
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+Widget add_reg_row(Panel win, int x, int y, Reg_row row, 
+              TTF_Font *font, int *pos, SDL_Color *cmark);
+
+Widget add_reg_row_large(Panel win, int x, int y, Reg_row row, 
+              TTF_Font *font, int *pos, SDL_Color *cmark);
+
+int reg_row_width(Panel win, Reg_row row, TTF_Font *font);
 
 #endif

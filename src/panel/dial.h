@@ -1,7 +1,7 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim360 - GUI Draw a rotary select switch.
  *
- * Copyright 2023, Richard Cornwell
+ * Copyright 2025, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,15 +24,28 @@
  */
 
 
-#ifndef _LABEL_H_
-#define _LABEL_H_
+#ifndef _DIAL_H_
+#define _DIAL_H_
 #include <SDL_ttf.h>
 #include "widgets.h"
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+/*
+ *        0
+ *    11     1
+ *  10         2
+ * 9             3
+ *  8          4
+ *    7      5
+ *       6
+ */
+typedef struct _dial_label {
+    char *lower[12];
+    char *upper[12];
+    int  value[12];
+} dial_label, *Dial_label;
 
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+Widget
+add_dial(Panel win, int x, int y, int h, int w, Dial_label labels,
+              uint8_t *value, int wrap, TTF_Font *font, SDL_Color *col);
 
 #endif

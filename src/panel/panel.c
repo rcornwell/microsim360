@@ -96,6 +96,7 @@ uint32_t timer_callback(uint32_t interval, void *param);
 
 TTF_Font *font0;                     /* Small font */
 TTF_Font *font1;
+TTF_Font *font10;
 TTF_Font *font12;
 TTF_Font *font14;
 int         f1_hd;                   /* Font 1 Height */
@@ -260,6 +261,7 @@ SDL_Setup(char *title, int scr_wid, int scr_hi)
     /* Create fonts */
     font0 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 7);
     font1 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 9);
+    font10 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 10);
     font12 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 12);
     font14 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 14);
     /* Load in base images for CPU */
@@ -1165,6 +1167,7 @@ run_sim()
     SDL_Surface *text;
     SDL_Texture *txt;
     SDL_RWops    *rw_font;
+    Widget       wp;
     struct _popup   *pop_wind = NULL;
     Uint32	f;
     int      shf;
@@ -1189,6 +1192,16 @@ run_sim()
            if (event.window.windowID == mWindowID) {
                switch(event.type) {
                case SDL_MOUSEBUTTONDOWN:
+                    /* Check for click */
+                    for (wp = cpu_panel->list; wp != NULL; wp = wp->next) {
+                         if (wp->click != NULL) {
+//                             if (SDL_PointInRect(&event.button, &wp->rect) == SDL_TRUE) {
+                             if (inrect(event.button.x, event.button.y, wp->rect)) {
+                                  wp->click(wp, event.button.x - wp->rect.x,
+                                                event.button.y - wp->rect.y);
+                             }
+                         }
+                    }
                     for (i = 0; i < sws_ptr; i++) {
                         if (inrect(event.button.x, event.button.y, sws[i].rect)) {
                              if (sws[i].type == ONOFF) {
@@ -1293,6 +1306,14 @@ run_sim()
                     }
                     break;
                case SDL_MOUSEBUTTONUP:
+                    /* Check for release */
+                    for (wp = cpu_panel->list; wp != NULL; wp = wp->next) {
+                         if (wp->release != NULL) {
+                             if (inrect(event.button.x, event.button.y, wp->rect)) {
+                                  wp->release(wp);
+                             }
+                         }
+                    }
                     for (i = 0; i < sws_ptr; i++) {
                         if (inrect(event.button.x, event.button.y, sws[i].rect)) {
                              if (sws[i].type != ONOFF && sws[i].value != 0) {
@@ -1618,9 +1639,19 @@ log_trace("Quit\n");
   done:
 	log_trace("Done\n");
     system_shutdown();
+    /* Clear any widgets that have resources to remove */
+    for (wp = cpu_panel->list; wp != NULL;) {
+         Widget wpn = wp->next;
+         if (wp->close != NULL)
+             wp->close(wp);
+         free(wp);
+         wp = wpn;
+    }
+
     SDL_WaitThread(thrd, NULL);
     SDL_RemoveTimer(disp_timer);
     TTF_CloseFont(font1);
+    TTF_CloseFont(font10);
     TTF_CloseFont(font12);
     TTF_CloseFont(font14);
     TTF_Quit();

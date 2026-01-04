@@ -26,28 +26,25 @@
 #include "light.h"
 
 struct _light_t {
-    indicator    ind;
     SDL_Rect     recth;
     SDL_Rect     rectl;
     SDL_Texture *digith_on;
     SDL_Texture *digitl_on;
     SDL_Texture *digith_off;
     SDL_Texture *digitl_off;
+    uint16_t    *value;
+    int          shift;
 };
 
     
 static void
-display_label(Widget wid, SDL_Renderer *render)
+display_light(Widget wid, SDL_Renderer *render)
 {
    struct _light_t *l = (struct _light_t *)wid->data;
-   uint32_t   bit;
+   int     bit = 0;
 
-   if (l->ind.type < 0) {
-      bit = (*l->ind.value.v16 & (1 << l->ind.shift)) != 0;
-   } else if (l->ind.type > 0) {
-      bit = (*l->ind.value.v8 & (1 << l->ind.shift)) != 0;
-   } else {
-      bit = (*l->ind.value.v32 & (1 << l->ind.shift)) != 0;
+   if (l->value != 0) {
+       bit = (*l->value >> l->shift) & 1;
    }
    if (LAMP_TEST || bit) {
       SDL_RenderCopy(render, l->digith_on, NULL, &l->recth);
@@ -58,13 +55,26 @@ display_label(Widget wid, SDL_Renderer *render)
    }
 }
 
+static void
+close_light(Widget wid)
+{
+   struct _light_t *l = (struct _light_t *)wid->data;
+   SDL_DestroyTexture(l->digith_on);
+   SDL_DestroyTexture(l->digith_off);
+   if (l->digitl_off != NULL) {
+       SDL_DestroyTexture(l->digitl_on);
+       SDL_DestroyTexture(l->digitl_off);
+   }
+   free(wid->data);
+}
+
 /*
  * Add text.
  */
 Widget
-add_light(Panel win, int x, int y, char *label1, char *label2, uint16_t *var,
-                      int shift, TTF_Font *font, SDL_Color *con, SDL_Color *coff,
-                      SDL_Color *cb)
+add_light(Panel win, int x, int y, char *label1, char *label2,
+                   uint16_t *value, int shift, TTF_Font *font,
+                   SDL_Color *con, SDL_Color *coff)
 {
    Widget       nwid;
    SDL_Surface *surf;
@@ -81,48 +91,46 @@ add_light(Panel win, int x, int y, char *label1, char *label2, uint16_t *var,
        return NULL;
    }
 
-   l->ind.value.v16 = var;
-   l->ind.shift = shift;
-   l->ind.type = U16;
+   l->value = value;
+   l->shift = shift;
+   l->recth.x = x;
+   l->recth.y = y;
    /* Fill in the fields */
-   surf = TTF_RenderText_Shaded(font, label1, *con, *cb);
+   surf = TTF_RenderText_Blended(font, label1, *con);
    text = SDL_CreateTextureFromSurface(win->render, surf); 
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);
    l->digith_on = text;
-   surf = TTF_RenderText_Shaded(font, label1, *coff, *cb);
+   surf = TTF_RenderText_Blended(font, label1, *coff);
    text = SDL_CreateTextureFromSurface(win->render, surf); 
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);
    l->digith_off = text;
-   l->recth.x = x;
-   l->recth.y = y;
    l->recth.h = hh;
    l->recth.w = wh;
+   l->rectl.x = x;
+   l->rectl.x = y;
    if (label2 != NULL) {
-       surf = TTF_RenderText_Shaded(font, label2, *con, *cb);
+       surf = TTF_RenderText_Blended(font, label2, *con);
        text = SDL_CreateTextureFromSurface(win->render, surf); 
        SDL_QueryTexture(text, &f, &k, &wl, &hl);
        SDL_FreeSurface(surf);
        l->digitl_on = text;
-       surf = TTF_RenderText_Shaded(font, label2, *coff, *cb);
+       surf = TTF_RenderText_Blended(font, label2, *coff);
        text = SDL_CreateTextureFromSurface(win->render, surf); 
        SDL_QueryTexture(text, &f, &k, &wl, &hl);
        SDL_FreeSurface(surf);
        l->digitl_off = text;
        l->rectl.x = x;
-       l->rectl.y = y + (hh/2);
+       l->rectl.y = y + (hh/2) - 2;
        l->rectl.h = hl;
-       l->recth.y -= (hh/2);
+       l->rectl.w = wl;
        if (wl > wh) {
-          l->rectl.w = wl;
-          l->recth.w = wl;
+          l->recth.x += (wl - wh) / 2;
        } else {
-          l->rectl.w = wh;
+          l->rectl.x += (wh - wl) / 2;
        }
-   } else {
-       l->digitl_on = NULL;
-       l->digitl_off = NULL;
+       l->recth.y -= (hh/2) + 2;
    }
 
    nwid->rect.x = x;
@@ -130,8 +138,8 @@ add_light(Panel win, int x, int y, char *label1, char *label2, uint16_t *var,
    nwid->rect.w = l->recth.w;
    nwid->rect.h = l->recth.h+l->rectl.h;
 
-   nwid->back_color = cb;
-   nwid->draw = display_label;
+   nwid->draw = display_light;
+   nwid->close = close_light;
    nwid->data = (void *)l;
    add_widget(win, nwid);
    return nwid;

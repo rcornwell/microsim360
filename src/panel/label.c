@@ -33,6 +33,13 @@ display_label(Widget wid, SDL_Renderer *render)
    SDL_RenderCopy( render, text, NULL, &wid->rect);
 }
 
+static void
+close_label(Widget wid)
+{
+   SDL_Texture *text = (SDL_Texture *)wid->data;
+   SDL_DestroyTexture(text);
+}
+
 /*
  * Add text.
  */
@@ -50,7 +57,7 @@ add_label(Panel win, int x, int y, char *txt,
    }
 
    /* Fill in the fields */
-  surf = TTF_RenderText_Shaded(font, txt, *cf, *cb);
+  surf = TTF_RenderText_Blended(font, txt, *cf);
   text = SDL_CreateTextureFromSurface(win->render, surf); 
   SDL_QueryTexture(text, &f, &k, &wx, &hx);
 
@@ -61,13 +68,15 @@ add_label(Panel win, int x, int y, char *txt,
    nwid->fore_color = cf;
    nwid->back_color = cb;
    nwid->draw = display_label;
+   nwid->close = close_label;
    nwid->data = (void *)text;
    add_widget(win, nwid);
    SDL_FreeSurface(surf);
    return nwid;
 }
+
 /*
- * Add text, centered around point..
+ * Add text, centered around point.
  */
 Widget
 add_label_center(Panel win, int x, int y, int w, char *txt,
@@ -83,7 +92,7 @@ add_label_center(Panel win, int x, int y, int w, char *txt,
    }
 
    /* Fill in the fields */
-  surf = TTF_RenderText_Shaded(font, txt, *cf, *cb);
+  surf = TTF_RenderText_Blended(font, txt, *cf);
   text = SDL_CreateTextureFromSurface(win->render, surf); 
   SDL_QueryTexture(text, &f, &k, &wx, &hx);
 
@@ -94,6 +103,7 @@ add_label_center(Panel win, int x, int y, int w, char *txt,
    nwid->fore_color = cf;
    nwid->back_color = cb;
    nwid->draw = display_label;
+   nwid->close = close_label;
    nwid->data = (void *)text;
    add_widget(win, nwid);
    SDL_FreeSurface(surf);

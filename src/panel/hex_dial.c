@@ -1,7 +1,7 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim360 - GUI a hex dial.
  *
- * Copyright 2023, Richard Cornwell
+ * Copyright 2025, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,16 +23,54 @@
  *
  */
 
+#include "hex_dial.h"
 
-#ifndef _LABEL_H_
-#define _LABEL_H_
-#include <SDL_ttf.h>
-#include "widgets.h"
+    
+static void
+display_hex_dial(Widget wid, SDL_Renderer *render)
+{
+   SDL_Rect  rect;
+   uint8_t   value = *((uint8_t *)wid->data);
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+   rect.x = ((int)value & 3) * 64;
+   rect.y = (((int)value & 0xc) >> 2)  * 64;
+   rect.h = 64;
+   rect.w = 64;
+   SDL_RenderCopy(render, hex_dials, &rect, &wid->rect);
+}
 
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+static void
+click_hex_dial(Widget wid, int x, int y)
+{
+   uint8_t   *value = ((uint8_t *)wid->data);
 
-#endif
+   if (x > 32) {
+       *value = (*value - 1) & 0xf;
+   } else {
+       *value = (*value + 1) & 0xf;
+   }
+}
+
+/*
+ * Add hex dial.
+ */
+Widget
+add_hex_dial(Panel win, int x, int y, uint8_t *value)
+{
+   Widget       nwid;
+   if ((nwid = (Widget)calloc(1, sizeof(struct _widget_t))) == NULL) {
+       return NULL;
+   }
+
+   nwid->rect.x = x;
+   nwid->rect.y = y;
+   nwid->rect.w = 64;
+   nwid->rect.h = 64;
+   nwid->data = (void *)value;
+   nwid->draw = display_hex_dial;
+   nwid->click = click_hex_dial;
+   add_widget(win, nwid);
+   return nwid;
+}
+
+

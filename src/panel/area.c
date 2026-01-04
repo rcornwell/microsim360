@@ -33,6 +33,22 @@ display_area(Widget wid, SDL_Renderer *render)
    SDL_RenderFillRect( render, &wid->rect);
 }
 
+static void
+display_area_rect(Widget wid, SDL_Renderer *render)
+{
+   int   x, y, w, h;
+
+   SDL_SetRenderDrawColor( render, wid->fore_color->r, wid->fore_color->g, wid->fore_color->b, 0xff);
+   x = wid->rect.x;
+   y = wid->rect.y;
+   h = wid->rect.h;
+   w = wid->rect.w;
+   SDL_RenderDrawLine( render, x, y, x + w, y);
+   SDL_RenderDrawLine( render, x, y, x, y + h);
+   SDL_RenderDrawLine( render, x, y + h, x + w, y + h);
+   SDL_RenderDrawLine( render, x + w, y, x + w, y + h);
+}
+
 /*
  * Add a colored area to a window.
  */
@@ -74,7 +90,7 @@ add_area_rect(Panel win, SDL_Rect *rect, SDL_Color *col)
    nwid->rect.w = rect->w;
    nwid->rect.h = rect->h;
    nwid->fore_color = col;
-   nwid->draw = display_area;
+   nwid->draw = display_area_rect;
    add_widget(win, nwid);
    return nwid;
 }

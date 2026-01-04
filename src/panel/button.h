@@ -1,7 +1,7 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim360 - GUI Draw a push button.
  *
- * Copyright 2023, Richard Cornwell
+ * Copyright 2025, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,15 +24,15 @@
  */
 
 
-#ifndef _LABEL_H_
-#define _LABEL_H_
-#include <SDL_ttf.h>
+#ifndef _BUTTON_H_
+#define _BUTTON_H_
 #include "widgets.h"
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+Widget
+add_button(Panel win, int x, int y, int h, int w, char *label1, char *label2,
+        int *value, TTF_Font *font, SDL_Color *f_col, SDL_Color *b_col, int turn_off);
 
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf, SDL_Color *cb);
+Widget
+add_blank(Panel win, int x, int y, int h, int w, SDL_Color *b_col);
 
 #endif

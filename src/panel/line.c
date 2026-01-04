@@ -24,7 +24,7 @@
  */
 
 
-#include "area.h"
+#include "line.h"
 
 static void
 display_line(Widget wid, SDL_Renderer *render)
@@ -78,5 +78,4 @@ add_mark(Panel win, int x, int y, int h, SDL_Color *col)
    add_widget(win, nwid);
    return nwid;
 }
-
 
