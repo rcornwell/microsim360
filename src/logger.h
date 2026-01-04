@@ -51,6 +51,7 @@ extern FILE *log_file;
 #define LOG_DMICRO   0x08000             /* Log disk microcode information */
 #define LOG_DREG     0x10000             /* Log disk register information */
 #define LOG_EVENT    0x20000             /* Log events */
+#define LOG_FREG     0x40000             /* Show floating point registers */
 
 void log_init(char *filename);
 void log_print_c(int level, const char *fmt, ...);
@@ -128,4 +129,10 @@ void log_print(int level, char *filename, int line, const char *fmt, ...);
                               log_print( LOG_DREG, __FILE__, __LINE__, __VA_ARGS__)
 #define log_event(...) if ((log_level & LOG_EVENT) != 0) \
                               log_print( LOG_EVENT, __FILE__, __LINE__, __VA_ARGS__)
+#define log_freg(...) if ((log_level & LOG_FREG) != 0) \
+                              log_print( LOG_FREG, __FILE__, __LINE__, __VA_ARGS__)
+#define log_freg_c(...) if ((log_level & LOG_FREG) != 0) \
+                              log_print_c( LOG_FREG, __VA_ARGS__)
+#define log_freg_s(...) if ((log_level & LOG_FREG) != 0) \
+                              log_print_s( LOG_FREG, __FILE__, __LINE__, __VA_ARGS__)
 #endif

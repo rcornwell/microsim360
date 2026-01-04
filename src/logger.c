@@ -60,6 +60,7 @@ struct _log_type {
      { LOG_DMICRO,  "DMICRO" },
      { LOG_DREG,  "DREG" },
      { LOG_EVENT, "EVENT" },
+     { LOG_FREG, "FREG"},
      { 0, NULL},
 };
 
