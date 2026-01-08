@@ -36,24 +36,30 @@
  *       6
  */
 
-static SDL_Point positions[12] = {
-            {  0, -40},   /* 0 */
-            { 25, -35},   /* 1 */
-            { 40, -15},   /* 2 */
-            { 42,   0},   /* 3 */
-            { 40,  15},   /* 4 */
-            { 25,  35},   /* 5 */
-            {  0,  40},   /* 6 */
-            {-25,  35},   /* 7 */
-            {-40,  15},   /* 8 */
-            {-42,   0},   /* 9 */
-            {-40, -15},   /* 10 */
-            {-25, -35},   /* 11 */
+static struct {
+        float     x;    /* X position */
+        float     y;    /* Y position */
+      } scale[12] = {
+         {  0.00, -0.80},     /* 0 */
+         {  0.79, -0.62},     /* 1 */  /* 38 degrees */
+         {  0.98, -0.21},     /* 2 */  /* 20 degrees */
+         {  1.00,  0.00},     /* 3 */
+         {  0.98,  0.21},     /* 4 */  /* 20 degrees */
+         {  0.79,  0.62},     /* 5 */  /* 38 degrees */
+         {  0.00,  0.80},     /* 6 */
+         { -0.98,  0.21},     /* 7 */  /* 20 degrees */
+         { -0.79,  0.62},     /* 8 */  /* 38 degrees */
+         { -1.00,  0.00},     /* 9 */
+         { -0.98, -0.21},     /* 10 */  /* 20 degrees */
+         { -0.79, -0.62},     /* 11 */  /* 38 degrees */
 };
 
 struct _dial_t {
     SDL_Rect     recth[12];
     SDL_Rect     rectl[12];
+    SDL_Point    center;
+    SDL_Point    outside[12];
+    SDL_Point    line[12];
     SDL_Texture *upper[12];
     SDL_Texture *lower[12];
     uint8_t      value[12];
@@ -85,44 +91,28 @@ static void
 display_dial(Widget wid, SDL_Renderer *render)
 {
    struct _dial_t *l = (struct _dial_t *)wid->data;
-   int i, x, y, cx, cy;
+   int i, cx, cy;
 
-   x = wid->rect.x;
-   y = wid->rect.y;
-   cx = x + (wid->rect.w / 2);
-   cy = y + (wid->rect.h / 2);
+   cx = l->center.x;
+   cy = l->center.y;
 
    SDL_SetRenderDrawColor( render, wid->fore_color->r, wid->fore_color->g, wid->fore_color->b, 0xff);
    for (i = 0; i < 12; i++) {
        if (l->upper[i] != NULL) {
-           SDL_RenderDrawLine( render, cx, cy, cx + (positions[i].x),
-                                           cy + (positions[i].y));
+           SDL_RenderDrawLine( render, cx, cy, l->outside[i].x, l->outside[i].y);
+           if (i != 0 && i != 6) {
+               SDL_RenderDrawLine( render, l->outside[i].x, l->outside[i].y,
+                                       l->line[i].x, l->line[i].y);
+           }
            SDL_RenderCopy(render, l->upper[i], NULL, &l->recth[i]);
            if (l->lower[i] != NULL) {
                SDL_RenderCopy(render, l->lower[i], NULL, &l->rectl[i]);
            }
-           switch (i) {
-           case 0:
-           case 6:
-                   break;
-           case 1: 
-           case 2: 
-           case 3:
-           case 4: 
-           case 5: 
-                   SDL_RenderDrawLine( render, cx + (positions[i].x), cy + (positions[i].y),
-                                                l->recth[i].x - 10, cy + (positions[i].y));
-                   break;
-           default:
-                   SDL_RenderDrawLine( render, cx + (positions[i].x), cy + (positions[i].y),
-                                                l->recth[i].x + l->recth[i].w + 10, cy + (positions[i].y));
-          }
        }
    }
    draw_circle(render, cx, cy, 15, c);
    draw_circle(render, cx, cy, 10, c1);
-   SDL_RenderDrawLine( render, cx, cy, cx + (positions[l->pos].x),
-                                           cy + (positions[l->pos].y));
+   SDL_RenderDrawLine( render, cx, cy, l->outside[l->pos].x, l->outside[l->pos].y);
 }
  
 
@@ -175,8 +165,8 @@ close_dial(Widget wid)
  * Add dial.
  */
 Widget
-add_dial(Panel win, int x, int y, int h, int w, Dial_label labels,
-              uint8_t *value, int wrap, TTF_Font *font, SDL_Color *col)
+add_dial(Panel win, int x, int y, int h, int w, int d, Dial_label labels,
+              uint8_t *value, int init, int wrap, TTF_Font *font, SDL_Color *col)
 {
    Widget       nwid;
    SDL_Surface *surf;
@@ -198,14 +188,21 @@ add_dial(Panel win, int x, int y, int h, int w, Dial_label labels,
    }
      
 
-   cent_x = x + (w/2);
-   cent_y = y + (h/2);
+   cent_x = x;
+   cent_y = y;
+   x -= w/2;
+   y -= h/2;
    l->pos = 0;
    l->wrap = wrap;
    l->sel = value;
+   l->center.x = cent_x;
+   l->center.y = cent_y;
    
    /* Compute label positions */
    for (i = 0; i < 12; i++) {
+       l->outside[i].x = cent_x + (int)((float)d * scale[i].x);
+       l->outside[i].y = cent_y + (int)((float)d * scale[i].y);
+
        /* Fill in the fields */
        l->upper[i] = NULL;
        l->lower[i] = NULL;
@@ -213,13 +210,17 @@ add_dial(Panel win, int x, int y, int h, int w, Dial_label labels,
        if (labels->upper[i] == NULL) {
           continue;
        }
+
+       if (l->value[i] == init) {
+           l->pos = i;
+       }
+
+       /* Draw labels */
        surf = TTF_RenderText_Blended(font, labels->upper[i], *col);
        text = SDL_CreateTextureFromSurface(win->render, surf);
        SDL_QueryTexture(text, &f, &k, &wh, &hh);
        SDL_FreeSurface(surf);
        l->upper[i] = text;
-       l->recth[i].x = cent_x + (positions[i].x);
-       l->recth[i].y = cent_y + (positions[i].y);
        l->recth[i].h = hh;
        l->recth[i].w = wh;
        l->rectl[i].h = 0;
@@ -230,16 +231,13 @@ add_dial(Panel win, int x, int y, int h, int w, Dial_label labels,
            SDL_QueryTexture(text, &f, &k, &wl, &hl);
            SDL_FreeSurface(surf);
            l->lower[i] = text;
-           l->rectl[i].x = cent_x + (positions[i].x);
-           l->rectl[i].y = l->recth[i].y + (hh/2) - 3;
            l->rectl[i].h = hl;
            l->rectl[i].w = wl;
-           l->recth[i].y -= (hh/2) + 3;
        } else {
            hl = wl = 0;
        }
 
-       /* Adjust text based on position */
+       /* Compute size of text */
        ht = hh + hl;
        if (wh > wl) {
            wt = wh;
@@ -247,18 +245,21 @@ add_dial(Panel win, int x, int y, int h, int w, Dial_label labels,
            wt = wl;
        }
 
+       /* Align text with positions */
        switch(i) {
-       case 0:
-              l->recth[i].y -= ht;
-              l->rectl[i].y -= ht;
+       case 0:  /* Center over dial */
+              l->recth[i].x = cent_x - (wt/2);
+              l->rectl[i].x = cent_x - (wt/2);
+              l->recth[i].y = l->outside[i].y - hl - 10;
+              l->rectl[i].y = l->outside[i].y - 10;
               /* Center over self */
               if (wl > wh) {
-                 l->recth[i].x += (wl - wh) / 2;
+                 l->recth[i].x += (wh - wl) / 2;
               } else {
-                 l->rectl[i].x += (wh - wl) / 2;
+                 l->rectl[i].x += (wl - wh) / 2;
               }
-              l->recth[i].x -= (wt/2);
-              l->rectl[i].x -= (wt/2);
+              l->line[i].x = cent_x;
+              l->line[i].y = y + ht + 2;
               break;
 
        case 1:
@@ -266,40 +267,55 @@ add_dial(Panel win, int x, int y, int h, int w, Dial_label labels,
        case 3:
        case 4:
        case 5:
-              l->recth[i].x = x + w - wt;
-              l->rectl[i].x = x + w - wt;
+              /* Right align to width */
+              l->recth[i].x = x + w - wh;
+              l->rectl[i].x = x + w - wl;
+              l->recth[i].y = l->outside[i].y;
+              l->rectl[i].y = l->outside[i].y;
               if (wl == 0) {
-                 l->recth[i].y -= ht/2;
-              } else {
                  l->recth[i].y -= hh/2;
-                 l->rectl[i].y -= hh/2;
+              } else {
+                 l->recth[i].y -= hh - 2;
+                 l->rectl[i].y -= 2;
               }
+              l->line[i].x = x + w - wt - 2;
+              l->line[i].y = l->outside[i].y;
               break;
 
-       case 6:
-              if (wl != 0) {
-                 l->recth[i].y += hh;
-                 l->rectl[i].y += hh;
-              }
+       case 6:  /* Center under dial */
+              l->recth[i].x = cent_x - (wt/2);
+              l->rectl[i].x = cent_x - (wt/2);
+              l->recth[i].y = l->outside[i].y + 10;
+              l->rectl[i].y = l->outside[i].y + 10 + hh;
               /* Center over self */
               if (wl > wh) {
                  l->recth[i].x += (wl - wh) / 2;
               } else {
-                 l->rectl[i].x += (wh - wl) / 2;
+                 l->recth[i].x += (wh - wl) / 2;
               }
-              l->recth[i].x -= (wt/2);
-              l->rectl[i].x -= (wt/2);
+              l->line[i].x = cent_x;
+              l->line[i].y = y + (h - ht - 2);
               break;
 
-       default:
+       case 7:
+       case 8:
+       case 9:
+       case 10:
+       case 11:
+              /* Align to width */
               l->recth[i].x = x;
               l->rectl[i].x = x;
+              l->recth[i].y = l->outside[i].y;
+              l->rectl[i].y = l->outside[i].y;
               if (wl == 0) {
-                  l->recth[i].y -= ht/2;
+                 l->recth[i].y -= hh/2;
               } else {
-                  l->recth[i].y -= hh/2;
-                  l->rectl[i].y -= hh/2;
+                 l->recth[i].y -= hh - 2;
+                 l->rectl[i].y -= 2;
               }
+              l->line[i].x = x + wt + 2;
+              l->line[i].y = l->outside[i].y;
+              break;
        }
    }
 

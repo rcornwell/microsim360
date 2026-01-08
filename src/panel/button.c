@@ -32,7 +32,6 @@ struct _button_t {
     SDL_Texture *lower;
     SDL_Color    color;
     int          type;
-    int          active;
     int         *value;
     int          turn_off;
 };
@@ -55,7 +54,7 @@ display_button(Widget wid, SDL_Renderer *render)
    y = wid->rect.y;
    h = wid->rect.h + 1;
    w = wid->rect.w + 1;
-   if (sw->active) {
+   if (wid->active) {
        /* Top black */
        SDL_SetRenderDrawColor( render, 0x0, 0x0, 0x0, 0xff);
        SDL_RenderDrawLine( render, x, y, x + w, y);
@@ -115,7 +114,6 @@ click_button(Widget wid, int x, int y)
 {
    struct _button_t *sw = (struct _button_t *)wid->data;
 
-   sw->active = 1;
    if (sw->value != NULL) {
        *sw->value = !*sw->value;
    }
@@ -126,7 +124,6 @@ release_button(Widget wid)
 {
    struct _button_t *sw = (struct _button_t *)wid->data;
 
-   sw->active = 0;
    if (sw->value != NULL && sw->turn_off) {
        *sw->value = 0;
    }

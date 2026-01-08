@@ -38,7 +38,7 @@ static void
 display_lamp(Widget wid, SDL_Renderer *render)
 {
    struct _lamp_t *l = (struct _lamp_t *)wid->data;
-   int            bit = 0;
+   uint16_t       bit = 0;
    SDL_Rect       rect;
 
    if (l->value != 0) {
@@ -123,65 +123,3 @@ add_lamp(Panel win, int x, int y, char *label1,
    return nwid;
 }
 
-#if 0
-#define SET_INDICATOR16(ind, data, sh, msk) (ind)->type=U16; (ind)->mask=msk; (ind)->shift=sh; (ind)->value.v16=data;
-#define SET_INDICATOR8(ind, data, sh, msk) (ind)->type=U8; (ind)->mask=msk; (ind)->shift=sh; (ind)->value.v8=data;
-#define SET_INDICATORNON(ind) (ind)->type=U32; (ind)->mask=0; (ind)->shift=0; (ind)->value.v32=NULL;
-
-/* Generic lamps */
-extern struct _lamp {
-    SDL_Rect      rect;           /* Area to show rectangle */
-    int           col;            /* Color */
-    indicator     ind;
-} lamp[1000];
-
-
-    text = IMG_ReadXPMFromArray(lamps_img);
-    lamps = SDL_CreateTextureFromSurface( render, text);
-    SDL_FreeSurface(text);
-
-    /* Lastly draw the Lamps */
-    for(i = 0; i < lamp_ptr; i++) {
-        rect.x = lamp[i].col * 15;
-        rect.y = 0;
-        rect.w = 15;
-        rect.h = 15;
-        if (LAMP_TEST || get_indicator(&lamp[i].ind))
-            rect.y = 15;
-        SDL_RenderCopy(render, lamps, &rect, & lamp[i].rect);
-    }
-
-
-/*
- * Get the value of an indicator.
- * If Mask is none zero compute parity instead of bit.
- */
-uint32_t
-get_indicator(indicator *ind)
-{
-    uint32_t   v = 0;
-
-    if (ind->type == 0 && ind->value.v32 != NULL)
-       v = *ind->value.v32;
-    else if (ind->type < 0 && ind->value.v16 != NULL)
-       v = (uint32_t)(*ind->value.v16);
-    else if (ind->type > 0 && ind->value.v8 != NULL)
-       v = (uint32_t)(*ind->value.v8);
-    v >>= ind->shift;
-    if (ind->mask != 0) {
-        int        k, p = 1;
-        uint32_t   mask = ind->mask;
-        for (k = 0; k < 32 && mask != 0; k++) {
-            uint32_t  m = 1<<k;
-            if (m & mask) {
-                p ^= ((v & m) != 0);
-                mask ^= m;
-            }
-        }
-        v = p;
-     } else {
-        v &= 1;
-     }
-     return v;
-}
-#endif

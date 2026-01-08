@@ -1,5 +1,5 @@
 /*
- * microsim360 - GUI Draw a rotary select switch.
+ * microsim360 - GUI Draw a roller control.
  *
  * Copyright 2025, Richard Cornwell
  *
@@ -24,28 +24,15 @@
  */
 
 
-#ifndef _DIAL_H_
-#define _DIAL_H_
-#include <SDL_ttf.h>
+#ifndef _ROLLER_H_
+#define _ROLLER_H_
 #include "widgets.h"
+#include <stdint.h>
 
-/*
- *        0
- *    11     1
- *  10         2
- * 9             3
- *  8          4
- *    7      5
- *       6
- */
-typedef struct _dial_label {
-    char *lower[12];
-    char *upper[12];
-    int  value[12];
-} dial_label, *Dial_label;
+typedef uint64_t (*_get_row)(int pos);
 
 Widget
-add_dial(Panel win, int x, int y, int h, int w, int d, Dial_label labels,
-              uint8_t *value, int init, int wrap, TTF_Font *font, SDL_Color *col);
+add_roller(Panel win, int x, int y, SDL_Rect *r_rect, SDL_Texture *rollers,
+          int rows, _get_row get_row, int positions, int *offsets, int col);
 
 #endif

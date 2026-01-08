@@ -50,6 +50,7 @@ typedef struct _widget_t {
     SDL_Rect    rect;            /* Area of widget */
     SDL_Color   *fore_color;     /* Foreground color */
     SDL_Color   *back_color;     /* Background color */
+    int         active;          /* Current widget active */
     void        *data;           /* Private data */
 
     /* Called to draw the image */

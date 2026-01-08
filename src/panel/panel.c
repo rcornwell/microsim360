@@ -259,7 +259,7 @@ SDL_Setup(char *title, int scr_wid, int scr_hi)
     cpu_panel->render = render;
 /*    rw_font = SDL_RWFromConstMem(base_font, sizeof(base_font)); */
     /* Create fonts */
-    font0 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 7);
+    font0 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 6);
     font1 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 9);
     font10 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 10);
     font12 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 12);
@@ -434,7 +434,7 @@ get_indicator(indicator *ind)
         int        k, p = 1;
         uint32_t   mask = ind->mask;
         for (k = 0; k < 32 && mask != 0; k++) {
-            uint32_t  m = 1<<k;
+            uint32_t  m = (uint32_t)1<<k;
             if (m & mask) {
                 p ^= ((v & m) != 0);
                 mask ^= m;
@@ -1199,6 +1199,7 @@ run_sim()
                              if (inrect(event.button.x, event.button.y, wp->rect)) {
                                   wp->click(wp, event.button.x - wp->rect.x,
                                                 event.button.y - wp->rect.y);
+                                  wp->active = 1;
                              }
                          }
                     }
@@ -1308,10 +1309,11 @@ run_sim()
                case SDL_MOUSEBUTTONUP:
                     /* Check for release */
                     for (wp = cpu_panel->list; wp != NULL; wp = wp->next) {
-                         if (wp->release != NULL) {
-                             if (inrect(event.button.x, event.button.y, wp->rect)) {
-                                  wp->release(wp);
+                         if (wp->active) {
+                             if (wp->release != NULL) {
+                                 wp->release(wp);
                              }
+                             wp->active = 0;
                          }
                     }
                     for (i = 0; i < sws_ptr; i++) {

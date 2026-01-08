@@ -95,4 +95,27 @@ add_area_rect(Panel win, SDL_Rect *rect, SDL_Color *col)
    return nwid;
 }
 
+/*
+ * Add a outline to window.
+ */
+Widget
+add_outline(Panel win, int x, int y, int h, int w, SDL_Color *col)
+{
+   Widget nwid;
+
+   if ((nwid = (Widget)calloc(1, sizeof(struct _widget_t))) == NULL) {
+       return NULL;
+   }
+
+   /* Fill in the feilds */
+   nwid->rect.x = x;
+   nwid->rect.y = y;
+   nwid->rect.w = w;
+   nwid->rect.h = h;
+   nwid->fore_color = col;
+   nwid->draw = display_area_rect;
+   add_widget(win, nwid);
+   return nwid;
+}
+
 

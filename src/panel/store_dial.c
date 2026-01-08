@@ -105,7 +105,6 @@ add_store_dial(Panel win, int x, int y, uint8_t *value)
        return NULL;
    }
 
-
    nwid->rect.x = x;
    nwid->rect.y = y;
    nwid->rect.w = 80;

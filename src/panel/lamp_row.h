@@ -1,5 +1,5 @@
 /*
- * microsim360 - GUI Draw a rotary select switch.
+ * microsim360 - GUI Draws row of lamp indicator.
  *
  * Copyright 2025, Richard Cornwell
  *
@@ -24,28 +24,23 @@
  */
 
 
-#ifndef _DIAL_H_
-#define _DIAL_H_
-#include <SDL_ttf.h>
+#ifndef _LAMP_ROW_H_
+#define _LAMP_ROW_H_
 #include "widgets.h"
 
-/*
- *        0
- *    11     1
- *  10         2
- * 9             3
- *  8          4
- *    7      5
- *       6
- */
-typedef struct _dial_label {
-    char *lower[12];
-    char *upper[12];
-    int  value[12];
-} dial_label, *Dial_label;
+
+/* Hold label information */
+typedef struct _lamp_row {
+      char       *label1;
+      char       *label2;
+      char       *label3;
+      int         color;
+      uint16_t   *value;
+      int         shft;
+} lamp_row, *Lamp_row;
 
 Widget
-add_dial(Panel win, int x, int y, int h, int w, int d, Dial_label labels,
-              uint8_t *value, int init, int wrap, TTF_Font *font, SDL_Color *col);
+add_lamp_row(Panel win, int x, int y, Lamp_row row, int num,
+               int *offsets, TTF_Font *font, SDL_Color *lab_color);
 
 #endif

@@ -30,5 +30,6 @@
 
 Widget add_area(Panel win, int x, int y, int h, int w, SDL_Color *col);
 Widget add_area_rect(Panel win, SDL_Rect *rect, SDL_Color *col);
+Widget add_outline(Panel win, int x, int y, int h, int w, SDL_Color *col);
 
 #endif
