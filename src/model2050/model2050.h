@@ -251,9 +251,17 @@ uint16_t    CHCLK[4];           /* Channel clock register */
 uint8_t     EOR[4];             /* End of record on channel */
 uint8_t     BCHI;               /* Interrupt pending */
 
-uint16_t    clock_start_lch;
-uint16_t    allow_man_operation;
 
+uint16_t    clock_start_lch;      /* CPU Running */
+uint16_t    allow_man_operation;  /* CPU in manual mode */
+uint16_t    wait;                 /* CPU in wait state */
+uint16_t    test_mode;            /* CPU out of normal mode */
+uint16_t    load_mode;            /* CPU loading */
+uint16_t    allow_write;          /* Allow write in next cycle */
+uint16_t    store;                /* Store mode Main/Local */
+uint16_t    end_of_e_cycle;       /* End of instruction */
+uint16_t    t_request;            /* Request from console */
+uint16_t    match;                /* Address matched switches */
 } cpu_2050;
 
 void  cycle_2050();

@@ -28,7 +28,7 @@ add_custom_target(model2050_ros.h
        DEPENDS cros2050 ${CMAKE_CURRENT_SOURCE_DIR}/ros.txt)
 
 add_library(model2050lib)
-target_sources(model2050lib PRIVATE cpu2050.c model2050_ros.c)
+target_sources(model2050lib PRIVATE cpu2050.c model2050_ros.c rollers2050.c)
 target_include_directories(model2050lib PRIVATE ${includes})
 target_include_directories(model2050lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(model2050lib model2050_ros.h)

@@ -612,9 +612,9 @@ cycle_2050()
     dtc1 = dtc2 = 0;
     if (RATE_SW != 1 || ADR_CMP != 0 || ROS_CMP != 0 || INST_REP != 0 ||
         INT_TMR != 0 || SAR_CMP != 0) {
-        test_mode = 1;
+        cpu_2050.test_mode = 1;
     } else {
-        test_mode = 0;
+        cpu_2050.test_mode = 0;
     }
 
     /* Handle interval timer */
@@ -631,7 +631,7 @@ cycle_2050()
     }
 
     cpu_2050.OPPANEL = 0;
-    exc = cpu_2050.allow_man_operation | wait;
+    exc = cpu_2050.allow_man_operation | cpu_2050.wait;
     if (stop_mode == 0) {
         if (timer_update || ((INTR | timer_irq) && (cpu_2050.MASK & BIT7) != 0))
             exc = 1;
@@ -671,7 +671,7 @@ cycle_2050()
     if (START) {
         stop_mode = 0;
         cpu_2050.allow_man_operation = 0;
-        if (RATE_SW == 0 && (DISPLAY & SET_IC) == 0 && wait == 0)
+        if (RATE_SW == 0 && (DISPLAY & SET_IC) == 0 && cpu_2050.wait == 0)
             cpu_2050.OPPANEL |= 1;
     }
 
@@ -682,7 +682,7 @@ cycle_2050()
 
     if (LOAD) {
         log_trace("Load\n");
-        load_mode = 1;
+        cpu_2050.load_mode = 1;
         stop_mode = 0;
         cpu_2050.allow_man_operation = 0;
         for (i = 0; i < 4; i++) {
@@ -704,7 +704,7 @@ cycle_2050()
         cpu_2050.mem_state = 0;
         LOAD = 0;
         INTR = 0;
-        wait = 0;
+        cpu_2050.wait = 0;
         timer_irq = 0;
         timer_update = 0;
     }
@@ -752,7 +752,7 @@ cycle_2050()
         cpu_2050.last_cycle = 0;
         SYS_RST = 0;
         INTR = 0;
-        wait = 0;
+        cpu_2050.wait = 0;
         timer_irq = 0;
         timer_update = 0;
     }
@@ -3654,7 +3654,7 @@ cycle_2050()
     case 56: /* T->PSW T(12-15) to PSW */
             log_trace("PSW aob=%08x\n", cpu_2050.aob_latch);
             cpu_2050.AMWP = (cpu_2050.aob_latch >> 16) & 0xf;
-            wait = ((cpu_2050.AMWP & 0x2) != 0);
+            cpu_2050.wait = ((cpu_2050.AMWP & 0x2) != 0);
             break;
 
     case 57: /* SCAN*E,00 */
@@ -3877,11 +3877,11 @@ cycle_2050()
                 cpu_2050.LB_REG = cpu_2050.w_bus & 03;
                 break;
         case 4: /* W27->PSW4, 2-7 -> PSW 34-39  */
-                if (load_mode) {
+                if (cpu_2050.load_mode) {
                     timer_irq = 0;
                     timer_update = 0;
                 }
-                load_mode = 0;
+                cpu_2050.load_mode = 0;
                 cpu_2050.CC = (cpu_2050.w_bus >> 4) & 0x3;
                 cpu_2050.PMASK = cpu_2050.w_bus & 0xf;
                 break;
