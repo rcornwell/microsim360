@@ -103,7 +103,6 @@ struct _labels sel_labels[] = {
 void
 setup_fp2030(void *rend)
 {
-    SDL_Renderer  *render = (SDL_Renderer *)rend;
     reg_row  reg;
     int	     i, j, k;
     int      h, w;
@@ -485,7 +484,7 @@ log_trace("Initialize panel\n");
     pos += step * 2;
     s = 10;
     /* Draw bottom switch panel */
-    add_area(cpu_panel, 0, pos - hx, 975 - pos + hx, 1100, &cl);
+    add_area(cpu_panel, 0, pos - hx - (hx/2) - 3, (2*hx) + (975 - pos), 1100, &cl);
 
     add_button(cpu_panel, s, pos + hx, hx * 2, wx * 10, "SYSTEM", "RESET",
                &SYS_RST, font10, &c, &c3, 0);
@@ -592,10 +591,14 @@ log_trace("Initialize panel\n");
     add_mark(cpu_panel, e, p, h - p + 2, &c);
 
 
+    add_outline(cpu_panel, pos_reg[5] - 4, pos - hx - 3, (hx *3) - 2, 
+              pos_reg[9] - pos_reg[5], &c);
     add_button(cpu_panel, pos_reg[5], pos - hx + 3, hx * 2, wx * 10, "POWER", "ON",
                &POWER, font10, &c1, &c, 0);
     add_button(cpu_panel, pos_reg[8], pos -hx + 3, hx * 2, wx * 10, "POWER", "OFF",
                &POWER, font10, &c, &c5, 0);
+    add_outline(cpu_panel, pos_reg[5] - 6, h + 65, hx *3, pos_reg[9] - pos_reg[5],
+                &c1);
     add_button(cpu_panel, pos_reg[5], h + 70, hx * 2, wx * 10, "INTERRUPT", NULL,
                &INTR, font1, &c, &c5, 0);
     add_button(cpu_panel, pos_reg[8], h + 70, hx * 2, wx * 10, "LOAD", NULL,
@@ -614,7 +617,7 @@ log_trace("Initialize panel\n");
              font1, LAMP_WHITE, &c1);
 
     /* Draw knobs */
-    s = pos_reg[5] - 20;
+    s = pos_reg[6];
     for (i = 0; i < 12; i++) {
         label.upper[i] = NULL;
         label.lower[i] = NULL;
@@ -630,9 +633,9 @@ log_trace("Initialize panel\n");
     label.upper[11] = "INHIBIT";
     label.lower[11] = "CF STOP";
     label.value[11] = 0;
-    add_dial(cpu_panel, s + 35, control_row, 100, 150, &label, &PROC_SW,
-              0, font1, &c1);
-    add_label_center(cpu_panel, s + 40, control_row-hx, 150, "ROS CONTROL",
+    add_dial(cpu_panel, pos_reg[5] + 75, control_row + 50, 100, 150, 30, &label, &PROC_SW,
+              1, 0, font1, &c1);
+    add_label(cpu_panel, pos_reg[5] + 75 - (5*wx), control_row, "ROS CONTROL",
               font10, &c1, &cl);
 
     label.upper[0] = "PROCESS";
@@ -645,11 +648,12 @@ log_trace("Initialize panel\n");
     label.upper[11] = "INSTR STEP";
     label.lower[11] = NULL;
     label.value[11] = 0;
-    add_dial(cpu_panel, s + 240, control_row, 100, 200, &label, &RATE_SW,
-              0, font1, &c1);
-    add_label_center(cpu_panel, s + 240, control_row-hx, 200, "RATE",
+    add_dial(cpu_panel, pos_reg[7] + 150, control_row + 50, 100, 175, 30, &label, &RATE_SW,
+             1, 0, font1, &c1);
+    add_label(cpu_panel, pos_reg[7] + 150 - (2*wx) , control_row, "RATE",
               font10, &c1, &cl);
 
+    control_row += 90;
     label.upper[0] = "PROCESS";
     label.value[0] = 0;
     label.upper[1] = "SAR DELAYED";
@@ -677,10 +681,10 @@ log_trace("Initialize panel\n");
     label.value[10] = 8;
     label.upper[11] = "ROAR SYNC";
     label.value[11] = 9;
-    add_dial(cpu_panel, s, control_row + 90, 100, 220, &label, &MATCH_SW,
-              1, font1, &c1);
-    add_label_center(cpu_panel, s, control_row + 90-hx, 220,
-              "ADDRESS COMPARE", font10, &c1, &cl);
+    add_dial(cpu_panel, pos_reg[5] + 75, control_row + 50, 150, 225, 40, &label, &MATCH_SW,
+              0, 1, font1, &c1);
+    add_label(cpu_panel, pos_reg[5] + 75 - (7*wx), control_row, "ADDRESS COMPARE", font10, &c1, &cl);
+
 
     for (i = 0; i < 12; i++) {
         label.upper[i] = NULL;
@@ -699,10 +703,9 @@ log_trace("Initialize panel\n");
     label.value[10] = 0;
     label.upper[11] = "DISABLE";
     label.value[11] = 1;
-    add_dial(cpu_panel, s + 240, control_row + 90, 100, 200, &label, &CHK_SW,
-              0, font1, &c1);
-    add_label_center(cpu_panel, s + 240, control_row + 90-hx, 200,
+    add_dial(cpu_panel, pos_reg[7] + 150, control_row + 50, 150, 175, 30, &label, &CHK_SW,
+              2, 0, font1, &c1);
+    add_label(cpu_panel, pos_reg[7] + 150 - (6*wx), control_row,
               "CHECK CONTROL", font10, &c1, &cl);
-
 }
 

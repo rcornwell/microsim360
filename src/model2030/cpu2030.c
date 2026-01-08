@@ -2779,11 +2779,11 @@ chan_scan:
             } else
                cpu_2030.STAT_REG |= BIT1|BIT3;
         } else {
-            /* If OP IN down, STI and SVI up */
-            /* If OP IN UP, service-in and no service out, or no command out, SVI up */
-            /* If OP IN UP, status-in no service in, or no command out, STI up */
-            /* If OP IN UP, no service in or status in, both down */
-            /* If Adr out up, op in down, sti down, STI down */
+           /* If OP IN down, STI and SVI up */
+           /* If OP IN UP, service-in and no service out, or no command out, SVI up */
+           /* If OP IN UP, status-in no service in, or no command out, STI up */
+           /* If OP IN UP, no service in or status in, both down */
+           /* If Adr out up, op in down, sti down, STI down */
             cpu_2030.FT &= ~BIT5;
             if ((cpu_2030.MPX_TI & CHAN_SEL_IN) != 0)
                cpu_2030.FT |= BIT5;
