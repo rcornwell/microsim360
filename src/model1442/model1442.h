@@ -69,9 +69,10 @@ struct _1442_context {
     int                    rdy_flag;     /* Reader ready. */
     int                    eof_flag;     /* End of file flag */
     int                    stop_flag;    /* Stop at end of current command */
+    void                  *input[3];     /* Input */
 };
 
-extern char *type_label[6];
+extern char *card_fmt_type[6];
 
 void model1442_feed(struct _1442_context *ctx);
 

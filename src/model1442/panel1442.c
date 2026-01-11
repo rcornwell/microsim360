@@ -32,9 +32,17 @@
 #include "logger.h"
 #include "event.h"
 #include "widgets.h"
+#include "label.h"
+#include "indicator.h"
+#include "button.h"
+#include "number.h"
+#include "area.h"
 #include "light.h"
-#include "model1442.h"
+#include "text.h"
+#include "combo.h"
+#include "cpu.h"
 #include "card.h"
+#include "model1442.h"
 #include "model1442.xpm"
 #include "xlat.h"
 
@@ -163,14 +171,14 @@ model1442_draw(struct _device *unit, void *rend)
 /*
  * Handle control functions for device.
  */
-static void model1442_update(struct _popup *popup, void *device, int index)
+static void model1442_update(void *arg, int iarg)
 {
-    struct _device *unit = (struct _device *)device;
-    struct _1442_context *ctx = (struct _1442_context *)unit->dev;
+    struct _1442_context *ctx = (struct _1442_context *)arg;
     int r;
     int cards;
 
-    switch (index) {
+printf("1442 click %d\n", iarg);
+    switch (iarg) {
     case 0:  /* End of file key */
           ctx->eof_flag = !ctx->eof_flag;
           break;
@@ -206,11 +214,11 @@ static void model1442_update(struct _popup *popup, void *device, int index)
           break;
 
     case 5: /* Load hopper */
-          r = read_deck(ctx->feed, popup->text[0].text);
+          r = read_deck(ctx->feed, get_textbuffer(ctx->input[0]));
           break;
 
     case 6: /* Load hopper blanks */
-          cards = atoi(popup->text[0].text);
+          cards = atoi(get_textbuffer(ctx->input[0]));
           if (cards > 0) {
               blank_deck(ctx->feed, cards);
           } else {
@@ -223,7 +231,7 @@ static void model1442_update(struct _popup *popup, void *device, int index)
           break;
 
     case 8: /* Save Stacker 1 */
-          r = save_deck(ctx->stack[0], popup->text[1].text);
+          r = save_deck(ctx->stack[0], get_textbuffer(ctx->input[1]));
           break;
 
     case 9: /* Empty Stacker 2 */
@@ -231,7 +239,7 @@ static void model1442_update(struct _popup *popup, void *device, int index)
           break;
 
     case 10: /* Save Stacker 2 */
-          r = save_deck(ctx->stack[1], popup->text[2].text);
+          r = save_deck(ctx->stack[0], get_textbuffer(ctx->input[2]));
           break;
     }
     ctx->hop_cnt = hopper_size(ctx->feed);
@@ -239,35 +247,18 @@ static void model1442_update(struct _popup *popup, void *device, int index)
     ctx->stk_cnt[1] = stack_size(ctx->stack[1]);
 }
 
-static struct _l {
-     char        *top;
-     char        *bot;
-     int         ind;
-     int         x;
-     int         y;
-     SDL_Color   col_t;
-     SDL_Color   col_on;
-     SDL_Color   col_off;
-} labels[] = {
-     {"POWER", "ON", 1, 0, 0, {0, 0, 0}, {0x96, 0x8f, 0x85}, {0xfd, 0xfd, 0xfd}},
-     {"READY", NULL, 1, 1, 0, {0xff, 0xff, 0xff}, {0x7f,0xc0, 0x86}, {0x0c, 0x2e, 0x30}},
-     {"END OF", "FILE", 0, 2, 0, {0xff, 0xff, 0xff}, {0x0c, 0x2e, 0x30}, {0,0,0}},
-     {"CHECK", NULL, 1, 0, 1, {0, 0, 0}, {0xff, 0xfd, 0x5e}, {0xdd, 0xdc, 0x8a}},
-     {"CHIP BOX", NULL, 1, 1, 1, {0, 0, 0}, {0xff, 0xfd, 0x5e}, {0xdd, 0xdc, 0x8a}},
-     {"END OF", "FILE", 1, 2, 1, {0, 0, 0}, {0xff, 0xfd, 0x5e}, {0xdd, 0xdc, 0x8a} },
-     {"START", NULL,  0, 0, 2, {0xff, 0xff, 0xff}, {0x0c, 0x2e, 0x30}, {0, 0, 0}},
-     {"NPRO", NULL, 0, 1, 2, {0xff, 0xff, 0xff}, {0x0a, 0x52, 0x9a}, {0, 0, 0}},
-     {"STOP", NULL, 0, 2, 2, {0xff, 0xff, 0xff}, {0xc8, 0x3a, 0x30}, {0, 0, 0}},
-     {"EMPTY", NULL, 0, 8, 0, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"LOAD", NULL, 0, 9, 0, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"BLANK", NULL, 0, 10, 0, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"EMPTY", NULL, 0, 8, 1, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"SAVE", NULL, 0, 9, 1, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"EMPTY", NULL, 0, 8, 2, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {"SAVE", NULL, 0, 9, 2, {0, 0, 0}, {0x80, 0x80, 0x80}, {0, 0, 0}},
-     {NULL, NULL, 0},
-};
 
+static SDL_Color power_on = {0x96, 0x8f, 0x85};
+static SDL_Color power_off = {0xfd, 0xfd, 0xfd};
+static SDL_Color ready = {0x7f,0xc0, 0x86};
+static SDL_Color not_ready = {0x0c, 0x2e, 0x30};
+static SDL_Color eof_color =  {0x0c, 0x2e, 0x30};
+static SDL_Color chk_on = {0xff, 0xfd, 0x5e};
+static SDL_Color chk_off =  {0xdd, 0xdc, 0x8a};
+static SDL_Color start_col = {0x0c, 0x2e, 0x30};
+static SDL_Color npro_col =  {0x0a, 0x52, 0x9a};
+static SDL_Color stop_col =  {0xc8, 0x3a, 0x30};
+static SDL_Color button_col = {0x80, 0x80, 0x80};
 /*
  * Create a popup control window for device.
  */
@@ -277,242 +268,111 @@ model1442_control(struct _device *unit, int hd, int wd, int u)
     struct _popup  *popup;
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
     SDL_Surface *text;
+    int    row;
     int    i, j;
     int    w, h;
+    int    wx, hx;
     char   buffer[100];
+    Panel  panel;
+    int    *value;
+    int    turnoff;
 
+    if (TTF_SizeText(font10, "M", &wx, &hx) != 0) {
+        return NULL;
+    }
+    if (TTF_SizeText(font14, "M", NULL, &h) != 0) {
+        return NULL;
+    }
     if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
-        return popup;
+        return NULL;
+    if ((panel = (struct _panel_t *)calloc(1, sizeof(struct _panel_t))) == NULL) {
+        free(popup);
+        return NULL;
+    }
+    popup->panel = panel;
     sprintf(buffer, "IBM1442 Dev 0x'%03X'", ctx->addr);
     popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         1000, 200, SDL_WINDOW_RESIZABLE );
     popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
     popup->device = unit;
-    popup->areas[popup->area_ptr].rect.x = 20 + (12 * wd) * 3;
-    popup->areas[popup->area_ptr].rect.y = 0;
-    popup->areas[popup->area_ptr].rect.h = 200;
-    popup->areas[popup->area_ptr].rect.w = 800;
-    popup->areas[popup->area_ptr].c = &c;
-    popup->area_ptr++;
-    for (i = 0; labels[i].top != NULL; i++) {
-        if (labels[i].ind) {
-            popup->ind[popup->ind_ptr].lab = labels[i].top;
-            popup->ind[popup->ind_ptr].c[0] = &labels[i].col_off;
-            popup->ind[popup->ind_ptr].c[1] = &labels[i].col_on;
-            popup->ind[popup->ind_ptr].ct = &labels[i].col_t;
-            text = TTF_RenderText_Solid(font1, labels[i].top, labels[i].col_t);
-            popup->ind[popup->ind_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
-            popup->ind[popup->ind_ptr].top_len = strlen(labels[i].top);
-            SDL_FreeSurface(text);
-            if (labels[i].bot != NULL) {
-                text = TTF_RenderText_Solid(font1, labels[i].bot, labels[i].col_t);
-                popup->ind[popup->ind_ptr].bot = SDL_CreateTextureFromSurface( popup->render, text);
-                popup->ind[popup->ind_ptr].bot_len = strlen(labels[i].bot);
-                SDL_FreeSurface(text);
-            }
-            popup->ind[popup->ind_ptr].rect.x = 20 + ((12* wd) * labels[i].x);
-            popup->ind[popup->ind_ptr].rect.y = 20 + ((3 *hd) * labels[i].y);
-            popup->ind[popup->ind_ptr].rect.h = 2 * hd;
-            popup->ind[popup->ind_ptr].rect.w = 10 * wd;
-            popup->ind_ptr++;
-        } else {
-            popup->sws[popup->sws_ptr].lab = labels[i].top;
-            popup->sws[popup->sws_ptr].c[0] = &labels[i].col_on;
-            text = TTF_RenderText_Solid(font1, labels[i].top, labels[i].col_t);
-            popup->sws[popup->sws_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
-            popup->sws[popup->sws_ptr].top_len = strlen(labels[i].top);
-            SDL_FreeSurface(text);
-            if (labels[i].bot != NULL) {
-                text = TTF_RenderText_Solid(font1, labels[i].bot, labels[i].col_t);
-                popup->sws[popup->sws_ptr].bot = SDL_CreateTextureFromSurface( popup->render, text);
-                popup->sws[popup->sws_ptr].bot_len = strlen(labels[i].bot);
-                SDL_FreeSurface(text);
-            }
-            popup->sws[popup->sws_ptr].rect.x = 20 + ((12 *wd) * labels[i].x);
-            popup->sws[popup->sws_ptr].rect.y = 20 + ((3 *hd) * labels[i].y);
-            popup->sws[popup->sws_ptr].rect.h = 2 * hd;
-            popup->sws[popup->sws_ptr].rect.w = 10 * wd;
-            popup->sws_ptr++;
-        }
-    }
+    panel->screen = popup->screen;
+    panel->render = popup->render;
+    panel->windowID = SDL_GetWindowID(panel->screen);
+    add_area(panel, 20+(12*wx) * 3, 0, 200, 800, &c_white);
+    add_indicator(panel, 20 + ((12*wx) * 0), 20 + ((3*hx) * 0),
+                    2 * hx, 10 * wx, "POWER", "ON", &POWER, 0, font10,
+                          &c_white, &power_on, &power_off);
+    add_indicator(panel, 20 + ((12*wx) * 1), 20 + ((3*hx) * 0),
+                    2 * hx, 10 * wx, "READY", NULL, &ctx->rdy_flag, 0, font10,
+                          &c_black, &ready, &not_ready);
+    add_button(panel, 20 + ((12*wx) * 2), 20 + ((3*hx) * 0),
+                    2 * hx, 10 * wx, "END OF", "FILE", &ctx->eof_flag, font10,
+                          &c_white, &eof_color, 0);
+    add_indicator(panel, 20 + ((12*wx) * 0), 20 + ((3*hx) * 1),
+                    2 * hx, 10 * wx, "CHECK", NULL, NULL, 0, font10,
+                          &c_black, &chk_on, &chk_off);
+    add_indicator(panel, 20 + ((12*wx) * 1), 20 + ((3*hx) * 1),
+                    2 * hx, 10 * wx, "CHIP BOX", NULL, &ctx->rdy_flag, 0, font10,
+                          &c_black, &chk_on, &chk_off);
+    add_indicator(panel, 20 + ((12*wx) * 2), 20 + ((3*hx) * 1),
+                    2 * hx, 10 * wx, "END OF", "FILE", &ctx->eof_flag, 0, font10,
+                          &c_black, &chk_on, &chk_off);
+    add_button_callback(panel, 20 + ((12*wx) * 0), 20 + ((3*hx) * 2),
+                    2 * hx, 10 * wx, "START", NULL, &model1442_update, (void *)ctx, 1,
+                    font10, &c_black, &start_col);
+    add_button_callback(panel, 20 + ((12*wx) * 1), 20 + ((3*hx) * 2),
+                    2 * hx, 10 * wx, "NPRO", NULL, &model1442_update, (void *)ctx, 2,
+                    font10, &c_black, &npro_col);
+    add_button_callback(panel, 20 + ((12*wx) * 2), 20 + ((3*hx) * 2),
+                    2 * hx, 10 * wx, "STOP", NULL, &model1442_update, (void *)ctx, 3,
+                    font10, &c_black, &stop_col);
 
-    popup->ind[1].value = &ctx->rdr_full;
-    popup->ind[4].value = &ctx->eof_flag;
-
-    text = TTF_RenderText_Solid(font14, "Hopper: ", c1);
-
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 20;
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->text[popup->txt_ptr].rect.y = 20;
-    popup->text[popup->txt_ptr].rect.w = 45 * wd;
-    popup->text[popup->txt_ptr].rect.h = h + 5;
-    if (ctx->feed->file_name != NULL)
-        strncpy(popup->text[popup->txt_ptr].text, ctx->feed->file_name, 256);
-    else
-        popup->text[popup->txt_ptr].text[0] = '\0';
-    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
-    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
-    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
-                                        popup->text[popup->txt_ptr].pos);
-    popup->txt_ptr++;
-    popup->number[popup->num_ptr].rect.x = 25 + (12 * wd) * 13;
-    popup->number[popup->num_ptr].rect.y = 20;
-    popup->number[popup->num_ptr].rect.w = 5 * wd;
-    popup->number[popup->num_ptr].rect.h = h;
-    popup->number[popup->num_ptr].value = &ctx->hop_cnt;
-    popup->number[popup->num_ptr].c = &c;
-    popup->num_ptr++;
-
-    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 11;
-    popup->combo[popup->cmb_ptr].rect.y = 20;
-    popup->combo[popup->cmb_ptr].rect.w = 12 * wd;
-    popup->combo[popup->cmb_ptr].rect.h = h;
-    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
-    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].urect.h = h;
-    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (10 * wd) - 1;
-    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].drect.h = h;
-    for (i = 0; type_label[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, type_label[i], c1);
-        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
-                                      text);
-        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
-             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
-    }
-    popup->combo[popup->cmb_ptr].num = ctx->feed->mode;
-    popup->combo[popup->cmb_ptr].value = &ctx->feed->mode;
-    popup->combo[popup->cmb_ptr].max = i - 1;
-    popup->cmb_ptr++;
-
-    text = TTF_RenderText_Solid(font14, "Stack 1: ", c1);
-
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (hd * 3);
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->text[popup->txt_ptr].rect.y = 20 + (hd * 3);
-    popup->text[popup->txt_ptr].rect.w = 45 * wd;
-    popup->text[popup->txt_ptr].rect.h = h + 5;
-    if (ctx->stack[0]->file_name != NULL)
-        strncpy(popup->text[popup->txt_ptr].text, ctx->stack[0]->file_name, 256);
-    else
-        popup->text[popup->txt_ptr].text[0] = '\0';
-    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
-    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
-    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
-                                        popup->text[popup->txt_ptr].pos);
-    popup->txt_ptr++;
-    popup->number[popup->num_ptr].rect.x = 25 + (12 * wd) * 13;
-    popup->number[popup->num_ptr].rect.y = 20 + (hd * 3);
-    popup->number[popup->num_ptr].rect.w = 5 * wd;
-    popup->number[popup->num_ptr].rect.h = h;
-    popup->number[popup->num_ptr].value = &ctx->stk_cnt[0];
-    popup->number[popup->num_ptr].c = &c;
-    popup->num_ptr++;
-    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 11;
-    popup->combo[popup->cmb_ptr].rect.y = 20 + (hd * 3);
-    popup->combo[popup->cmb_ptr].rect.w = 12 * wd;
-    popup->combo[popup->cmb_ptr].rect.h = h;
-    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
-    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].urect.h = h;
-    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (10 * wd) - 1;
-    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].drect.h = h;
-    for (i = 0; type_label[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, type_label[i], c1);
-        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
-                                      text);
-        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
-             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
-    }
-    popup->combo[popup->cmb_ptr].num = ctx->stack[0]->mode;
-    popup->combo[popup->cmb_ptr].value = &ctx->stack[0]->mode;
-    popup->combo[popup->cmb_ptr].max = i - 1;
-    popup->cmb_ptr++;
-
-    text = TTF_RenderText_Solid(font14, "Stack 2: ", c1);
-
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 20 + (hd * 6);
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 3;
-    popup->text[popup->txt_ptr].rect.y = 20 + (hd * 6);
-    popup->text[popup->txt_ptr].rect.w = 45 * wd;
-    popup->text[popup->txt_ptr].rect.h = h;
-    if (ctx->stack[1]->file_name != NULL)
-        strncpy(popup->text[popup->txt_ptr].text, ctx->stack[1]->file_name, 256);
-    else
-        popup->text[popup->txt_ptr].text[0] = '\0';
-    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
-    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
-    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
-                                        popup->text[popup->txt_ptr].pos);
-    popup->txt_ptr++;
-    popup->number[popup->num_ptr].rect.x = 25 + (12 * wd) * 13;
-    popup->number[popup->num_ptr].rect.y = 20 + (hd * 6);
-    popup->number[popup->num_ptr].rect.w = 5 * wd;
-    popup->number[popup->num_ptr].rect.h = h;
-    popup->number[popup->num_ptr].value = &ctx->stk_cnt[1];
-    popup->number[popup->num_ptr].c = &c;
-    popup->num_ptr++;
-
-    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 11;
-    popup->combo[popup->cmb_ptr].rect.y = 20 + (hd * 6);
-    popup->combo[popup->cmb_ptr].rect.w = 12 * wd;
-    popup->combo[popup->cmb_ptr].rect.h = h;
-    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
-    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].urect.h = h;
-    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (10 * wd) - 1;
-    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].drect.h = h;
-    for (i = 0; type_label[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, type_label[i], c1);
-        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
-                                      text);
-        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
-             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
-    }
-    popup->combo[popup->cmb_ptr].num = ctx->stack[1]->mode;
-    popup->combo[popup->cmb_ptr].value = &ctx->stack[1]->mode;
-    popup->combo[popup->cmb_ptr].max = i - 1;
-    popup->cmb_ptr++;
-
-    w = 0;
-    for (i = 0; i < popup->ctl_ptr; i++) {
-        if (popup->ctl_label[i].rect.w > w)
-            w = popup->ctl_label[i].rect.w;
-    }
-    for (i = 0; i < popup->txt_ptr; i++) {
-        popup->text[i].rect.x += w;
-    }
-
-    popup->update = &model1442_update;
+    h = hx;
+    w = wx * 15;
+    row = 20;
+    add_label(panel, 25 + (12 * wx) * 3, row, "Hopper:", font10, &c1);
+    ctx->input[0] = (void *)add_textinput(panel, 25 + (12*wx) * 4, row, h+2, 40*wx,
+                    ctx->feed->file_name);
+    add_button_callback(panel, 20 + ((12*wx) * 8), row,
+                    2 * hx, 10 * wx, "EMPTY", NULL, &model1442_update, (void *)ctx, 4,
+                    font10, &c_white, &button_col);
+    add_button_callback(panel, 20 + ((12*wx) * 9), row,
+                    2 * hx, 10 * wx, "LOAD", NULL, &model1442_update, (void *)ctx, 5,
+                    font10, &c_white, &button_col);
+    add_button_callback(panel, 20 + ((12*wx) * 10), row,
+                    2 * hx, 10 * wx, "BLANK", NULL, &model1442_update, (void *)ctx, 6,
+                    font10, &c_white, &button_col);
+    add_combo(panel, 25 + (12 * wx) * 11, row, h+2, 10 * wx, card_fmt_type, &ctx->feed->mode,
+                        font14, &c_black, &c_white);
+    add_number(panel, 25 + (12*wx) * 12, row, h+2, 5 * wx, &ctx->hop_cnt, font14, &c_black, &c_white);
+    row += 3*hx;
+    add_label(panel, 25 + (12 * wx) * 3, row, "Stack 1:", font10, &c1);
+    ctx->input[1] = (void *)add_textinput(panel, 25 + (12*wx) * 4, row, hx+5, 40*wx,
+                   ctx->stack[0]->file_name);
+    add_button_callback(panel, 20 + ((12*wx) * 8), row,
+                    2 * hx, 10 * wx, "EMPTY", NULL, &model1442_update, (void *)ctx, 7,
+                    font10, &c_white, &button_col);
+    add_button_callback(panel, 20 + ((12*wx) * 9), row,
+                    2 * hx, 10 * wx, "SAVE", NULL, &model1442_update, (void *)ctx, 8,
+                    font10, &c_white, &button_col);
+    add_combo(panel, 25 + (12 * wx) * 11, row, h+2, 10 * wx, card_fmt_type, &ctx->stack[0]->mode,
+                        font14, &c_black, &c_white);
+    add_number(panel, 25 + (12*wx) * 12, row, h+2, 5 * wx, &ctx->stk_cnt[0], font14,
+                            &c_black, &c_white);
+    row += 3*hx;
+    add_label(panel, 25 + (12 * wx) * 3, row, "Stack 2:", font10, &c1);
+    ctx->input[2] = (void *)add_textinput(panel, 25 + (12*wx) * 4, row, hx+5, 40*wx,
+                   ctx->stack[1]->file_name);
+    add_button_callback(panel, 20 + ((12*wx) * 8), row,
+                    2 * hx, 10 * wx, "EMPTY", NULL, &model1442_update, (void *)ctx, 9,
+                    font10, &c_white, &button_col);
+    add_button_callback(panel, 20 + ((12*wx) * 9), row,
+                    2 * hx, 10 * wx, "SAVE", NULL, &model1442_update, (void *)ctx, 10,
+                    font10, &c_white, &button_col);
+    add_combo(panel, 25 + (12 * wx) * 11, row, h+2, 10 * wx, card_fmt_type, &ctx->stack[1]->mode,
+                        font14, &c_black, &c_white);
+    add_number(panel, 25 + (12*wx) * 12, row, h+2, 5 * wx, &ctx->stk_cnt[1], font14,
+                            &c_black, &c_white);
     return popup;
 }
 

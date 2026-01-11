@@ -53,7 +53,7 @@
 #define SENSE_DATCHK    BIT4  /* More then 1 punch in rows 1-7 */
 #define SENSE_OVRRUN    BIT5  /* Data missed */
 
-char *type_label[6] = { "AUTO", "ASCII", "EBCDIC", "BIN", "OCTAL", NULL};
+char *card_fmt_type[6] = { "AUTO", "ASCII", "EBCDIC", "BIN", "OCTAL", NULL};
 
 static void feed_callback(struct _device *unit, void *arg, int iarg);
 
@@ -752,7 +752,7 @@ model1442_feed(struct _1442_context *ctx)
         ctx->rdy_flag = 0;
         return;
     }
-       
+
     /* If punch station full, put card out to stacker */
     if (ctx->pch_full) {
        log_device("Stack punch %d\n", ctx->stk_sel);
@@ -860,7 +860,7 @@ model1442_create(struct _option *opt)
                    return 0;
                blank_deck(card->feed, num);
            } else if (strcmp(opts.opt, "FORMAT") == 0) {
-               i = get_index(&opts, type_label);
+               i = get_index(&opts, card_fmt_type);
                if (i >= 0)
                    card->feed->mode = i;
            } else {
