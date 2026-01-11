@@ -36,7 +36,7 @@ struct _switch_t {
 #define MOMENTARY 1
 #define THREE 2
 
-    
+
 static void
 display_switch(Widget wid, SDL_Renderer *render)
 {

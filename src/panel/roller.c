@@ -76,7 +76,7 @@ display_roller(Widget wid, SDL_Renderer *render)
         SDL_RenderCopy(render, lamps, &rect2, &rect);
         mask >>= 1;
    }
-}   
+}
 
 static void
 click_roller(Widget wid, int x, int y)

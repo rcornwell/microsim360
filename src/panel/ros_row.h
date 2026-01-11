@@ -37,7 +37,7 @@ typedef struct _ros_row {
       SDL_Color  *c_off;
 } ros_row, *Ros_row;
 
-Widget add_ros_row(Panel win, int x, int y, Ros_row row, 
+Widget add_ros_row(Panel win, int x, int y, Ros_row row,
               TTF_Font *font, uint32_t *bits, int *pos, SDL_Color *cmark);
 
 int ros_row_width(Panel win, Ros_row row, TTF_Font *font);

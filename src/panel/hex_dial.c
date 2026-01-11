@@ -25,7 +25,7 @@
 
 #include "hex_dial.h"
 
-    
+
 static void
 display_hex_dial(Widget wid, SDL_Renderer *render)
 {

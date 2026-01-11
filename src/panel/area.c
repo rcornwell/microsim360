@@ -36,17 +36,8 @@ display_area(Widget wid, SDL_Renderer *render)
 static void
 display_area_rect(Widget wid, SDL_Renderer *render)
 {
-   int   x, y, w, h;
-
    SDL_SetRenderDrawColor( render, wid->fore_color->r, wid->fore_color->g, wid->fore_color->b, 0xff);
-   x = wid->rect.x;
-   y = wid->rect.y;
-   h = wid->rect.h;
-   w = wid->rect.w;
-   SDL_RenderDrawLine( render, x, y, x + w, y);
-   SDL_RenderDrawLine( render, x, y, x, y + h);
-   SDL_RenderDrawLine( render, x, y + h, x + w, y + h);
-   SDL_RenderDrawLine( render, x + w, y, x + w, y + h);
+   SDL_RenderDrawRect( render, &wid->rect);
 }
 
 /*

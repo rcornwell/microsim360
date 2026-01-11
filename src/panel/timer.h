@@ -29,7 +29,7 @@
 #include "widgets.h"
 
 Widget
-add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value, 
+add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value,
               TTF_Font *font, SDL_Color *f_col, SDL_Color *b_col);
 
 #endif

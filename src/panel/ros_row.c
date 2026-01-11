@@ -32,8 +32,8 @@ struct _ros_bits_w {
       SDL_Rect     rect_bit[40];      /* Area where to show */
       SDL_Rect     rect_label[40];
       SDL_Texture *digit_on[40];      /* Digit on and off */
-      SDL_Texture *digit_off[40];   
-      SDL_Texture *label[40];   
+      SDL_Texture *digit_off[40];
+      SDL_Texture *label[40];
       int          shift[40];
       uint32_t    *value;
 };
@@ -85,8 +85,8 @@ close_ros(Widget wid)
  * Add Ros.
  */
 Widget
-add_ros_row(Panel win, int x, int y, Ros_row row, 
-               TTF_Font *font, uint32_t *bits, int *pos, SDL_Color *cmark) 
+add_ros_row(Panel win, int x, int y, Ros_row row,
+               TTF_Font *font, uint32_t *bits, int *pos, SDL_Color *cmark)
 {
     Widget       nwid;
     struct _ros_bits_w *row_ptr;
@@ -97,7 +97,7 @@ add_ros_row(Panel win, int x, int y, Ros_row row,
     int          tx;
     int          digit = 0;
     char         lab[4];
-   
+
     if (TTF_SizeText(font, "M", &wx, &hx) != 0) {
         return NULL;
     }
@@ -123,13 +123,12 @@ add_ros_row(Panel win, int x, int y, Ros_row row,
     for (i = 0; row->upper[i] != '\0'; i++) {
         lab[0] = row->upper[i];
         lab[1] = '\0';
-        add_mark(win, x, y, 5, cmark);
         row_ptr->rect_bit[digit].x = x + wx;
         row_ptr->rect_bit[digit].y = y;
         row_ptr->rect_bit[digit].h = hx;
         row_ptr->rect_bit[digit].w = wx;
         switch(row->upper[i]) {
-        case '|': 
+        case '|':
             tx = x + wx + (wx/2);
             add_mark(win, tx, y+1, hd-2, cmark);
             *pos++ = tx;
@@ -193,12 +192,12 @@ add_ros_row(Panel win, int x, int y, Ros_row row,
  * Compute width of ROS line.
  */
 int
-ros_row_width(Panel win, Ros_row row, TTF_Font *font) 
+ros_row_width(Panel win, Ros_row row, TTF_Font *font)
 {
     int          hx, wx;
     int          i;
     int          width;
-   
+
     if (TTF_SizeText(font, "M", &wx, &hx) != 0) {
         return 0;
     }

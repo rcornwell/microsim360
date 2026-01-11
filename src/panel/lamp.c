@@ -33,7 +33,7 @@ struct _lamp_t {
     uint16_t    *value;
 };
 
-    
+
 static void
 display_lamp(Widget wid, SDL_Renderer *render)
 {
@@ -101,7 +101,7 @@ add_lamp(Panel win, int x, int y, char *label1,
 
    if (label1 != NULL) {
        surf = TTF_RenderText_Blended(font, label1, *t_col);
-       text = SDL_CreateTextureFromSurface(win->render, surf); 
+       text = SDL_CreateTextureFromSurface(win->render, surf);
        SDL_QueryTexture(text, &f, &k, &wh, &hh);
        SDL_FreeSurface(surf);
        l->label = text;

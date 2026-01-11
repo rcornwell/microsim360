@@ -28,11 +28,17 @@
 #define _BUTTON_H_
 #include "widgets.h"
 
+typedef void (*_button_callback)(void *arg, int iarg);
+
 Widget
 add_button(Panel win, int x, int y, int h, int w, char *label1, char *label2,
         int *value, TTF_Font *font, SDL_Color *f_col, SDL_Color *b_col, int turn_off);
 
 Widget
 add_blank(Panel win, int x, int y, int h, int w, SDL_Color *b_col);
+
+Widget
+add_button_callback(Panel win, int x, int y, int h, int w, char *label1, char *label2,
+        _button_callback func, void *arg, int iarg, TTF_Font *font, SDL_Color *f_col, SDL_Color *b_col);
 
 #endif

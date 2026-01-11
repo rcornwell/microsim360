@@ -34,9 +34,12 @@ struct _button_t {
     int          type;
     int         *value;
     int          turn_off;
+    _button_callback func;
+    void        *arg;
+    int         iarg;
 };
 
-    
+
 static void
 display_button(Widget wid, SDL_Renderer *render)
 {
@@ -117,6 +120,10 @@ click_button(Widget wid, int x, int y)
    if (sw->value != NULL) {
        *sw->value = !*sw->value;
    }
+
+   if (sw->func != NULL) {
+        (*sw->func)(sw->arg, sw->iarg);
+   }
 }
 
 static void
@@ -141,8 +148,8 @@ add_button(Panel win, int x, int y, int h, int w, char *label1, char *label2,
    SDL_Surface *surf;
    SDL_Texture *text;
    struct _button_t *l;
-   int          hh, wh, hl, wl, lh, k;
-   Uint32       f;
+   int          hh, wh, hl, wl, lh;
+//   Uint32       f;
    if ((nwid = (Widget)calloc(1, sizeof(struct _widget_t))) == NULL) {
        return NULL;
    }
@@ -161,8 +168,8 @@ add_button(Panel win, int x, int y, int h, int w, char *label1, char *label2,
    l->turn_off = turn_off;
    /* Fill in the fields */
    surf = TTF_RenderText_Blended(font, label1, *f_col);
-   text = SDL_CreateTextureFromSurface(win->render, surf); 
-   SDL_QueryTexture(text, &f, &k, &wh, &hh);
+   text = SDL_CreateTextureFromSurface(win->render, surf);
+   SDL_QueryTexture(text, NULL, NULL, &wh, &hh);
    SDL_FreeSurface(surf);
    l->upper = text;
    l->recth.x = x;
@@ -172,8 +179,8 @@ add_button(Panel win, int x, int y, int h, int w, char *label1, char *label2,
    lh = hh;
    if (label2 != NULL) {
        surf = TTF_RenderText_Blended(font, label2, *f_col);
-       text = SDL_CreateTextureFromSurface(win->render, surf); 
-       SDL_QueryTexture(text, &f, &k, &wl, &hl);
+       text = SDL_CreateTextureFromSurface(win->render, surf);
+       SDL_QueryTexture(text, NULL, NULL, &wl, &hl);
        SDL_FreeSurface(surf);
        l->lower = text;
        l->rectl.x = x;
@@ -228,4 +235,75 @@ add_blank(Panel win, int x, int y, int h, int w, SDL_Color *b_col)
    return nwid;
 }
 
+Widget
+add_button_callback(Panel win, int x, int y, int h, int w, char *label1, char *label2,
+        _button_callback func, void *arg, int iarg, TTF_Font *font, SDL_Color *f_col, SDL_Color *b_col)
+{
+   Widget       nwid;
+   SDL_Surface *surf;
+   SDL_Texture *text;
+   struct _button_t *l;
+   int          hh, wh, hl, wl, lh, k;
+   Uint32       f;
+   if ((nwid = (Widget)calloc(1, sizeof(struct _widget_t))) == NULL) {
+       return NULL;
+   }
+
+   if ((l = (struct _button_t *)calloc(1, sizeof(struct _button_t))) == NULL) {
+       free(nwid);
+       return NULL;
+   }
+
+   nwid->rect.x = x;
+   nwid->rect.y = y;
+   nwid->rect.w = w;
+   nwid->rect.h = h;
+   nwid->back_color = b_col;
+   l->func = func;
+   l->arg = arg;
+   l->iarg = iarg;
+   /* Fill in the fields */
+   surf = TTF_RenderText_Blended(font, label1, *f_col);
+   text = SDL_CreateTextureFromSurface(win->render, surf);
+   SDL_QueryTexture(text, &f, &k, &wh, &hh);
+   SDL_FreeSurface(surf);
+   l->upper = text;
+   l->recth.x = x;
+   l->recth.y = y;
+   l->recth.w = wh;
+   l->recth.h = hh;
+   lh = hh;
+   if (label2 != NULL) {
+       surf = TTF_RenderText_Blended(font, label2, *f_col);
+       text = SDL_CreateTextureFromSurface(win->render, surf);
+       SDL_QueryTexture(text, &f, &k, &wl, &hl);
+       SDL_FreeSurface(surf);
+       l->lower = text;
+       l->rectl.x = x;
+       l->rectl.y = y + (hh/2);
+       l->rectl.w = wl;
+       l->rectl.h = hl;
+       if (wl > wh) {
+          l->recth.x += (wl - wh) / 2;
+       } else {
+          l->rectl.x += (wh - wl) / 2;
+       }
+       l->recth.y = y - (hh/2);
+       lh += hl;
+       /* Center label */
+       l->rectl.x += (w/2) - (wl/2);
+       l->rectl.y += (h/2) - (hl/2);
+   }
+
+   /* Center label */
+   l->recth.x += (w/2) - (wh/2);
+   l->recth.y += (h/2) - (hh/2);
+
+   nwid->draw = display_button;
+   nwid->close = close_button;
+   nwid->click = click_button;
+   nwid->data = (void *)l;
+   add_widget(win, nwid);
+   return nwid;
+}
 

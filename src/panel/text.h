@@ -1,7 +1,7 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim360 - GUI Provided text based input.
  *
- * Copyright 2023, Richard Cornwell
+ * Copyright 2026, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,16 +23,17 @@
  *
  */
 
+#ifndef _TEXT_H_
+#define _TEXT_H_
 
-#ifndef _LABEL_H_
-#define _LABEL_H_
-#include <SDL_ttf.h>
 #include "widgets.h"
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf);
+char *copy_textbuffer(Widget wp, char *dest);
 
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf);
+char *get_textbuffer(Widget wp);
+
+void set_textbuffer(Widget wp, char *source);
+
+Widget add_textinput(Panel win, int x, int y, int h, int w, char *text);
 
 #endif

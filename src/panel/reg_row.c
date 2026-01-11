@@ -32,8 +32,8 @@ struct _reg_bits_w {
       SDL_Rect     rect_bit[40];      /* Area where to show */
       SDL_Rect     rect_label[40];
       SDL_Texture *digit_on[40];      /* Digit on and off */
-      SDL_Texture *digit_off[40];   
-      SDL_Texture *label[40];   
+      SDL_Texture *digit_off[40];
+      SDL_Texture *label[40];
       int          start[4];
       int          index[4];
       uint16_t    *value[4];
@@ -96,8 +96,8 @@ close_reg(Widget wid)
  * Add Register
  */
 Widget
-add_reg_row(Panel win, int x, int y, Reg_row row, 
-               TTF_Font *font, int *pos, SDL_Color *cmark) 
+add_reg_row(Panel win, int x, int y, Reg_row row,
+               TTF_Font *font, int *pos, SDL_Color *cmark)
 {
     Widget       nwid;
     struct _reg_bits_w *row_ptr;
@@ -109,7 +109,7 @@ add_reg_row(Panel win, int x, int y, Reg_row row,
     int          tx;
     int          digit = 0;
     char         lab[4];
-   
+
     if (TTF_SizeText(font, "M", &wx, &hx) != 0) {
         return NULL;
     }
@@ -136,13 +136,12 @@ add_reg_row(Panel win, int x, int y, Reg_row row,
     for (i = 0; row->upper[i] != '\0'; i++) {
         lab[0] = row->upper[i];
         lab[1] = '\0';
-        add_mark(win, x, y, 5, cmark);
         row_ptr->rect_bit[digit].x = x + wx;
         row_ptr->rect_bit[digit].y = y;
         row_ptr->rect_bit[digit].h = hx;
         row_ptr->rect_bit[digit].w = wx;
         switch(row->upper[i]) {
-        case '|': 
+        case '|':
             tx = x + wx + (wx/2);
             add_mark(win, tx, y, hd, cmark);
             *pos++ = tx;
@@ -211,12 +210,12 @@ add_reg_row(Panel win, int x, int y, Reg_row row,
  * Compute width of Register line.
  */
 int
-reg_row_width(Panel win, Reg_row row, TTF_Font *font) 
+reg_row_width(Panel win, Reg_row row, TTF_Font *font)
 {
     int          hx, wx;
     int          i;
     int          width;
-   
+
     if (TTF_SizeText(font, "M", &wx, &hx) != 0) {
         return 0;
     }
@@ -236,8 +235,8 @@ reg_row_width(Panel win, Reg_row row, TTF_Font *font)
  * More space between digits.
  */
 Widget
-add_reg_row_large(Panel win, int x, int y, Reg_row row, 
-               TTF_Font *font, int *pos, SDL_Color *cmark) 
+add_reg_row_large(Panel win, int x, int y, Reg_row row,
+               TTF_Font *font, int *pos, SDL_Color *cmark)
 {
     Widget       nwid;
     struct _reg_bits_w *row_ptr;
@@ -249,7 +248,7 @@ add_reg_row_large(Panel win, int x, int y, Reg_row row,
     int          tx;
     int          digit = 0;
     char         lab[4];
-   
+
     if (TTF_SizeText(font, "M", &wx, &hx) != 0) {
         return NULL;
     }
@@ -282,7 +281,7 @@ add_reg_row_large(Panel win, int x, int y, Reg_row row,
         row_ptr->rect_bit[digit].h = hx;
         row_ptr->rect_bit[digit].w = wx;
         switch(row->upper[i]) {
-        case '|': 
+        case '|':
             tx = x + wx + (wx/2);
             add_mark(win, tx, y, hd, cmark);
             *pos++ = tx;

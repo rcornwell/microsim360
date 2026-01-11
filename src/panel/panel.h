@@ -251,7 +251,6 @@ struct _popup {
       struct _combo combo[10];
       struct _number number[10];
 
-      int        unit_num;
       int        lamp_ptr;
       int        led_ptr;
       int        area_ptr;
@@ -263,10 +262,12 @@ struct _popup {
       int        cmb_ptr;
       int        num_ptr;
       int        temp[10];
+      int        unit_num;
       SDL_Window *screen;
       SDL_Renderer *render;
       void       *device;
       void       (*update)(struct _popup *pop, void *device, int index);
+      Panel      panel;
 };
 
 struct _labels {
@@ -364,6 +365,20 @@ extern SDL_Color cb;      /* Outline color */
 extern SDL_Color cl;      /* Label background */
 extern SDL_Color con;     /* On digit */
 extern SDL_Color cof;     /* Off digit */
+
+extern SDL_Color c_white;     /* White */
+extern SDL_Color c_black;         /* Black */
+extern SDL_Color c_green;    /* Green */
+extern SDL_Color c_blue;    /* Blue */
+extern SDL_Color c_gray;    /* Gray */
+extern SDL_Color c_red;    /* Red */
+extern SDL_Color c_red_off;   /* off Red */
+extern SDL_Color c_back;    /* Background */
+extern SDL_Color c_outline;    /* Outline color */
+extern SDL_Color c_label;    /* Label background */
+extern SDL_Color c_on;   /* On digit */
+extern SDL_Color c_off;   /* Off digit */
+
 
 extern SDL_Texture *digit_on[100];
 extern SDL_Texture *digit_off[100];

@@ -38,10 +38,10 @@ typedef struct _reg_row {
       uint16_t    *value[4];
 } reg_row, *Reg_row;
 
-Widget add_reg_row(Panel win, int x, int y, Reg_row row, 
+Widget add_reg_row(Panel win, int x, int y, Reg_row row,
               TTF_Font *font, int *pos, SDL_Color *cmark);
 
-Widget add_reg_row_large(Panel win, int x, int y, Reg_row row, 
+Widget add_reg_row_large(Panel win, int x, int y, Reg_row row,
               TTF_Font *font, int *pos, SDL_Color *cmark);
 
 int reg_row_width(Panel win, Reg_row row, TTF_Font *font);

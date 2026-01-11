@@ -36,7 +36,7 @@ struct _light_t {
     int          shift;
 };
 
-    
+
 static void
 display_light(Widget wid, SDL_Renderer *render)
 {
@@ -97,12 +97,12 @@ add_light(Panel win, int x, int y, char *label1, char *label2,
    l->recth.y = y;
    /* Fill in the fields */
    surf = TTF_RenderText_Blended(font, label1, *con);
-   text = SDL_CreateTextureFromSurface(win->render, surf); 
+   text = SDL_CreateTextureFromSurface(win->render, surf);
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);
    l->digith_on = text;
    surf = TTF_RenderText_Blended(font, label1, *coff);
-   text = SDL_CreateTextureFromSurface(win->render, surf); 
+   text = SDL_CreateTextureFromSurface(win->render, surf);
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);
    l->digith_off = text;
@@ -112,12 +112,12 @@ add_light(Panel win, int x, int y, char *label1, char *label2,
    l->rectl.x = y;
    if (label2 != NULL) {
        surf = TTF_RenderText_Blended(font, label2, *con);
-       text = SDL_CreateTextureFromSurface(win->render, surf); 
+       text = SDL_CreateTextureFromSurface(win->render, surf);
        SDL_QueryTexture(text, &f, &k, &wl, &hl);
        SDL_FreeSurface(surf);
        l->digitl_on = text;
        surf = TTF_RenderText_Blended(font, label2, *coff);
-       text = SDL_CreateTextureFromSurface(win->render, surf); 
+       text = SDL_CreateTextureFromSurface(win->render, surf);
        SDL_QueryTexture(text, &f, &k, &wl, &hl);
        SDL_FreeSurface(surf);
        l->digitl_off = text;

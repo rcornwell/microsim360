@@ -42,6 +42,7 @@
 #include "logger.h"
 #include "event.h"
 #include "widgets.h"
+#include "number.h"
 #include "cpu.h"
 #include "lamps_img.xpm"
 #include "hex_dial_img.xpm"
@@ -113,6 +114,18 @@ SDL_Color cb= {0x7d, 0x79, 0x78};    /* Outline color */
 SDL_Color cl= {0xb4, 0xb0, 0xa5};    /* Label background */
 SDL_Color con= {0xd8, 0xcb, 0x72};   /* On digit */
 SDL_Color cof= {0x1a, 0x1a, 0x1a};   /* Off digit */
+SDL_Color c_white = {0xff, 0xff, 0xff};     /* White */
+SDL_Color c_black = {0x0, 0x0, 0x0};	     /* Black */
+SDL_Color c_green = {0x83, 0x89, 0x7f};    /* Green */
+SDL_Color c_blue = {0x17, 0x69, 0x99};    /* Blue */
+SDL_Color c_gray = {0xc0, 0xbc, 0xb9};    /* Gray */
+SDL_Color c_red = {0xe3, 0x20, 0x4e};    /* Red */
+SDL_Color c_red_off = {0x52, 0x08, 0x1f};   /* off Red */
+SDL_Color c_back = {0xdd, 0xd8, 0xc5};    /* Background */
+SDL_Color c_outline = {0x7d, 0x79, 0x78};    /* Outline color */
+SDL_Color c_label = {0xb4, 0xb0, 0xa5};    /* Label background */
+SDL_Color c_on = {0xd8, 0xcb, 0x72};   /* On digit */
+SDL_Color c_off = {0x1a, 0x1a, 0x1a};   /* Off digit */
 SDL_Window *screen = NULL;
 SDL_Window *screen2 = NULL;
 SDL_Window *screen3 = NULL;
@@ -212,6 +225,7 @@ uint8_t  test_mode;
 uint8_t  clock_start_lch;
 uint8_t  load_mode;
 Panel    cpu_panel;
+Panel    popup_panel;
 
 
 void
@@ -221,17 +235,6 @@ SDL_Setup(char *title, int scr_wid, int scr_hi)
     SDL_Surface *text;
     SDL_Texture *txt;
     SDL_RWops    *rw_font;
-    Uint32	f;
-    int      shf;
-    int	     i, j, k;
-    int	     h, w;
-    int	     h2, w2;
-    int      wb;
-    char     buffer[4];
-    int      mWindowID = -1;
-    int      mDeviceID = -1;
-    int      mPopID = -1;
-    uint32_t ticks;
 
     /* Start SDL */
     SDL_Init( SDL_INIT_EVERYTHING );
@@ -240,7 +243,7 @@ SDL_Setup(char *title, int scr_wid, int scr_hi)
     /* Create display locks */
     display_mutex = SDL_CreateMutex();
     display_wait = SDL_CreateCond();
-     
+
 
     /* Set up screen */
     screen = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -255,6 +258,7 @@ SDL_Setup(char *title, int scr_wid, int scr_hi)
     }
     cpu_panel->list = NULL;
     cpu_panel->last_item = NULL;
+    cpu_panel->windowID = SDL_GetWindowID( screen );
     cpu_panel->screen = screen;
     cpu_panel->render = render;
 /*    rw_font = SDL_RWFromConstMem(base_font, sizeof(base_font)); */
@@ -285,6 +289,8 @@ SDL_Setup(char *title, int scr_wid, int scr_hi)
     SDL_RenderClear( render);
     if (setup_cpu != NULL)
         (*setup_cpu)((void *)render);
+    cpu_count = 0;
+    add_number(cpu_panel, 800, 5, 16, 80, font14, &cpu_count, &c_black, &c_white);
     system_init((void *)render2);
 }
 
@@ -468,265 +474,15 @@ draw_screen()
              wp->draw(wp, render);
     }
 
-    /* Draw backgrounds */
-    for (i = 0; i < area_ptr; i++) {
-        SDL_SetRenderDrawColor( render, areas[i].c->r,
-                                        areas[i].c->g,
-                                        areas[i].c->b, 0xff);
-        SDL_RenderFillRect( render, &areas[i].rect);
-    }
-    /* Draw all labels */
-    for (i = 0; i < ctl_ptr; i++) {
-        SDL_RenderCopy(render, ctl_label[i].text, NULL, & ctl_label[i].rect);
-    }
-    /* Draw all lines */
-    for (i = 0; i < mrk_ptr; i++) {
-        SDL_SetRenderDrawColor( render, marks[i].c->r,
-                                        marks[i].c->g,
-                                        marks[i].c->b, 0xff);
-        SDL_RenderDrawLine( render, marks[i].x1, marks[i].y1,
-                                    marks[i].x2, marks[i].y2);
-    }
-
-    /* Draw ROS lights */
-    for (i = 0; i < ros_ptr; i++) {
-        uint32_t row = 0;
-        if (ros_bits[i].value != 0)
-            row = *ros_bits[i].value;
-        if (LAMP_TEST || (row & (1 << ros_bits[i].shift)) != 0)
-            SDL_RenderCopy(render, ros_bits[i].digit_on, NULL, & ros_bits[i].rect);
-        else
-            SDL_RenderCopy(render, ros_bits[i].digit_off, NULL, & ros_bits[i].rect);
-    }
-
-    /* Draw rest of lights */
-    for (i = 0; i < led_ptr; i++) {
-        uint16_t row = 0;
-        if (led_bits[i].value != 0)
-           row = *led_bits[i].value;
-        if (LAMP_TEST || (row & (1 << led_bits[i].shift)) != 0) {
-            SDL_RenderCopy(render, led_bits[i].digith_on, NULL, & led_bits[i].recth);
-            SDL_RenderCopy(render, led_bits[i].digitl_on, NULL, & led_bits[i].rectl);
-        } else {
-            SDL_RenderCopy(render, led_bits[i].digith_off, NULL, & led_bits[i].recth);
-            SDL_RenderCopy(render, led_bits[i].digitl_off, NULL, & led_bits[i].rectl);
-        }
-    }
-
-    /* Draw push buttons */
-    for (i = 0; i < sws_ptr; i++) {
-        SDL_SetRenderDrawColor( render, sws[i].c[0]->r,
-                                        sws[i].c[0]->g,
-                                        sws[i].c[0]->b, 0xff);
-        SDL_RenderFillRect( render, &sws[i].rect);
-        if (sws[i].type == ONOFF) {  /* Handle timer interrupt switch */
-           SDL_SetRenderDrawColor( render, c.r, c.g, c.b, 0xff);
-           SDL_RenderFillRect( render, &sws[i].rect);
-           rect.x = sws[i].rect.x;
-           rect.y = sws[i].rect.y;
-           rect.w = f1_wd * 2;
-           rect.h = f1_hd;
-           SDL_RenderFillRect( render, &rect);
-           SDL_RenderCopy(render, on, NULL, & rect);
-           rect.x = sws[i].rect.x + sws[i].rect.w - (f1_wd * 3);
-           rect.y = sws[i].rect.y + f1_hd;
-           rect.w = f1_wd * 3;
-           rect.h = f1_hd;
-           SDL_RenderCopy(render, off, NULL, & rect);
-
-           SDL_SetRenderDrawColor( render, sws[i].c[0]->r,
-                                           sws[i].c[0]->g,
-                                           sws[i].c[0]->b, 0xff);
-           rect.x = sws[i].rect.x;
-           rect.y = sws[i].rect.y;
-           if (*sws[i].value == 0)
-               rect.y += f1_hd;
-           rect.w = sws[i].rect.w;
-           rect.h = f1_hd;
-           SDL_RenderFillRect( render, &rect);
-           rect.x = sws[i].rect.x + (sws[i].rect.w / 2) - ((f1_wd * sws[i].top_len)/2);
-           rect.w = f1_wd * sws[i].top_len;
-           SDL_RenderCopy(render, sws[i].top, NULL, & rect);
-        } else if (sws[i].top != NULL && sws[i].bot != NULL) {
-           rect.x = sws[i].rect.x + (sws[i].rect.w / 2) - ((f1_wd * sws[i].top_len)/2);
-           rect.y = sws[i].rect.y;
-           rect.w = f1_wd * sws[i].top_len;
-           rect.h = f1_hd;
-           SDL_RenderCopy(render, sws[i].top, NULL, & rect);
-           rect.x = sws[i].rect.x + (sws[i].rect.w / 2) - ((f1_wd * sws[i].bot_len)/2);
-           rect.w = f1_wd * sws[i].bot_len;
-           rect.y += f1_hd;
-           SDL_RenderCopy(render, sws[i].bot, NULL, & rect);
-        } else if (sws[i].top != NULL) {
-           rect.x = sws[i].rect.x + (sws[i].rect.w / 2) - ((f1_wd * sws[i].top_len)/2);
-           rect.y = sws[i].rect.y + (f1_hd/2);
-           rect.w = f1_wd * sws[i].top_len;
-           rect.h = f1_hd;
-           SDL_RenderCopy(render, sws[i].top, NULL, & rect);
-        }
-        if (sws[i].active) {
-           SDL_SetRenderDrawColor( render, 0, 0, 0, 0xff);
-           SDL_RenderDrawRect( render, &sws[i].rect);
-        }
-     }
-
-    /* Draw indicator lights */
-    for (i = 0; i < ind_ptr; i++) {
-        j = 0;
-        if (ind[i].value != 0 && *ind[i].value)
-            j = 1;
-        SDL_SetRenderDrawColor( render, ind[i].c[j]->r,
-                                        ind[i].c[j]->g,
-                                        ind[i].c[j]->b, 0xff);
-        SDL_RenderFillRect( render, &ind[i].rect);
-        if (ind[i].top != NULL && ind[i].bot != NULL) {
-           rect.x = ind[i].rect.x + (ind[i].rect.w / 2) - ((f1_wd * ind[i].top_len)/2);
-           rect.y = ind[i].rect.y;
-           rect.w = f1_wd * ind[i].top_len;
-           rect.h = f1_hd;
-           SDL_RenderCopy(render, ind[i].top, NULL, & rect);
-           rect.w = f1_wd * ind[i].bot_len;
-           rect.y += f1_hd;
-           SDL_RenderCopy(render, ind[i].bot, NULL, & rect);
-        } else if (ind[i].top != NULL) {
-           rect.x = ind[i].rect.x + (ind[i].rect.w / 2) - ((f1_wd * ind[i].top_len)/2);
-           rect.y = ind[i].rect.y + (f1_hd/2);
-           rect.w = f1_wd * ind[i].top_len;
-           rect.h = f1_hd;
-           SDL_RenderCopy(render, ind[i].top, NULL, & rect);
-        }
-     }
-
-     /* Draw rotary dial switches */
-     for (i = 0; i < 5; i++ ) {
-          if (dial[i].center_x == 0)
-              continue;
-          SDL_SetRenderDrawColor( render, c1.r, c1.g, c1.b, 0xff);
-          for (j = 0; j <= dial[i].max; j++) {
-              SDL_RenderDrawLine( render, dial[i].pos_x[j], dial[i].pos_y[j],
-                                      dial[i].center_x, dial[i].center_y);
-          }
-          draw_circle(dial[i].center_x, dial[i].center_y, 15 , c);
-          draw_circle(dial[i].center_x, dial[i].center_y, 10, c1);
-          SDL_SetRenderDrawColor( render, c1.r, c1.g, c1.b, 0xff);
-          SDL_RenderDrawLine( render, dial[i].pos_x[*(dial[i].value)],
-                                      dial[i].pos_y[*(dial[i].value)],
-                                      dial[i].center_x, dial[i].center_y);
-    }
-
-    /* Draw hex selector switches */
-    for (i = 0; i < hex_ptr; i++) {
-         uint8_t  d = *hex_dial[i].digit;
-         rect.x = ((int)d & 3) * 64;
-         rect.y = (((int)d & 0xc) >> 2) * 64;
-         rect.h = 64;
-         rect.w = 64;
-         SDL_RenderCopy(render, hex_dials, &rect, &hex_dial[i].rect);
-    }
-
-    /* Draw store selector switches */
-    for (i = 0; i < store_ptr; i++) {
-         uint8_t  d = *store_dial[i].digit;
-         int       x, y;
-         rect.x = ((int)d & 3) * 81;
-         rect.y = (((int)d & 0xc) >> 2) * 81;
-         rect.h = 81;
-         rect.w = 81;
-         x = store_dial[i].rect.x + 40;
-         y = store_dial[i].rect.y + 40;
-         SDL_RenderCopy(render, store_dials, &rect, &store_dial[i].rect);
-         switch (store_dial[i].sel & 3) {
-         case 0:
-                 SDL_SetRenderDrawColor( render, cb.r, cb.g, cb.b, 0xff);
-                 SDL_RenderDrawLine( render, x, y, x - 5, y - 5);
-                 SDL_RenderDrawLine( render, x-1, y, x - 6, y - 5);
-                 break;
-         case 1:
-         case 3:
-                 SDL_SetRenderDrawColor( render, c5.r, c5.g, c5.b, 0xff);
-                 SDL_RenderDrawLine( render, x, y, x, y - 9);
-                 SDL_RenderDrawLine( render, x-1, y, x-1, y - 9);
-                 break;
-         case 2:
-                 SDL_SetRenderDrawColor( render, c1.r, c1.g, c1.b, 0xff);
-                 SDL_RenderDrawLine( render, x, y, x + 5, y - 5);
-                 SDL_RenderDrawLine( render, x+1, y, x + 6, y - 5);
-                 break;
-         }
-    }
-
-    /* Draw the rollers */
-    for(i = 0; i < roller_ptr; i++) {
-        rect.x = roller[i].pos.x;
-        rect.y = roller[i].pos.y;
-        rect.w = 975;
-        rect.h = 25;
-        rect2.x = 0;
-        rect2.y = (roller[i].sel * 25) + roller[i].ystart;
-        rect2.w = 975;
-        rect2.h = 25;
-        SDL_RenderCopy(render, roller[i].rollers, &rect2, &rect);
-        rect.x += 35;
-        rect.y += 30;
-        rect.w = 15;
-        rect.h = 15;
-        rect2.x = 0;
-        rect2.y = 0;
-        rect2.w = 15;
-        rect2.h = 15;
-        for (j = 0; j <= 36; j++) {
-             if (LAMP_TEST || get_indicator(&roller[i].disp[roller[i].sel].ind[j]))
-                 rect2.y = 15;
-             else
-                 rect2.y = 0;
-             SDL_RenderCopy(render, lamps, &rect2, &rect);
-             rect.x += roller_light_offset[j];
-        }
-    }
-
-    /* Draw toggle switches */
-    for(i = 0; i < toggle_ptr; i++) {
-        uint32_t    v = 0;
-        if (toggles[i].value != 0) {
-            v = (*toggles[i].value) >> toggles[i].shift;
-        }
-        if (toggles[i].type < THREE) {
-            v &= 1;
-            v ^= 1;
-        } else {
-            switch (v & 3) {
-            case 0: v = 1; break;
-            case 1: v = 0; break;
-            case 2: v = 2; break;
-            }
-        }
-        rect.x = v * 15;
-        rect.y = 0;
-        rect.w = 15;
-        rect.h = 32;
-        SDL_RenderCopy(render, toggle_pic, &rect, & toggles[i].rect);
-    }
-
-    /* Lastly draw the Lamps */
-    for(i = 0; i < lamp_ptr; i++) {
-        rect.x = lamp[i].col * 15;
-        rect.y = 0;
-        rect.w = 15;
-        rect.h = 15;
-        if (LAMP_TEST || get_indicator(&lamp[i].ind))
-            rect.y = 15;
-        SDL_RenderCopy(render, lamps, &rect, & lamp[i].rect);
-    }
-
-    sprintf(buf, "%10d fps=%d", cpu_count, fps);
-    rect.x = 700;
-    rect.y = 10;
-    rect.h = f1_hd;
-    rect.w = 20*f1_wd;
-    text = TTF_RenderText_Shaded(font1, buf, c1, c);
-    txt = SDL_CreateTextureFromSurface( render, text);
-    SDL_FreeSurface(text);
-    SDL_RenderCopy(render, txt, NULL, & rect);
+//    sprintf(buf, "%10d fps=%d", cpu_count, fps);
+//    rect.x = 700;
+//    rect.y = 10;
+//    rect.h = f1_hd;
+//    rect.w = 20*f1_wd;
+//    text = TTF_RenderText_Shaded(font1, buf, c1, c);
+//    txt = SDL_CreateTextureFromSurface( render, text);
+//    SDL_FreeSurface(text);
+//    SDL_RenderCopy(render, txt, NULL, & rect);
     SDL_RenderPresent( render );
 }
 
@@ -739,11 +495,21 @@ draw_popup(struct _popup *popup, int hd, int wd)
     SDL_Surface *text;
     SDL_Texture *txt;
     int          w, h;
+    Widget       wp;
     char          buf[100];
 
     /* Clear display */
     SDL_SetRenderDrawColor( popup->render, 0x00, 0x00, 0x00, 0xFF);
     SDL_RenderClear( popup->render);
+    /* Render all popup function */
+    if (popup->panel != NULL && popup->panel->list != NULL) {
+        for (wp = popup->panel->list; wp != NULL; wp = wp->next) {
+             if (wp->draw != NULL)
+                 wp->draw(wp, popup->render);
+        }
+    }
+#if 0
+
     /* Draw backgrounds */
     for (i = 0; i < popup->area_ptr; i++) {
         SDL_SetRenderDrawColor( popup->render, popup->areas[i].c->r,
@@ -967,6 +733,7 @@ draw_popup(struct _popup *popup, int hd, int wd)
             rect.y = 15;
         SDL_RenderCopy(popup->render, lamps, &rect, & popup->lamp[i].rect);
     }
+#endif
 
     SDL_RenderPresent( popup->render );
 }
@@ -1168,6 +935,7 @@ run_sim()
     SDL_Texture *txt;
     SDL_RWops    *rw_font;
     Widget       wp;
+    Widget       wp2;
     struct _popup   *pop_wind = NULL;
     Uint32	f;
     int      shf;
@@ -1191,6 +959,23 @@ run_sim()
         while(SDL_PollEvent(&event)) {
            if (event.window.windowID == mWindowID) {
                switch(event.type) {
+               case SDL_WINDOWEVENT_CLOSE:
+                     /* Close all widgets */
+                     wp = cpu_panel->list;
+                     while (wp != NULL) {
+                          if (wp->close != NULL) {
+                              wp->close(wp);
+                          }
+                          wp2 = wp->next;
+                          free(wp);
+                          wp = wp2;
+                     }
+                     break;
+
+               case SDL_QUIT:
+                   log_trace("Quit\n");
+                    break;
+
                case SDL_MOUSEBUTTONDOWN:
                     /* Check for click */
                     for (wp = cpu_panel->list; wp != NULL; wp = wp->next) {
@@ -1200,112 +985,17 @@ run_sim()
                                   wp->click(wp, event.button.x - wp->rect.x,
                                                 event.button.y - wp->rect.y);
                                   wp->active = 1;
+                                  if (wp->focus) {
+                                      if (cpu_panel->focus != NULL) {
+                                          cpu_panel->focus->focus = 0;
+                                      }
+                                      cpu_panel->focus = wp;
+                                  }
                              }
                          }
                     }
-                    for (i = 0; i < sws_ptr; i++) {
-                        if (inrect(event.button.x, event.button.y, sws[i].rect)) {
-                             if (sws[i].type == ONOFF) {
-                                 *sws[i].value = !*sws[i].value;
-                             } else if (sws[i].value != 0) {
-                                 *sws[i].value = 1;
-                             }
-                             sws[i].active = 1;
-                        }
-                    }
-                    for (i = 0; i < 5; i++) {
-                        if (dial[i].center_x == 0)
-                            continue;
-                        if (inrect(event.button.x, event.button.y, dial[i].boxd)) {
-                            if (*(dial[i].value) == 0 && dial[i].wrap) {
-                                *(dial[i].value) = dial[i].max;
-                            } else if (*(dial[i].value) > 0) {
-                                *dial[i].value -= 1;
-                            }
-                        }
-                        if (inrect(event.button.x, event.button.y, dial[i].boxu)) {
-                            if (*(dial[i].value) == dial[i].max && dial[i].wrap) {
-                                *(dial[i].value) = 0;
-                            } else if (*(dial[i].value) < dial[i].max) {
-                                *dial[i].value += 1;
-                            }
-                        }
-                    }
-                    for (i = 0; i < hex_ptr; i++) {
-                        if (inrect(event.button.x, event.button.y, hex_dial[i].boxd)) {
-                            *hex_dial[i].digit = ((*hex_dial[i].digit - 1) & 0xf);
-                        }
-                        if (inrect(event.button.x, event.button.y, hex_dial[i].boxu)) {
-                            *hex_dial[i].digit = ((*hex_dial[i].digit + 1) & 0xf);
-                        }
-                    }
-                    for (i = 0; i < store_ptr; i++) {
-                        if (event.button.x > (store_dial[i].rect.x + 30) &&
-                            event.button.x < (store_dial[i].rect.x + 50) &&
-                            event.button.y > (store_dial[i].rect.y + 30) &&
-                            event.button.y < (store_dial[i].rect.y + 50)) {
-                            store_dial[i].sel = ((store_dial[i].sel + 1) & 0x3);
-                            *store_dial[i].digit &= 0xf;
-                            if (store_dial[i].sel == 3) {
-                                *store_dial[i].digit |= 0x20;
-                            } else {
-                                *store_dial[i].digit |= (store_dial[i].sel + 1) << 4;
-                            }
-                        } else
-                        if (inrect(event.button.x, event.button.y, store_dial[i].boxd)) {
-                            *store_dial[i].digit = (*store_dial[i].digit & 0xf0) |
-                                      ((*store_dial[i].digit - 1) & 0xf);
-                        } else
-                        if (inrect(event.button.x, event.button.y, store_dial[i].boxu)) {
-                            *store_dial[i].digit = (*store_dial[i].digit & 0xf0) |
-                                      ((*store_dial[i].digit + 1) & 0xf);
-                        }
-                    }
-                    for (i = 0; i < roller_ptr; i++) {
-                        if (event.button.x > (roller[i].pos.x) &&
-                            event.button.x < (roller[i].pos.x + 450) &&
-                            event.button.y > (roller[i].pos.y) &&
-                            event.button.y < (roller[i].pos.y + 50)) {
-                            roller[i].sel = ((roller[i].sel + 1) & 0x7);
-                        } else
-                        if (event.button.x > (roller[i].pos.x + 490) &&
-                            event.button.x < (roller[i].pos.x + 975) &&
-                            event.button.y > (roller[i].pos.y) &&
-                            event.button.y < (roller[i].pos.y + 50)) {
-                            roller[i].sel = ((roller[i].sel - 1) & 0x7);
-                        }
-                    }
-
-                    for (i = 0; i < toggle_ptr; i++) {
-                        if (event.button.x > (toggles[i].rect.x) &&
-                            event.button.x < (toggles[i].rect.x + 15) &&
-                            event.button.y > (toggles[i].rect.y) &&
-                            event.button.y < (toggles[i].rect.y + 32)) {
-                            switch (toggles[i].type) {
-                            case ON_OFF:
-                                   if (toggles[i].value != 0) {
-                                       *toggles[i].value ^= (1 << toggles[i].shift);
-                                   }
-                                   break;
-                            case ON_OFF_MOM:
-                                   if (toggles[i].value != 0) {
-                                       *toggles[i].value |= (1 << toggles[i].shift);
-                                   }
-                                   break;
-                            case THREE:
-                                   if (toggles[i].value != 0) {
-                                       *toggles[i].value &= ~(3 << toggles[i].shift);
-                                       if (event.button.y < (toggles[i].rect.y + 10)) {
-                                           *toggles[i].value |= (2 << toggles[i].shift);
-                                       } else if (event.button.y > (toggles[i].rect.y + 20)) {
-                                           *toggles[i].value |= (1 << toggles[i].shift);
-                                       }
-                                  }
-                                  break;
-                            }
-                        }
-                    }
                     break;
+
                case SDL_MOUSEBUTTONUP:
                     /* Check for release */
                     for (wp = cpu_panel->list; wp != NULL; wp = wp->next) {
@@ -1316,29 +1006,30 @@ run_sim()
                              wp->active = 0;
                          }
                     }
-                    for (i = 0; i < sws_ptr; i++) {
-                        if (inrect(event.button.x, event.button.y, sws[i].rect)) {
-                             if (sws[i].type != ONOFF && sws[i].value != 0) {
-                                 *sws[i].value = 0;
-                             }
-                             sws[i].active = 0;
-                        }
-                    }
-                    for (i = 0; i < toggle_ptr; i++) {
-                        if (event.button.x > (toggles[i].rect.x) &&
-                            event.button.x < (toggles[i].rect.x + 15) &&
-                            event.button.y > (toggles[i].rect.y) &&
-                            event.button.y < (toggles[i].rect.y + 32)) {
-                            switch (toggles[i].type) {
-                            case ON_OFF_MOM:
-                                   if (toggles[i].value != 0) {
-                                       *toggles[i].value &= ~(1 << toggles[i].shift);
-                                   }
-                                   break;
-                            }
-                        }
+
+
+               case SDL_KEYDOWN:
+                    if (cpu_panel->focus != NULL && cpu_panel->focus->keypress != NULL) {
+                         cpu_panel->focus->keypress(cpu_panel->focus, &event.key);
                     }
                     break;
+
+               case SDL_TEXTINPUT:
+                    if (cpu_panel->focus != NULL && cpu_panel->focus->input != NULL) {
+                         cpu_panel->focus->input(cpu_panel->focus, &event.text);
+                    }
+                    break;
+
+               case SDL_TEXTEDITING:
+                    break;
+
+               case SDL_MOUSEMOTION:
+                    if (cpu_panel->focus != NULL && cpu_panel->focus->motion != NULL) {
+                        Widget w = cpu_panel->focus;
+                        w->motion(w, event.button.x - w->rect.x, event.button.y - w->rect.y);
+                    }
+                    break;
+
                default:
                     break;
                }
@@ -1375,9 +1066,21 @@ run_sim()
                case SDL_WINDOWEVENT:
                     switch (event.window.event) {
                     case SDL_WINDOWEVENT_CLOSE:
-log_device("Close\n");
+printf("Close\n");
                           if (pop_wind == NULL)
                               break;
+                          /* Close all widgets */
+                          if (pop_wind->panel != NULL && pop_wind->panel->list != NULL) {
+                              wp = pop_wind->panel->list;
+                              while (wp != NULL) {
+                                   if (wp->close != NULL) {
+                                       wp->close(wp);
+                                   }
+                                   wp2 = wp->next;
+                                   free(wp);
+                                   wp = wp2;
+                              }
+                          }
                           /* Draw all labels */
                           for (i = 0; i < pop_wind->ctl_ptr; i++) {
                               SDL_DestroyTexture(pop_wind->ctl_label[i].text);
@@ -1410,9 +1113,28 @@ log_device("Close\n");
                     }
                     break;
                case SDL_QUIT:
-                   log_trace("Quit\n");
+                   printf("Quit\n");
                     break;
                case SDL_MOUSEBUTTONDOWN:
+                    /* Check for click */
+                    if (pop_wind->panel != NULL && pop_wind->panel->list != NULL) {
+                        for (wp = pop_wind->panel->list; wp != NULL; wp = wp->next) {
+                             if (wp->click != NULL) {
+//                                 if (SDL_PointInRect(&event.button, &wp->rect) == SDL_TRUE) {
+                                 if (inrect(event.button.x, event.button.y, wp->rect)) {
+                                      wp->click(wp, event.button.x - wp->rect.x,
+                                                    event.button.y - wp->rect.y);
+                                      wp->active = 1;
+                                  if (wp->focus) {
+                                      if (pop_wind->panel->focus != NULL) {
+                                          pop_wind->panel->focus->focus = 0;
+                                      }
+                                      pop_wind->panel->focus = wp;
+                                  }
+                                 }
+                             }
+                        }
+                    }
                     for (i = 0; i < pop_wind->sws_ptr; i++) {
                         if (inrect(event.button.x, event.button.y, pop_wind->sws[i].rect)) {
                             if (pop_wind->sws[i].value != 0) {
@@ -1462,6 +1184,10 @@ log_trace("enable %d %d %d %d\n", i, event.button.x, pop_wind->text[i].pos, pop_
                     break;
 
                case SDL_KEYDOWN:
+                    if (pop_wind != NULL && pop_wind->panel != NULL &&
+                          pop_wind->panel->focus != NULL && pop_wind->panel->focus->keypress != NULL) {
+                         pop_wind->panel->focus->keypress(pop_wind->panel->focus, &event.key);
+                    }
                     if (event.key.keysym.mod & KMOD_CTRL) {
                         if (event.key.keysym.sym == SDLK_a) {
                             struct _text *t = &pop_wind->text[text_entry];
@@ -1534,7 +1260,11 @@ log_trace("Select All %d\n", w);
                     break;
 
                case SDL_TEXTINPUT:
-                    textinsert(&pop_wind->text[text_entry], event.text.text);
+                    if (pop_wind != NULL && pop_wind->panel != NULL &&
+                        pop_wind->panel->focus != NULL && pop_wind->panel->focus->input != NULL) {
+                         pop_wind->panel->focus->input(pop_wind->panel->focus, &event.text);
+                    }
+//                    textinsert(&pop_wind->text[text_entry], event.text.text);
  log_trace("Text input %s\n", event.text.text);
                     break;
 
@@ -1543,6 +1273,20 @@ log_trace("Select All %d\n", w);
                     break;
 
                case SDL_MOUSEMOTION:
+                    if (pop_wind != NULL && pop_wind->panel != NULL &&
+                        pop_wind->panel->focus != NULL && pop_wind->panel->focus->motion != NULL) {
+                        Widget w = pop_wind->panel->focus;
+                        w->motion(w, event.button.x - w->rect.x, event.button.y - w->rect.y);
+                    }
+                    if (pop_wind->panel != NULL && pop_wind->panel->list != NULL) {
+                        for (wp = pop_wind->panel->list; wp != NULL; wp = wp->next) {
+                             if (wp->motion != NULL) {
+//                                 if (SDL_PointInRect(&event.button, &wp->rect) == SDL_TRUE) {
+                                 if (inrect(event.button.x, event.button.y, wp->rect)) {
+                                 }
+                             }
+                        }
+                    }
                     if (text_entry >= 0 && pop_wind->text[text_entry].selecting) {
                         struct _text *t = &pop_wind->text[text_entry];
                         int cpos = t->pos;
@@ -1571,6 +1315,18 @@ log_trace("Motion %d %d %d %d\n", t->spos, t->epos, t->sel, t->pos);
                     break;
 
                case SDL_MOUSEBUTTONUP:
+                    /* Check for release */
+                    if (pop_wind != NULL && pop_wind->panel != NULL &&
+                        pop_wind->panel != NULL && pop_wind->panel->list != NULL) {
+                        for (wp = pop_wind->panel->list; wp != NULL; wp = wp->next) {
+                             if (wp->active) {
+                                 if (wp->release != NULL) {
+                                     wp->release(wp);
+                                 }
+                                 wp->active = 0;
+                             }
+                        }
+                    }
                     if (text_entry >= 0 && pop_wind->text[text_entry].selecting) {
                         pop_wind->text[text_entry].selecting = 0;
                         pop_wind->text[text_entry].pos = pop_wind->text[text_entry].epos;
@@ -1680,8 +1436,6 @@ int process(void *data) {
           SDL_UnlockMutex(display_mutex);
        }
        (*step_cpu)();
-//       cycle_2030();
-//       step_2050();
        step_disk();
        step_disk();
        advance();

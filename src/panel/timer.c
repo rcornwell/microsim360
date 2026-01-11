@@ -37,7 +37,7 @@ struct _timer_t {
     int          *value;
 };
 
-    
+
 static void
 display_timer(Widget wid, SDL_Renderer *render)
 {
@@ -108,7 +108,7 @@ click_timer(Widget wid, int x, int y)
  */
 
 Widget
-add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value, 
+add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value,
               TTF_Font *font, SDL_Color *f_col, SDL_Color *b_col)
 {
    Widget       nwid;
@@ -134,7 +134,7 @@ add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value,
    l->value = value;
    /* Fill in the fields */
    surf = TTF_RenderText_Blended(font, label1, *f_col);
-   text = SDL_CreateTextureFromSurface(win->render, surf); 
+   text = SDL_CreateTextureFromSurface(win->render, surf);
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);
    l->label = text;
@@ -145,7 +145,7 @@ add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value,
    l->rect_label.h = hh;
 
    surf = TTF_RenderText_Blended(font, "ON", c1);
-   text = SDL_CreateTextureFromSurface(win->render, surf); 
+   text = SDL_CreateTextureFromSurface(win->render, surf);
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);
    l->on = text;
@@ -155,7 +155,7 @@ add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value,
    l->rect_on.h = hh;
 
    surf = TTF_RenderText_Blended(font, "OFF", c1);
-   text = SDL_CreateTextureFromSurface(win->render, surf); 
+   text = SDL_CreateTextureFromSurface(win->render, surf);
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);
    l->off = text;

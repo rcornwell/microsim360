@@ -1,5 +1,5 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim360 - GUI Draws selector box.
  *
  * Copyright 2023, Richard Cornwell
  *
@@ -23,16 +23,15 @@
  *
  */
 
-
-#ifndef _LABEL_H_
-#define _LABEL_H_
+#ifndef _COMBO_H_
+#define _COMBO_H_
 #include <SDL_ttf.h>
 #include "widgets.h"
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf);
-
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf);
+/*
+ * Add combination box.
+ */
+Widget add_combo(Panel win, int x, int y, int h, int w, char *labels[],
+                   int *value, TTF_Font *font, SDL_Color *f_col, SDL_Color *b_col);
 
 #endif

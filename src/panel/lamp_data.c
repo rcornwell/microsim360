@@ -85,15 +85,16 @@ display_lamp_data(Widget wid, SDL_Renderer *render)
               parity = 4;
               break;
        }
-       
+
        if (parity != 0) {
            rect_lamp.x = row->offsets[j++];
            if (i <= row->start) {
+               bit |= LAMP_TEST;
                rect_label.x = rect_lamp.x;
                rect_label.y = rect_lamp.y + 15;
-               rect_label.h = row->h[parity];
-               rect_label.w = row->w[parity];
-               rect.y = (int)(15 * (LAMP_TEST | bit));
+               rect_label.h = 15;
+               rect_label.w = 15;
+               rect.y = (int)(15 * bit);
                SDL_RenderCopy(render, lamps, &rect, &rect_lamp);
                if (row->label[parity] != NULL) {
                    SDL_RenderCopy( render, row->label[parity], NULL, &rect_label);
@@ -107,7 +108,7 @@ display_lamp_data(Widget wid, SDL_Renderer *render)
            SDL_RenderCopy(render, lamps, &rect, &rect_lamp);
        }
    }
-}   
+}
 
 static void
 close_lamp_data(Widget wid)
@@ -118,8 +119,8 @@ close_lamp_data(Widget wid)
    for (i = 1; i < 5; i++) {
       if (row->label[i] != NULL) {
          SDL_DestroyTexture( row->label[i]);
-      } 
-   } 
+      }
+   }
    free(wid->data);
 }
 
@@ -136,7 +137,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
    SDL_Surface *surf;
    struct _lamp_data_t *row_data;
    int                 s;
-   int                 wh, hh; 
+   int                 wh, hh;
    int                 wx, hx, k;
    int                 i;
    int                 pos;
@@ -162,7 +163,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
    row_data->color = color;
    for (i = 1; i < 5; i++) {
        surf = TTF_RenderText_Blended(font, labels[i], *lab_color);
-       row_data->label[i] = SDL_CreateTextureFromSurface(win->render, surf); 
+       row_data->label[i] = SDL_CreateTextureFromSurface(win->render, surf);
        SDL_QueryTexture(row_data->label[i], &f, &k, &wh, &hh);
        SDL_FreeSurface(surf);
        row_data->w[i] = wh;
@@ -191,7 +192,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
               break;
        case 28: /* End white */
               if (i <= start) {
-                  add_area(win, s, y + 5, 4, pos - s + 10, &c1);
+                  add_area(win, s, y + 5, 4, pos - s + 10, &c_white);
               }
               break;
        case 27: /* Start black */
@@ -202,7 +203,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
               break;
        case 24:  /* End black */
               if (i <= start) {
-                  add_area(win, s, y + 5, 4, pos - s + 10, &c1);
+                  add_area(win, s, y + 5, 4, pos - s + 10, &c_black);
               }
               break;
        case 23:  /* Parity start white */
@@ -214,7 +215,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
               break;
        case 20: /* End white */
               if (i <= start) {
-                  add_area(win, s, y + 5, 4, pos - s + 10, &c1);
+                  add_area(win, s, y + 5, 4, pos - s + 10, &c_white);
               }
               break;
        case 19: /* Start black */
@@ -225,7 +226,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
               break;
        case 16: /* End black */
               if (i <= start) {
-                  add_area(win, s, y + 5, 4, pos - s + 10, &c1);
+                  add_area(win, s, y + 5, 4, pos - s + 10, &c_black);
               }
               break;
        case 15: /* Parity, start white */
@@ -237,7 +238,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
               break;
        case 12: /* End white */
               if (i <= start) {
-                  add_area(win, s, y + 5, 4, pos - s + 10, &c1);
+                  add_area(win, s, y + 5, 4, pos - s + 10, &c_white);
               }
               break;
        case 11: /* start black */
@@ -248,7 +249,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
               break;
        case  8: /* End black */
               if (i <= start) {
-                  add_area(win, s, y + 5, 4, pos - s + 10, &c1);
+                  add_area(win, s, y + 5, 4, pos - s + 10, &c_black);
               }
               break;
        case  7: /* Parity start white */
@@ -260,7 +261,7 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
               break;
        case  4: /* End white */
               if (i <= start) {
-                  add_area(win, s, y + 5, 4, pos - s + 10, &c1);
+                  add_area(win, s, y + 5, 4, pos - s + 10, &c_white);
               }
               break;
        case  3: /* Start black */
@@ -270,9 +271,9 @@ add_lamp_data(Panel win, int x, int y, uint32_t *value, int start,
        case  1:
               break;
        case  0: /* End black */
-           //   if (i < start) {
-                  add_area(win, s, y + 5, 4, pos - s + 10, &c1);
-           //   }
+              if (i < start) {
+                  add_area(win, s, y + 5, 4, pos - s + 10, &c_black);
+              }
               break;
        }
    }

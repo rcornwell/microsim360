@@ -68,8 +68,6 @@ struct _dial_t {
     int          wrap;
 };
 
- 
-
 static void
 draw_circle(SDL_Renderer *render, int x, int y, int radius, SDL_Color color)
 {
@@ -86,7 +84,7 @@ draw_circle(SDL_Renderer *render, int x, int y, int radius, SDL_Color color)
         }
     }
 }
-    
+
 static void
 display_dial(Widget wid, SDL_Renderer *render)
 {
@@ -114,7 +112,7 @@ display_dial(Widget wid, SDL_Renderer *render)
    draw_circle(render, cx, cy, 10, c1);
    SDL_RenderDrawLine( render, cx, cy, l->outside[l->pos].x, l->outside[l->pos].y);
 }
- 
+
 
 static void
 click_dial(Widget wid, int x, int y)
@@ -186,7 +184,6 @@ add_dial(Panel win, int x, int y, int h, int w, int d, Dial_label labels,
        free(nwid);
        return NULL;
    }
-     
 
    cent_x = x;
    cent_y = y;
@@ -197,7 +194,7 @@ add_dial(Panel win, int x, int y, int h, int w, int d, Dial_label labels,
    l->sel = value;
    l->center.x = cent_x;
    l->center.y = cent_y;
-   
+
    /* Compute label positions */
    for (i = 0; i < 12; i++) {
        l->outside[i].x = cent_x + (int)((float)d * scale[i].x);

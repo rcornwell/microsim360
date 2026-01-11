@@ -1,5 +1,5 @@
 /*
- * microsim360 - GUI draws text.
+ * microsim360 - GUI Draws a indicator light.
  *
  * Copyright 2023, Richard Cornwell
  *
@@ -23,16 +23,16 @@
  *
  */
 
-
-#ifndef _LABEL_H_
-#define _LABEL_H_
-#include <SDL_ttf.h>
+#ifndef _INDICATOR_H_
+#define _INDICATOR_H_
 #include "widgets.h"
 
-Widget add_label(Panel win, int x, int y, char *txt,
-                   TTF_Font *font, SDL_Color *cf);
-
-Widget add_label_center(Panel win, int x, int y, int w, char *txt,
-                   TTF_Font *font, SDL_Color *cf);
+/*
+ * Add indicator display.
+ */
+Widget
+add_indicator(Panel win, int x, int y, int h, int w, char *label1, char *label2,
+                   int *value, int shft, TTF_Font *font, SDL_Color *col_text,
+                   SDL_Color *col_on, SDL_Color *col_off);
 
 #endif

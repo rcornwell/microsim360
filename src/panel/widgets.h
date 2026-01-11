@@ -51,6 +51,7 @@ typedef struct _widget_t {
     SDL_Color   *fore_color;     /* Foreground color */
     SDL_Color   *back_color;     /* Background color */
     int         active;          /* Current widget active */
+    int         focus;           /* Widget that has focus */
     void        *data;           /* Private data */
 
     /* Called to draw the image */
@@ -65,6 +66,18 @@ typedef struct _widget_t {
     /* Mouse button released this widget */
     void        (*release)(struct _widget_t *w);
 
+    /* Mouse motion events */
+    void        (*motion)(struct _widget_t *w, int x, int y);
+
+    /* Key press */
+    void        (*keypress)(struct _widget_t *w, SDL_KeyboardEvent *key);
+
+    /* Text Edit event */
+    void        (*textedit)(struct _widget_t *w, SDL_TextEditingEvent *text);
+
+    /* Text input event */
+    void        (*input)(struct _widget_t *w, SDL_TextInputEvent *input);
+
     /* Clean up any data held by widget */
     void        (*close)(struct _widget_t *w);
 } widget, *Widget;
@@ -72,6 +85,8 @@ typedef struct _widget_t {
 typedef struct _panel_t {
     widget     *list;            /* Pointer to list of widget */
     widget     *last_item;       /* Pointer to last widget on screen */
+    int         windowID;        /* ID for this window */
+    widget     *focus;           /* Window that currently has focus */
     SDL_Window *screen;          /* Pointer to screen. */
     SDL_Renderer *render;        /* Pointer to renderer */
 } panel, *Panel;
@@ -83,6 +98,7 @@ void SDL_Setup(char *title, int scr_wid, int scr_hi);
 void run_sim();
 
 extern Panel       cpu_panel;
+extern Panel       popup_panel;
 
 extern uint64_t    step_count;
 

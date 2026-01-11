@@ -56,13 +56,13 @@ display_lamp_row(Widget wid, SDL_Renderer *render)
    for (i = 0; i < row->num; i++) {
        if (row->label1[i] != NULL) {
           SDL_RenderCopy( render, row->label1[i], NULL, &row->rect_label1[i]);
-       } 
+       }
        if (row->label2[i] != NULL) {
           SDL_RenderCopy( render, row->label2[i], NULL, &row->rect_label2[i]);
-       } 
+       }
        if (row->label3[i] != NULL) {
           SDL_RenderCopy( render, row->label3[i], NULL, &row->rect_label3[i]);
-       } 
+       }
        bit = LAMP_TEST;
        if (row->value[i] != NULL) {
            bit = (*row->value[i] >> row->shft[i]) & 1;
@@ -71,7 +71,7 @@ display_lamp_row(Widget wid, SDL_Renderer *render)
        rect.y = (int)(15 * bit);
        SDL_RenderCopy(render, lamps, &rect, &row->rect_lamp[i]);
    }
-}   
+}
 
 static void
 close_lamp_row(Widget wid)
@@ -82,13 +82,13 @@ close_lamp_row(Widget wid)
    for (i = 0; i < row->num; i++) {
        if (row->label1[i] != NULL) {
           SDL_DestroyTexture( row->label1[i]);
-       } 
+       }
        if (row->label2[i] != NULL) {
           SDL_DestroyTexture( row->label2[i]);
-       } 
+       }
        if (row->label3[i] != NULL) {
           SDL_DestroyTexture( row->label3[i]);
-       } 
+       }
    }
    free(wid->data);
 }
@@ -103,7 +103,7 @@ add_lamp_row(Panel win, int x, int y, Lamp_row row, int num,
    Widget nwid;
    SDL_Surface *surf;
    struct _lamp_row_t *row_data;
-   int                 px, py, wh, hh, wc; 
+   int                 px, py, wh, hh, wc;
    int                 wx, hx, k;
    int                 i;
    Uint32              f;
@@ -131,7 +131,7 @@ add_lamp_row(Panel win, int x, int y, Lamp_row row, int num,
 
        if (row[i].label1 != NULL) {
            surf = TTF_RenderText_Blended(font, row[i].label1, *lab_color);
-           row_data->label1[i] = SDL_CreateTextureFromSurface(win->render, surf); 
+           row_data->label1[i] = SDL_CreateTextureFromSurface(win->render, surf);
            SDL_QueryTexture(row_data->label1[i], &f, &k, &wh, &hh);
            SDL_FreeSurface(surf);
            row_data->rect_label1[i].x = px;
@@ -143,7 +143,7 @@ add_lamp_row(Panel win, int x, int y, Lamp_row row, int num,
        py += hx-2;
        if (row[i].label2 != NULL) {
            surf = TTF_RenderText_Blended(font, row[i].label2, *lab_color);
-           row_data->label2[i] = SDL_CreateTextureFromSurface(win->render, surf); 
+           row_data->label2[i] = SDL_CreateTextureFromSurface(win->render, surf);
            SDL_QueryTexture(row_data->label2[i], &f, &k, &wh, &hh);
            SDL_FreeSurface(surf);
            row_data->rect_label2[i].x = px;
@@ -157,7 +157,7 @@ add_lamp_row(Panel win, int x, int y, Lamp_row row, int num,
        py += hx-2;
        if (row[i].label3 != NULL) {
            surf = TTF_RenderText_Blended(font, row[i].label3, *lab_color);
-           row_data->label3[i] = SDL_CreateTextureFromSurface(win->render, surf); 
+           row_data->label3[i] = SDL_CreateTextureFromSurface(win->render, surf);
            SDL_QueryTexture(row_data->label3[i], &f, &k, &wh, &hh);
            SDL_FreeSurface(surf);
            row_data->rect_label3[i].x = px;

@@ -25,7 +25,7 @@
 
 #include "store_dial.h"
 
-    
+
 static void
 display_store_dial(Widget wid, SDL_Renderer *render)
 {
@@ -83,7 +83,7 @@ click_store_dial(Widget wid, int x, int y)
        }
        return;
    }
-               
+
    if (x > 40) {
        v = (v - 1) & 0xf;
    } else {
