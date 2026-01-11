@@ -111,6 +111,10 @@ struct _2415_context {
     int                    rdy_flags;    /* Unit has become ready */
     int                    mrk_flags;    /* Last record was mark */
     struct _tape_buffer   *tape[6];      /* Tape units */
+    int                    supply_color[6]; /* Color of supply reel color */
+    int                    takeup_color[6]; /* Color of takeup reel color */
+    int                    supply_label[6]; /* Color of supply label color */
+    int                    takeup_label[6]; /* Color of takeup  label color */
     int                    track_7;      /* Support 7 track drives */
     int                    cc;           /* Character counter for 7 track tapes */
     int                    mode7;        /* Tape mode for 7 track tapes */

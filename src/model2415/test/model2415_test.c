@@ -53,6 +53,11 @@ model2415_draw(struct _device *unit, void *rend)
 {
 }
 
+void
+model2415_init(struct _device *unit, void *rend)
+{
+}
+
 /*
  * Popup device control panel.
  */
@@ -61,14 +66,6 @@ struct _popup *
 model2415_control(struct _device *unit, int hd, int wd, int u)
 {
      return NULL;
-}
-
-/*
- * Initialize any graphics or other stuff for device.
- */
-void
-model2415_init(struct _device *unit, void *rend)
-{
 }
 
 void
@@ -89,7 +86,6 @@ init_tests()
 
     dev2415->bus_func = &model2415_dev;
     dev2415->dev = (void *)ctx;
-    dev2415->init_device = (void *)&model2415_init;
     dev2415->type_name = "2415";
     dev2415->n_units = 2;
     dev2415->addr = 0xC0;

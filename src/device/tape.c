@@ -41,12 +41,12 @@
 
 struct _tape_image tape_position[1300];
 
-char *format_type[4] = { "SIMH", "E11", "P7B", NULL };
-char *density_type[3] = { "1600", "800", NULL };
-char *tracks[3] = { "9 track", "7 track", NULL };
-char *ring_mode[3] = { "Ring", "No Ring", NULL };
-char *reel_color[4] = { "Clear", "Red", "Blue", NULL };
-char *label_mode[3] = { "No", "Yes", NULL };
+char *tape_format_type[4] = { "SIMH", "E11", "P7B", NULL };
+char *tape_density_type[3] = { "1600", "800", NULL };
+char *tape_tracks[3] = { "9 track", "7 track", NULL };
+char *tape_ring_mode[3] = { "Ring", "No Ring", NULL };
+char *tape_reel_color[4] = { "Clear", "Red", "Blue", NULL };
+char *tape_label_mode[3] = { "No", "Yes", NULL };
 
 int max_tape_length;
 int max_tape_pos;
@@ -144,7 +144,7 @@ tape_attach(struct _tape_buffer *tape, char *file_name, int type, int ring, int 
       tape->lrecl = 0;
       tape->srec = 0;
       tape->dirty = 0;
-      tape->format |= ONLINE|TAPE_BOT;
+      tape->format |= ONLINE|TAPE_BOT|ATTACHED;
       if ((tape->fd = open(file_name, flags, 0660)) < 0)
           return 0;
       tape->file_name = strdup(file_name);
@@ -172,7 +172,7 @@ tape_detach(struct _tape_buffer *tape)
     }
     close(tape->fd);
     tape->fd = -1;
-    tape->format &= ~ONLINE;
+    tape->format &= ~(ONLINE|ATTACHED);
     free(tape->file_name);
     tape->file_name = NULL;
 }
@@ -734,7 +734,7 @@ int
 tape_read_frame(struct _tape_buffer *tape, uint8_t *data)
 {
      int r = TAPE_STATUS_FILE_ERROR;
-     int l = ((tape->format & DEN_MASK) == DEN_800) ? 2 : 1;
+     int l = ((tape->format & DENSITY_MASK) == DEN_800) ? 2 : 1;
      log_tape("tape_read_frame %04x %s\n", tape->format, (tape->file_name == NULL) ? "" : tape->file_name);
 
      if (tape->file_name == NULL)
@@ -813,7 +813,7 @@ tape_write_frame(struct _tape_buffer *tape, uint8_t data)
           data |= IRG_MASK;
      }
      tape->lrecl++;
-     tape->pos_frame += ((tape->format & DEN_MASK) == DEN_800) ? 2 : 1;
+     tape->pos_frame += ((tape->format & DENSITY_MASK) == DEN_800) ? 2 : 1;
      return tape_write_byte(tape, data);
 }
 

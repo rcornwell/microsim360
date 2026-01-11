@@ -137,7 +137,6 @@ model2415_rewind_callback(struct _device *unit, void *arg, int u)
 {
     struct _2415_context *ctx = (struct _2415_context *)unit->dev;
     struct _tape_buffer  *tape = (struct _tape_buffer *)arg;
-    int      i;
     int      r;
 
     if (tape->pos_frame <= (5 * 12 * 1600)) {
@@ -197,9 +196,6 @@ static void
 done_callback(struct _device *unit, void *arg, int u)
 {
     struct _2415_context *ctx = (struct _2415_context *)unit->dev;
-    struct _tape_buffer  *tape = (struct _tape_buffer *)arg;
-    int      i;
-    int      r;
 
     ctx->cmd_done = 1;
     if ((ctx->cmd & 0x3) == 0x3) {
@@ -214,7 +210,6 @@ tape_callback(struct _device *unit, void *arg, int u)
 {
     struct _2415_context *ctx = (struct _2415_context *)unit->dev;
     struct _tape_buffer  *tape = (struct _tape_buffer *)arg;
-    int      i;
     int      r;
 
     log_trace("Tape = %x, arg=%d\n", tape, u);
@@ -2555,6 +2550,10 @@ model2415_create(struct _option *opt)
          tape = (struct _2415_context *)dev2415->dev;
          tape->tape[i] = (struct _tape_buffer *)calloc(1, sizeof(struct _tape_buffer));
          tape->tape[i]->format = TRACK9;
+         tape->supply_color[i] = 2;
+         tape->supply_label[i] = 1;
+         tape->takeup_color[i] = 1;
+         tape->takeup_label[i] = 0;
          /* Parse options given on definition */
          file = NULL;
          track7 = 0;
@@ -2571,7 +2570,7 @@ model2415_create(struct _option *opt)
                } else if (strcmp(opts.opt, "RING") == 0) {
                    ring = 1;
                } else if (strcmp(opts.opt, "FORMAT") == 0) {
-                   fmt = get_index(&opts, format_type);
+                   fmt = get_index(&opts, tape_format_type);
                } else if (strcmp(opts.opt, "800") == 0) {
                    den = 0;
                } else if (strcmp(opts.opt, "1600") == 0) {

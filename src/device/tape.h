@@ -32,17 +32,21 @@
 #define TYPE_E11    1
 #define TYPE_P7B    2
 #define TAPE_FMT    3                  /* Mask for tape format */
+#define TAPE_FMT_V  0                  /* Shift for tape format */
 
 #define WRITE_RING  0x004
-#define DEN_MASK    0x008
+#define DENSITY_MASK    0x008         /* Mask for tape density */
+#define DENSITY_V   3                 /* Shift for tape density */
 #define DEN_1600    0x008
 #define DEN_800     0x000
 #define TAPE_EOT    0x010               /* Mark that we are at end of tape */
 #define TAPE_BOT    0x020               /* Mark that we are at load point */
 #define TAPE_MARK   0x040               /* We read a tape mark */
 #define TRACK9      0x080               /* 9 track tape drive */
+#define TRACK9_V    7                   /* Shift for setting 9 track flag */
 #define SELECTED    0x100               /* Drive selected */
 #define ONLINE      0x200               /* Drive online */
+#define ATTACHED    0x400               /* Attached to a file */
 
 #define FUNC_READ   1
 #define FUNC_WRITE  2
@@ -91,12 +95,12 @@ extern struct _tape_image {
 } tape_position[1300];
 
 extern int tape_image_pos[37];
-extern char *format_type[4];
-extern char *density_type[3];
-extern char *tracks[3];
-extern char *ring_mode[3];
-extern char *reel_color[4];
-extern char *label_mode[3];
+extern char *tape_format_type[4];
+extern char *tape_density_type[3];
+extern char *tape_tracks[3];
+extern char *tape_ring_mode[3];
+extern char *tape_reel_color[4];
+extern char *tape_label_mode[3];
 
 /*
  * Return true if tape at load point.
