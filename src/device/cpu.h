@@ -70,15 +70,8 @@ extern uint8_t  CHK_SW;
 extern uint8_t  MATCH_SW;
 extern uint8_t  STORE_SW;
 
-extern uint16_t end_of_e_cycle;
-extern uint16_t store;
-extern uint16_t allow_write;
-extern uint16_t match;
-extern uint16_t t_request;
-extern uint8_t  allow_man_operation;
 extern uint8_t  wait;
 extern uint8_t  test_mode;
-extern uint8_t  clock_start_lch;
 extern uint8_t  load_mode;
 
 extern uint32_t *M;
