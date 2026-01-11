@@ -31,6 +31,12 @@
 #include <SDL_image.h>
 #include <string.h>
 #include "widgets.h"
+#include "button.h"
+#include "area.h"
+#include "indicator.h"
+#include "label.h"
+#include "text.h"
+#include "checkbox.h"
 #include "logger.h"
 #include "event.h"
 #include "device.h"
@@ -94,28 +100,42 @@ model2314_draw(struct _device *unit, void *rend)
     }
 }
 
-static void model2314_update(struct _popup *popup, void *device, int index)
-{
-    struct _device *unit = (struct _device *)device;
-    struct _2844_context *ctx = (struct _2844_context *)unit->dev;
+struct _2844_callback_args {
+     struct _device *unit;
+     Widget         file_text;
+     Widget         volid_text;
+     int            unit_num;
+     int            init_dsk;
+};
 
-fprintf (stderr, "Disk key %d\n", index);
-    switch (index) {
+static void model2844_update(void *args, int iarg)
+{
+    struct _2844_callback_args *data = (struct _2844_callback_args *)args;
+    struct _device *unit = (struct _device *)data->unit;
+    struct _2844_context *ctx = (struct _2844_context *)unit->dev;
+    char    *file_name;
+    char    *volid;
+    int      u;
+
+fprintf (stderr, "Disk key %d\n", iarg);
+    file_name = get_textbuffer(data->file_text);
+    volid = get_textbuffer(data->volid_text);
+    switch (iarg) {
     case 0:  /* Start */
-          if ((ctx->disk[popup->unit_num]->status & ONLINE) == 0) {
-              if (strcmp(ctx->disk[popup->unit_num]->vol_label, popup->text[1].text) != 0) {
-                  dasd_setvolid(ctx->disk[popup->unit_num], popup->text[1].text);
+          if ((ctx->disk[data->unit_num]->status & ONLINE) == 0) {
+              if (strcmp(ctx->disk[data->unit_num]->vol_label, volid) != 0) {
+                  dasd_setvolid(ctx->disk[data->unit_num], volid);
               }
-              if (ctx->disk[popup->unit_num]->file_name == NULL ||
-                  strcmp(ctx->disk[popup->unit_num]->file_name, popup->text[0].text) != 0) {
-                  if (ctx->disk[popup->unit_num]->file_name != NULL)
-                      dasd_detach(ctx->disk[popup->unit_num]);
-                  dasd_attach(ctx->disk[popup->unit_num], popup->text[0].text, ctx->disk[popup->unit_num]->fmt);
+              if (ctx->disk[data->unit_num]->file_name == NULL ||
+                  strcmp(ctx->disk[data->unit_num]->file_name, file_name) != 0) {
+                  if (ctx->disk[data->unit_num]->file_name != NULL)
+                      dasd_detach(ctx->disk[data->unit_num]);
+                  dasd_attach(ctx->disk[data->unit_num], file_name, data->init_dsk);
               }
           }
           break;
     case 1:  /* Stop */
-          dasd_detach(ctx->disk[popup->unit_num]);
+          dasd_detach(ctx->disk[data->unit_num]);
           break;
     }
 }
@@ -134,167 +154,75 @@ model2314_control(struct _device *unit, int hd, int wd, int u)
 {
     struct _popup  *popup;
     struct _2844_context *ctx = (struct _2844_context *)unit->dev;
+    Panel  panel;
     SDL_Surface *text;
+    struct _2844_callback_args *args;
     int    i, j;
     int    w, h;
+    int    wx, hx;
+    int    row;
     char   buffer[100];
     char   lab[2];
 
+    if (TTF_SizeText(font10, "M", &wx, &hx) != 0) {
+        return NULL;
+    }
+    if (TTF_SizeText(font14, "M", NULL, &h) != 0) {
+        return NULL;
+    int    row;
+    }
     if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
-        return popup;
+        return NULL;
+    if ((panel = (struct _panel_t *)calloc(1, sizeof(struct _panel_t))) == NULL) {
+        free(popup);
+        return NULL;
+    }
+    if ((args = (struct _2844_callback_args *)calloc(1, sizeof(struct _2844_callback_args))) == NULL) {
+        free(panel);
+        free(popup);
+        return NULL;
+    }
+
     sprintf(buffer, "IBM2314 Dev 0x'%03X'", ctx->addr + u);
     popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         800, 200, SDL_WINDOW_RESIZABLE );
     popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
     popup->device = unit;
-    popup->unit_num = u;
-    popup->areas[popup->area_ptr].rect.x = 0;
-    popup->areas[popup->area_ptr].rect.y = 0;
-    popup->areas[popup->area_ptr].rect.h = 200;
-    popup->areas[popup->area_ptr].rect.w = 800;
-    popup->areas[popup->area_ptr].c = &c;
-    popup->area_ptr++;
+    popup->panel = panel;
+    args->unit = unit;
+    args->unit_num = u;
+    add_area(panel, 0, 0, 200, 800, &c_white);
     lab[0] = u + '0';
     lab[1] = '\0';
-    popup->ind[popup->ind_ptr].lab = NULL;
-    popup->ind[popup->ind_ptr].c[0] = &col_green_off;
-    popup->ind[popup->ind_ptr].c[1] = &col_green_on;
-    popup->ind[popup->ind_ptr].ct = &c;
-    text = TTF_RenderText_Solid(font1, lab, c);
-    popup->ind[popup->ind_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
-    popup->ind[popup->ind_ptr].top_len = 1;
-    SDL_FreeSurface(text);
-    popup->ind[popup->ind_ptr].rect.x = 20;
-    popup->ind[popup->ind_ptr].rect.y = 20;
-    popup->ind[popup->ind_ptr].rect.h = 2 * hd;
-    popup->ind[popup->ind_ptr].rect.w = 10 * wd;
-    popup->ind[popup->ind_ptr].value = &ctx->disk[u]->status;
-    popup->ind[popup->ind_ptr].shift = 5;
-    popup->ind_ptr++;
-    popup->ind[popup->ind_ptr].lab = "SELECT";
-    popup->ind[popup->ind_ptr].c[0] = &col_green_off;
-    popup->ind[popup->ind_ptr].c[1] = &col_green_on;
-    popup->ind[popup->ind_ptr].ct = &c;
-    text = TTF_RenderText_Solid(font1, "SELECT", c);
-    popup->ind[popup->ind_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
-    popup->ind[popup->ind_ptr].top_len = 6;
-    SDL_FreeSurface(text);
-    text = TTF_RenderText_Solid(font1, "LOCK", c);
-    popup->ind[popup->ind_ptr].bot = SDL_CreateTextureFromSurface( popup->render, text);
-    popup->ind[popup->ind_ptr].bot_len = 4;
-    SDL_FreeSurface(text);
-    popup->ind[popup->ind_ptr].rect.x = 20 + (12 * wd);
-    popup->ind[popup->ind_ptr].rect.y = 20;
-    popup->ind[popup->ind_ptr].rect.h = 2 * hd;
-    popup->ind[popup->ind_ptr].rect.w = 10 * wd;
-    popup->ind[popup->ind_ptr].value = &ctx->disk[u]->status;
-    popup->ind[popup->ind_ptr].shift = 6;
-    popup->ind_ptr++;
-    popup->sws[popup->sws_ptr].lab = "START";
-    popup->sws[popup->sws_ptr].c[0] = &col_green_on;
-    text = TTF_RenderText_Solid(font1, "START", c);
-    popup->sws[popup->sws_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
-    popup->sws[popup->sws_ptr].top_len = 5;
-    SDL_FreeSurface(text);
-    popup->sws[popup->sws_ptr].rect.x = 20 + ((12 *wd) * 2);
-    popup->sws[popup->sws_ptr].rect.y = 20;
-    popup->sws[popup->sws_ptr].rect.h = 2 * hd;
-    popup->sws[popup->sws_ptr].rect.w = 10 * wd;
-    popup->sws_ptr++;
-    popup->sws[popup->sws_ptr].lab = "STOP";
-    popup->sws[popup->sws_ptr].c[0] = &col_green_on;
-    text = TTF_RenderText_Solid(font1, "STOP", c);
-    popup->sws[popup->sws_ptr].top = SDL_CreateTextureFromSurface( popup->render, text);
-    popup->sws[popup->sws_ptr].top_len = 5;
-    SDL_FreeSurface(text);
-    popup->sws[popup->sws_ptr].rect.x = 20 + ((12 *wd) * 3);
-    popup->sws[popup->sws_ptr].rect.y = 20;
-    popup->sws[popup->sws_ptr].rect.h = 2 * hd;
-    popup->sws[popup->sws_ptr].rect.w = 10 * wd;
-    popup->sws_ptr++;
 
-    text = TTF_RenderText_Solid(font14, "Disk: ", c1);
+    add_indicator(panel, 20, 20, 2 * hx, 10 * wx, lab, NULL,
+                     &ctx->disk[u]->status, 7, font10, &c_white,
+                     &col_green_on, &col_green_off);
+    add_indicator(panel, 20 + (12 * wx), 20, 2 * hx, 10 * wx, "SELECT", "LOCK",
+                     &ctx->disk[u]->status, 6, font10, &c_white,
+                     &col_green_on, &col_green_off);
+    add_button_callback(panel, 20 + ((12 * wx) * 2), 20, 2 * hx, 10 *wx,
+               "START", NULL, &model2844_update, args, 0,
+               font10, &c_black, &col_green_on);
+    add_button_callback(panel, 20 + ((12 * wx) * 3), 20, 2 * hx, 10 *wx,
+               "STOP", NULL, &model2844_update, args, 1,
+               font10, &c_black, &col_green_on);
+    row = 20;
 
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 20;
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 5;
-    popup->text[popup->txt_ptr].rect.y = 20;
-    popup->text[popup->txt_ptr].rect.w = 45 * wd;
-    popup->text[popup->txt_ptr].rect.h = h + 5;
-    if (ctx->disk[u]->file_name != NULL)
-        strncpy(popup->text[popup->txt_ptr].text, ctx->disk[u]->file_name, 256);
-    else
-        popup->text[popup->txt_ptr].text[0] = '\0';
-    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
-    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
-    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
-                                        popup->text[popup->txt_ptr].pos);
-    popup->txt_ptr++;
+    add_label(panel, 25 + (12 * wx) * 4, row, "Disk:", font14, &c1);
+    args->file_text = add_textinput(panel, 25 + (12*wx) * 5, row, h+2, 50*wx,
+                    ctx->disk[u]->file_name);
 
-    text = TTF_RenderText_Solid(font14, "Vol Id: ", c1);
+    row += 20;
 
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 40;
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->text[popup->txt_ptr].rect.x = 25 + (12 * wd) * 5;
-    popup->text[popup->txt_ptr].rect.y = 40;
-    popup->text[popup->txt_ptr].rect.w = 45 * wd;
-    popup->text[popup->txt_ptr].rect.h = h + 5;
-    if (ctx->disk[u]->vol_label[0] != '\0')
-        strncpy(popup->text[popup->txt_ptr].text, ctx->disk[u]->vol_label, 256);
-    else
-        popup->text[popup->txt_ptr].text[0] = '\0';
-    popup->text[popup->txt_ptr].len = strlen(popup->text[popup->txt_ptr].text);
-    popup->text[popup->txt_ptr].pos = popup->text[popup->txt_ptr].len;
-    popup->text[popup->txt_ptr].cpos = textpos(&popup->text[popup->txt_ptr],
-                                        popup->text[popup->txt_ptr].pos);
-    popup->txt_ptr++;
-    text = TTF_RenderText_Solid(font14, "Format: ", c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Vol ID:", font14, &c1);
+    args->volid_text = add_textinput(panel, 25 + (12*wx) * 5, row, h+2, 12*wx,
+                    ctx->disk[u]->vol_label);
 
-    popup->ctl_label[popup->ctl_ptr].text = SDL_CreateTextureFromSurface( popup->render, text);
-    SDL_QueryTexture(popup->ctl_label[popup->ctl_ptr].text, NULL, NULL, &w, &h);
-    SDL_FreeSurface(text);
-    popup->ctl_label[popup->ctl_ptr].rect.x = 25 + (12 * wd) * 4;
-    popup->ctl_label[popup->ctl_ptr].rect.y = 60;
-    popup->ctl_label[popup->ctl_ptr].rect.w = w;
-    popup->ctl_label[popup->ctl_ptr].rect.h = h;
-    popup->ctl_ptr++;
-    popup->combo[popup->cmb_ptr].rect.x = 25 + (12 * wd) * 5;
-    popup->combo[popup->cmb_ptr].rect.y = 60;
-    popup->combo[popup->cmb_ptr].rect.w = 16 * wd;
-    popup->combo[popup->cmb_ptr].rect.h = h;
-    popup->combo[popup->cmb_ptr].urect.x = popup->combo[popup->cmb_ptr].rect.x;
-    popup->combo[popup->cmb_ptr].urect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].urect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].urect.h = h;
-    popup->combo[popup->cmb_ptr].drect.x = popup->combo[popup->cmb_ptr].rect.x + (14 * wd) - 1;
-    popup->combo[popup->cmb_ptr].drect.y = popup->combo[popup->cmb_ptr].rect.y;
-    popup->combo[popup->cmb_ptr].drect.w = 2 * wd;
-    popup->combo[popup->cmb_ptr].drect.h = h;
-    for (i = 0; format_mode[i] != NULL; i++) {
-        text = TTF_RenderText_Solid(font14, format_mode[i], c1);
-        popup->combo[popup->cmb_ptr].label[i] = SDL_CreateTextureFromSurface( popup->render,
-                                      text);
-        SDL_QueryTexture(popup->combo[popup->cmb_ptr].label[i], NULL, NULL,
-             &popup->combo[popup->cmb_ptr].lw[i], &popup->combo[popup->cmb_ptr].lh[i]);
-    }
-    popup->combo[popup->cmb_ptr].num = 0;
-    popup->combo[popup->cmb_ptr].value = &ctx->disk[u]->fmt;
-    popup->combo[popup->cmb_ptr].max = i - 1;
-    popup->cmb_ptr++;
-
-    popup->update = &model2314_update;
+    row += h+10;
+    add_label(panel, 25 + (12 * wx) * 4, row, "Format:", font14, &c1);
+    add_checkbox(panel, 30 + (12 * wx) * 5, row, h, wx, NULL,
+                       &args->init_dsk, 0, 0, font10, &c_black, &c_white);
     return popup;
 }
 
