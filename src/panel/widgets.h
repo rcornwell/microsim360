@@ -29,21 +29,10 @@
 #include <SDL_ttf.h>
 #include <stdint.h>
 
-/* Generic indicator for widgets */
-typedef struct _indicator {
-    uint32_t     mask;
-    uint16_t     shift;
-    int16_t      type;
-    union {
-       uint32_t  *v32;
-       uint16_t  *v16;
-       uint8_t   *v8;
-    } value;
-} indicator;
-
-#define      U32     0
-#define      U16     -1
-#define      U8      1
+struct _labels {
+      char       *upper;
+      char       *lower;
+};
 
 typedef struct _widget_t {
     struct _widget_t *next;      /* Next widget to draw */
@@ -86,14 +75,12 @@ typedef struct _panel_t {
     widget     *list;            /* Pointer to list of widget */
     widget     *last_item;       /* Pointer to last widget on screen */
     int         windowID;        /* ID for this window */
+    int         parentID;        /* ID for window that created up */
+    void       (*notify_parent_close)(struct _panel_t *panel, int windowID);
     widget     *focus;           /* Window that currently has focus */
     SDL_Window *screen;          /* Pointer to screen. */
     SDL_Renderer *render;        /* Pointer to renderer */
 } panel, *Panel;
-
-int layout_periph(int *scr_wid, int *scr_hi);
-
-void SDL_Setup(char *title, int scr_wid, int scr_hi);
 
 void run_sim();
 
@@ -104,13 +91,40 @@ extern uint64_t    step_count;
 
 extern char *title;
 
+void SDL_Setup(char *title);
+
 extern void (*setup_cpu)(void *rend);
 
 extern void (*step_cpu)();
+
+Panel create_window(char *title, int w, int h, int popup);
 
 void add_widget(Panel win, Widget wid);
 
 extern int LAMP_TEST;
 
-#include "panel.h"
+extern TTF_Font   *font0;
+extern TTF_Font   *font1;
+extern TTF_Font   *font10;
+extern TTF_Font   *font12;
+extern TTF_Font   *font14;
+
+extern SDL_Color c_white;     /* White */
+extern SDL_Color c_black;         /* Black */
+extern SDL_Color c_green;    /* Green */
+extern SDL_Color c_blue;    /* Blue */
+extern SDL_Color c_gray;    /* Gray */
+extern SDL_Color c_red;    /* Red */
+extern SDL_Color c_red_off;   /* off Red */
+extern SDL_Color c_back;    /* Background */
+extern SDL_Color c_outline;    /* Outline color */
+extern SDL_Color c_label;    /* Label background */
+extern SDL_Color c_on;   /* On digit */
+extern SDL_Color c_off;   /* Off digit */
+
+extern SDL_Texture *lamps;
+extern SDL_Texture *hex_dials;
+extern SDL_Texture *store_dials;
+extern SDL_Texture *toggle_pic;
+
 #endif

@@ -52,10 +52,10 @@ static SDL_Color     cx = {0x10, 0x83, 0xd9};
 void
 model1443_init(struct _device *unit, void *rend)
 {
-     SDL_Renderer *render = (SDL_Renderer *)rend;
-     SDL_Surface *text;
-
      if (model1443_img == NULL) {
+         SDL_Renderer *render = (SDL_Renderer *)rend;
+         SDL_Surface *text;
+
          text = IMG_ReadXPMFromArray(model1443_xpm);
          model1443_img = SDL_CreateTextureFromSurface(render, text);
          SDL_SetTextureBlendMode(model1443_img, SDL_BLENDMODE_BLEND);
@@ -65,7 +65,7 @@ model1443_init(struct _device *unit, void *rend)
 
 
 void
-model1443_draw(struct _device *unit, void *rend)
+model1443_draw(struct _device *unit, void *rend, int u)
 {
     struct _1443_context *ctx = (struct _1443_context *)unit->dev;
     SDL_Renderer *render = (SDL_Renderer *)rend;
@@ -74,8 +74,8 @@ model1443_draw(struct _device *unit, void *rend)
     SDL_Rect     rect2;
     SDL_Surface *text;
     SDL_Texture *txt;
-    int           x = unit->rect[0].x;
-    int           y = unit->rect[0].y;
+    int           x = unit->rect[u].x;
+    int           y = unit->rect[u].y;
     char          buf[100];
 
     /* Draw basic device */
@@ -90,7 +90,7 @@ model1443_draw(struct _device *unit, void *rend)
     SDL_RenderCopy(render, model1443_img, &rect2, &rect);
     /* Draw device number */
     sprintf(buf, "%01X%02X", ctx->chan, ctx->addr);
-    text = TTF_RenderText_Solid(font14, buf, c1);
+    text = TTF_RenderText_Solid(font14, buf, c_black);
     txt = SDL_CreateTextureFromSurface(render, text);
     SDL_FreeSurface(text);
     SDL_QueryTexture(txt, &i, &j, &rect2.w, &rect2.h);
@@ -134,7 +134,8 @@ struct _1443_callback_args {
 };
 
 
-static void model1443_update(void *args, int iarg)
+static void
+ model1443_update(void *args, int iarg)
 {
     struct _1443_callback_args *data = (struct _1443_callback_args *)args;
     struct _device *unit = (struct _device *)data->unit;
@@ -220,8 +221,8 @@ static SDL_Color stop_col = {0xc8, 0x3a, 0x30};
 static SDL_Color space_col = {0xdd, 0xdc, 0x8a};
 static SDL_Color ready_col = {0xd8, 0xcb, 0x72};
 
-struct _popup
-*model1443_control(struct _device *unit, int hd, int wd, int u)
+void *
+model1443_control(struct _device *unit, int u)
 {
     struct _popup *popup;
     struct _1443_context *ctx = (struct _1443_context *)unit->dev;
@@ -240,29 +241,15 @@ struct _popup
     if (TTF_SizeText(font14, "M", NULL, &h) != 0) {
         return NULL;
     }
-    if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
-        return NULL;
-    if ((panel = (struct _panel_t *)calloc(1, sizeof(struct _panel_t))) == NULL) {
-        free(popup);
-        return NULL;
-    }
     if ((args = (struct _1443_callback_args *)calloc(1, sizeof(struct _1443_callback_args))) == NULL) {
-        free(panel);
-        free(popup);
         return NULL;
     }
     args->unit = unit;
-    popup->panel = panel;
     sprintf(buffer, "IBM1443 Dev 0x'%03X'", ctx->addr);
-    popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-        900, h*10, SDL_WINDOW_RESIZABLE );
-    popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
-    popup->device = unit;
-    panel->screen = popup->screen;
-    panel->render = popup->render;
-    panel->windowID = SDL_GetWindowID(panel->screen);
-
-    popup->device = unit;
+    if ((panel = create_window(buffer, 900, h*10, 1)) == NULL) {
+        free(args);
+        return NULL;
+    }
 
     add_area(panel, 0, 0, 200, 360, &cx);
     add_area(panel, 360, 0, 200, 760, &c_white);
@@ -301,18 +288,18 @@ struct _popup
                     font10, &c_black, &space_col);
 
     row = 20;
-    add_label(panel, 25 + (12 * wx) * 5, row, "Paper:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 5, row, "Paper:", font14, &c_black);
     args->file_text = add_textinput(panel, 25 + (12*wx) * 6, row, h+2, 45*wx,
                     ctx->file_name);
     row += (3*hx)+3;
 
-    add_label(panel, 25 + (12 * wx) * 5, row, "Row:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 5, row, "Row:", font14, &c_black);
     add_number(panel, 25 + (12 * wx) * 6, row, h+2, 10*wx, &ctx->row, font14, &c_black, &c_white);
     row += (3*hx) + 2;
-    add_label(panel, 25 + (12 * wx) * 5, row, "FCB:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 5, row, "FCB:", font14, &c_black);
     add_combo(panel, 25 + (12 * wx) * 6, row, h+2, 12 * wx, type_label, &ctx->fcb_num,
                         font14, &c_black, &c_white);
 
-    return popup;
+    return (void *)panel;
 }
 

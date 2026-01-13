@@ -1,7 +1,7 @@
 /*
- * microsim360 - IBM360 model 30 1052A interface.
+ * microsim360 - Layout peripheral devices on a screen.
  *
- * Copyright 2021, Richard Cornwell
+ * Copyright 2026, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,20 +23,10 @@
  *
  */
 
-#include <stdint.h>
+#ifndef _PANEL_DEVICE_H_
+#define _PANEL_DEVICE_H_
+#include "widgets.h"
+#include "panel.h"
 
-#ifndef _MODEL1052_H_
-#define _MODEL1052_H_
-#include "device.h"
-
-struct _device *model1052_init(void *render, uint16_t addr);
-int   model1052_create(struct _option *opt);
-void *model1052_init_ctx(uint16_t port);
-void  model1052_out(void *data, uint16_t out_char);
-void  model1052_in(void *data, uint16_t *in_char);
-void  model1052_func(void *data, uint16_t *tags_out, uint16_t tags_in, uint16_t *t_request);
-void  model1052_done(void *data);
-int   model1052_thrd(void *data);
-void  model1052_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
-
+Panel create_device_window();
 #endif

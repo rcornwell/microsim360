@@ -18,10 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_library(panellib panel.c area.c label.c light.c line.c ros_row.c
-            reg_row.c button.c hex_dial.c store_dial.c dial.c timer.c
-            lamp.c roller.c lamp_row.c lamp_data.c switch.c indicator.c
-            text.c number.c combo.c checkbox.c)
+add_library(panellib panel.c panel_device.c area.c button.c checkbox.c
+            combo.c dial.c hex_dial.c indicator.c label.c lamp.c lamp_data.c
+            lamp_row.c light.c line.c number.c reg_row.c roller.c ros_row.c
+            store_dial.c switch.c text.c timer.c)
+
 target_include_directories(panellib PUBLIC ${includes}
                                             ${SDL2_INCLUDE_DIRS}
                                             ${SDL2_IMAGE_INCLUDE_DIRS}

@@ -163,8 +163,6 @@ setup_fp2050(void *rend)
     Uint32   f;
     dial_label label;
 
-    f1_hd = 0;
-    f1_wd = 0;
     j = 0;
 
     /* Compute size of fonts */
@@ -186,8 +184,6 @@ setup_fp2050(void *rend)
     add_area(cpu_panel, 0, 0, 975, 1100, &c_back);
 
     /* Draw bottom switch panel */
-//    ADD_AREA(0, (65 * h2) - (f1_hd/4), (32 * h2), 1100, &cl);
-
     rw2 = 40;
     for (i = 0; i < 36; i++) {
         rw2 += roller_offset[i];

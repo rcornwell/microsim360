@@ -43,17 +43,17 @@ display_store_dial(Widget wid, SDL_Renderer *render)
    switch ((value & 0x30) >> 4) {
    case 0:
    case 1:
-           SDL_SetRenderDrawColor( render, cb.r, cb.g, cb.b, 0xff);
+           SDL_SetRenderDrawColor( render, c_outline.r, c_outline.g, c_outline.b, 0xff);
            SDL_RenderDrawLine( render, x, y, x - 5, y - 5);
            SDL_RenderDrawLine( render, x-1, y, x - 6, y - 5);
            break;
    case 3:
-           SDL_SetRenderDrawColor( render, c5.r, c5.g, c5.b, 0xff);
+           SDL_SetRenderDrawColor( render, c_red.r, c_red.g, c_red.b, 0xff);
            SDL_RenderDrawLine( render, x, y, x, y - 9);
            SDL_RenderDrawLine( render, x-1, y, x-1, y - 9);
            break;
    case 2:
-           SDL_SetRenderDrawColor( render, c1.r, c1.g, c1.b, 0xff);
+           SDL_SetRenderDrawColor( render, c_black.r, c_black.g, c_black.b, 0xff);
            SDL_RenderDrawLine( render, x, y, x + 5, y - 5);
            SDL_RenderDrawLine( render, x+1, y, x + 6, y - 5);
            break;

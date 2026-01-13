@@ -35,6 +35,8 @@
 #include "model2030.h"
 #include "model1052.h"
 
+DEV_LIST_STRUCT(2030, CPU_TYPE, CHAR_OPT|NUM_MOD);
+
 struct CPU_2030 cpu_2030;
 
 /* Machine check bits */
@@ -2887,4 +2889,3 @@ model2030_create(struct _option *opt)
     return 1;
 }
 
-DEV_LIST_STRUCT(2030, CPU_TYPE, CHAR_OPT|NUM_MOD);

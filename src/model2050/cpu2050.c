@@ -32,6 +32,8 @@
 #include "cpu.h"
 #include "model2050.h"
 
+DEV_LIST_STRUCT(2050, CPU_TYPE, CHAR_OPT|NUM_MOD);
+
 uint32_t    BS_MASK[16] = {
     0x00000000,  /* 0 */
     0x000000FF,  /* 1 */
@@ -6311,5 +6313,4 @@ model2050_create(struct _option *opt)
     return 1;
 }
 
-DEV_LIST_STRUCT(2050, CPU_TYPE, CHAR_OPT|NUM_MOD);
 

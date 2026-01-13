@@ -98,7 +98,6 @@ main(int argc, char *argv[])
     char  *conf_file = NULL;
     char  *log_file = NULL;
     struct _device   *dev;
-    int               scr_wid, scr_hi;
     int               i;
 
     opterr = 0;
@@ -139,11 +138,9 @@ main(int argc, char *argv[])
              log_info("Device %03x %s\n", dev->addr, dev->type_name);
         }
     }
-    layout_periph(&scr_wid, &scr_hi);
     if (title != NULL) {
-        SDL_Setup(title, scr_wid, scr_hi);
+        SDL_Setup(title);
         run_sim();
     }
 }
-
 

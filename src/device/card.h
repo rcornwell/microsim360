@@ -96,6 +96,9 @@ struct card_context
     uint16_t        (*images)[1][80]; /* Card images */
 };
 
+/* List of card formats */
+extern char *card_fmt_type[6];
+
 /* Convert EBCDIC character into hollerith code */
 uint16_t ebcdic_to_hol(uint8_t ebcdic);
 

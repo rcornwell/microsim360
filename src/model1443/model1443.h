@@ -74,11 +74,13 @@ struct _1443_context {
 
 int print_line(struct _1443_context *ctx);
 
+int model1443_create(struct _option *opt);
+
 void model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 
-void model1443_draw(struct _device *unit, void *rend);
+void model1443_draw(struct _device *unit, void *rend, int u);
 
-struct _popup *model1443_control(struct _device *unit, int hd, int wd, int u);
+void *model1443_control(struct _device *unit, int u);
 
 void model1443_init(struct _device *unit, void *rend);
 

@@ -32,22 +32,8 @@
 #include "xlat.h"
 #include "model2844.h"
 
-#define STATE_IDLE      0     /* Device in Idle state */
-#define STATE_SEL       1     /* Device now selected */
-#define STATE_CMD       2     /* Device awaiting command */
-#define STATE_INIT_STAT 3     /* Sent init status */
-#define STATE_OPR       4     /* Do operation */
-#define STATE_OPR_REL   5     /* Operator but release */
-#define STATE_REQ       6     /* Request the channel */
-#define STATE_DATA_O    7     /* Data out to device */
-#define STATE_DATA_I    8     /* Data in  to device */
-#define STATE_DATA_END  9     /* Post end of channel usage */
-#define STATE_END       10    /* Post ending status */
-#define STATE_STACK     11    /* Channel polling */
-#define STATE_STACK_SEL 12    /* Stack status select */
-#define STATE_STACK_CMD 13    /* Stack command */
-#define STATE_STACK_HLD 14    /* Stack hold */
-#define STATE_WAIT      15    /* After data transfer wait motion */
+//DEV_LIST_STRUCT(2314, UNIT_TYPE, 0);
+//DEV_LIST_STRUCT(2844, CTRL_TYPE, 0);
 
 
                       /* 0    1     2      3    4     5     6     7  */
@@ -81,6 +67,140 @@ static char *cd_name[32] =
 static char *cs_name[16] =
                      { "",      "0->ST4", "0->ST1", "1->ST1", "0->ST0", "1->ST0", "0->ST5", "1->ST5",
                      "0->ST2", "DNST21", "0->ST3", "1->ST3", "0->ST6", "1->ST6", "0->ST7", "1->ST7" };
+
+
+
+struct _device *
+model2844_init(uint16_t addr)
+{
+     int    i;
+     struct _device *dev2844;
+     struct _2844_context *ctx;
+
+     if ((dev2844 = (struct _device *)calloc(1,
+                                          sizeof(struct _device))) == NULL)
+         return NULL;
+
+     if ((ctx = (struct _2844_context *)calloc(1,
+                                       sizeof(struct _2844_context))) == NULL) {
+         free(dev2844);
+         return NULL;
+     }
+
+     dev2844->bus_func = &model2844_dev;
+     dev2844->draw_model = &model2314_draw;
+     dev2844->create_ctrl = &model2314_control;
+     dev2844->init_device = &model2314_init_graphics;
+     dev2844->dev = (void *)ctx;
+     dev2844->type_name = "2844";
+     dev2844->n_units = 8;
+     dev2844->addr = addr;
+     ctx->addr = addr;
+     ctx->chan = (addr >> 8) & 0xf;
+     ctx->WX = 0;
+     for (i = 0; i < 8; i++) {
+         ctx->disk[i] = NULL;
+         dev2844->rect[i].x = 0;
+         dev2844->rect[i].y = 0;
+         dev2844->rect[i].w = 0;
+         dev2844->rect[i].h = 0;
+     }
+     add_chan(dev2844, addr);
+     add_disk(&step_2844, (void *)ctx);
+     return dev2844;
+}
+
+#if 0
+
+int
+model2844_create(struct _option *opt)
+{
+     struct  _device *dev2844;
+
+     dev2844 = model2844_init(opt->addr);
+     dev2844->draw_model = (void *)&model2314_draw;
+     dev2844->create_ctrl = (void *)&model2314_control;
+     dev2844->init_device = (void*)&model2314_init;
+
+     return 1;
+}
+
+int
+model2314_create(struct _option *opt)
+{
+     struct  _device *dev2844;
+     struct  _2844_context *ctx;
+     struct _option   opts;
+     int              i;
+     char            *file;
+     int              fmt;
+     char            *vol;
+     int              t;
+
+     dev2844 = find_chan(opt->addr, 0xf8);
+     if (dev2844 == NULL) {
+         fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     i = opt->addr & 0x7;
+     ctx = (struct _2844_context *)dev2844->dev;
+     if (ctx->disk[i] != NULL) {
+         fprintf(stderr, "Duplicate device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     ctx->disk[i] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
+     if (ctx->disk[i] == NULL) {
+         fprintf(stderr, "Unable to create device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     if (dasd_settype(ctx->disk[i], "2314") == 0) {
+         fprintf(stderr, "Unknown type %s %03x\n", opt->opt, opt->addr);
+         free(ctx->disk[i]);
+         ctx->disk[i] = NULL;
+         return 0;
+     }
+     file = NULL;
+     vol = NULL;
+     fmt = 0;
+     while (get_option(&opts)) {
+         if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
+             file = strdup(opts.string);
+         } else if (strcmp(opts.opt, "FORMAT") == 0) {
+             fmt = 1;
+         } else if (strcmp(opts.opt, "VOLID") == 0) {
+             vol = strdup(opts.string);
+         } else {
+             fprintf(stderr, "Invalid option %s to 2314 Unit\n", opts.opt);
+             free(ctx->disk[i]);
+             ctx->disk[i] = NULL;
+             return 0;
+         }
+     }
+     dev2844->rect[i].x = 0;
+     dev2844->rect[i].y = 0;
+     dev2844->rect[i].w = 180;
+     dev2844->rect[i].h = 100;
+     if (vol != NULL) {
+         for (t = 0; t < 8; t++) {
+             if (vol[t] == '\0')
+                 break;
+             ctx->disk[i]->vol_label[t] = vol[t];
+         }
+         for (;t < 8; t++) {
+             ctx->disk[i]->vol_label[t] = ' ';
+         }
+         ctx->disk[i]->vol_label[t] = '\0';
+         free(vol);
+     }
+     if (file != NULL) {
+         if (dasd_attach(ctx->disk[i], file, fmt) == 0) {
+             log_warn("Unable to open file %s\n", file);
+         }
+         free(file);
+     }
+     return 1;
+}
+#endif
 
 void
 step_2844(void *data)
@@ -156,7 +276,7 @@ step_2844(void *data)
 
    /* Disassemble micro instruction */
    if (log_level & LOG_DMICRO) {
-       sprintf(buffer, "%d:%s %03X: %02X %s ", ctx->created, sal->NOTE, nextWX, sal->CN, ca_name[sal->CA]);
+       sprintf(buffer, "%03x:%s %03X: %02X %s ", ctx->addr, sal->NOTE, nextWX, sal->CN, ca_name[sal->CA]);
 
        switch (sal->CC) {
        case 0:
@@ -994,157 +1114,4 @@ model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
     }
 }
 
-static int created = 0;
-struct _device *
-model2844_init(void *rend, uint16_t addr)
-{
- //    SDL_Surface *text;
- //    SDL_Renderer *render = (SDL_Renderer *)rend;
-     int    i;
-     struct _device *dev2844;
-     struct _2844_context *ctx;
-
-     if ((dev2844 = (struct _device *)calloc(1,
-                                          sizeof(struct _device))) == NULL)
-         return NULL;
-
-     if ((ctx = (struct _2844_context *)calloc(1,
-                                       sizeof(struct _2844_context))) == NULL) {
-         free(dev2844);
-         return NULL;
-     }
-
-     dev2844->bus_func = &model2844_dev;
-     dev2844->dev = (void *)ctx;
-     dev2844->draw_model = (void *)NULL;
-     dev2844->create_ctrl = (void *)NULL;
-     dev2844->rect[0].x = 0;
-     dev2844->rect[0].y = 0;
-     dev2844->rect[0].w = 305;
-     dev2844->rect[0].h = 142;
-     dev2844->n_units = 1;
-     dev2844->addr = addr;
-     ctx->created = ++created;
-     ctx->addr = addr;
-     ctx->chan = (addr >> 8) & 0xf;
-     ctx->WX = 0;
-     for (i = 0; i < 8; i++)
-         ctx->disk[i] = NULL;
-     add_chan(dev2844, addr);
-     add_disk(&step_2844, (void *)ctx);
-     return dev2844;
-}
-
-
-int
-model2844_create(struct _option *opt)
-{
-     struct  _device *dev2844;
-     struct  _2844_context *ctx;
-     int              i;
-
-     if ((dev2844 = (struct _device *)calloc(1, sizeof(struct _device))) == NULL)
-         return 0;
-
-     if ((ctx = (struct _2844_context *)calloc(1, sizeof(struct _2844_context))) == NULL) {
-         free (dev2844);
-         return 0;
-     }
-
-     dev2844->bus_func = &model2844_dev;
-     dev2844->dev = (void *)ctx;
-     dev2844->draw_model = (void *)model2314_draw;
-     dev2844->create_ctrl = (void *)model2314_control;
-     dev2844->type_name = "2844";
-     dev2844->n_units = 8;
-     ctx->addr = opt->addr;
-     ctx->chan = (opt->addr >> 8) & 0xf;
-     ctx->WX = 0;
-     for (i = 0; i < 8; i++) {
-         ctx->disk[i] = NULL;
-         dev2844->rect[i].x = 0;
-         dev2844->rect[i].y = 0;
-         dev2844->rect[i].w = 0;
-         dev2844->rect[i].h = 0;
-     }
-     add_chan(dev2844, opt->addr);
-     add_disk(&step_2844, (void *)ctx);
-     return 1;
-}
-
-int
-model2314_create(struct _option *opt)
-{
-     struct  _device *dev2844;
-     struct  _2844_context *ctx;
-     struct _option   opts;
-     int              i;
-     char            *file;
-     int              fmt;
-     char            *vol;
-     int              t;
-
-     dev2844 = find_chan(opt->addr, 0xf8);
-     if (dev2844 == NULL) {
-         fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
-         return 0;
-     }
-     i = opt->addr & 0x7;
-     ctx = (struct _2844_context *)dev2844->dev;
-     if (ctx->disk[i] != NULL) {
-         fprintf(stderr, "Duplicate device %s %03x\n", opt->opt, opt->addr);
-         return 0;
-     }
-     ctx->disk[i] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
-     if (ctx->disk[i] == NULL) {
-         fprintf(stderr, "Unable to create device %s %03x\n", opt->opt, opt->addr);
-         return 0;
-     }
-     if (dasd_settype(ctx->disk[i], "2314") == 0) {
-         fprintf(stderr, "Unknown type %s %03x\n", opt->opt, opt->addr);
-         free(ctx->disk[i]);
-         ctx->disk[i] = NULL;
-         return 0;
-     }
-     file = NULL;
-     vol = NULL;
-     fmt = 0;
-     while (get_option(&opts)) {
-         if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
-             file = strdup(opts.string);
-         } else if (strcmp(opts.opt, "FORMAT") == 0) {
-             fmt = 1;
-         } else if (strcmp(opts.opt, "VOLID") == 0) {
-             vol = strdup(opts.string);
-         } else {
-             fprintf(stderr, "Invalid option %s to 2314 Unit\n", opts.opt);
-             free(ctx->disk[i]);
-             ctx->disk[i] = NULL;
-             return 0;
-         }
-     }
-     dev2844->rect[i].x = 0;
-     dev2844->rect[i].y = 0;
-     dev2844->rect[i].w = 180;
-     dev2844->rect[i].h = 100;
-     if (vol != NULL) {
-         for (t = 0; t < 8; t++) {
-             if (vol[t] == '\0')
-                 break;
-             ctx->disk[i]->vol_label[t] = vol[t];
-         }
-         for (;t < 8; t++) {
-             ctx->disk[i]->vol_label[t] = ' ';
-         }
-         ctx->disk[i]->vol_label[t] = '\0';
-         free(vol);
-     }
-     if (file != NULL) {
-         if (dasd_attach(ctx->disk[i], file, fmt) == 0) {
-             log_warn("Unable to open file %s\n", file);
-         }
-         free(file);
-     }
-     return 1;
-}
 

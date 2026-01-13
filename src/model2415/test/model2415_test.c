@@ -49,7 +49,7 @@ char       *test_log_level = "info warn error trace device tape";
  * Panel display functions
  */
 void
-model2415_draw(struct _device *unit, void *rend)
+model2415_draw(struct _device *unit, void *rend, int u)
 {
 }
 
@@ -62,10 +62,10 @@ model2415_init(struct _device *unit, void *rend)
  * Popup device control panel.
  */
 
-struct _popup *
-model2415_control(struct _device *unit, int hd, int wd, int u)
+void *
+model2415_control(struct _device *unit, int u)
 {
-     return NULL;
+    return NULL;
 }
 
 void

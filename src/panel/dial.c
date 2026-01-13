@@ -108,8 +108,8 @@ display_dial(Widget wid, SDL_Renderer *render)
            }
        }
    }
-   draw_circle(render, cx, cy, 15, c);
-   draw_circle(render, cx, cy, 10, c1);
+   draw_circle(render, cx, cy, 15, c_white);
+   draw_circle(render, cx, cy, 10, c_black);
    SDL_RenderDrawLine( render, cx, cy, l->outside[l->pos].x, l->outside[l->pos].y);
 }
 

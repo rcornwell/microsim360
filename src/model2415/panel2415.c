@@ -53,15 +53,9 @@
 
 SDL_Texture *model2415_img = NULL;
 SDL_Texture *tape_images_img = NULL;
-#if 0
-static int supply_color[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-static int takeup_color[8] = {2, 2, 2, 2, 2, 2, 2, 2};
-static int supply_label[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-static int takeup_label[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-#endif
 
 void
-model2415_draw(struct _device *unit, void *rend)
+model2415_draw(struct _device *unit, void *rend, int u)
 {
     struct _2415_context *ctx = (struct _2415_context *)unit->dev;
     SDL_Renderer *render = (SDL_Renderer *)rend;
@@ -72,42 +66,24 @@ model2415_draw(struct _device *unit, void *rend)
     SDL_Texture *txt;
     int          i, j, k;
     int          t1, t2;
-    int          x;
-    int          y;
+    int          x = unit->rect[u].x;
+    int          y = unit->rect[u].y;
     char         buf[100];
     float        p;
 
-#if 0
-    if (model2415_img == NULL) {
-        SDL_Surface *text;
 
-        text = IMG_ReadXPMFromArray(model2415_xpm);
-        model2415_img = SDL_CreateTextureFromSurface(render, text);
-        SDL_SetTextureBlendMode(model2415_img, SDL_BLENDMODE_BLEND);
-        SDL_FreeSurface(text);
-        text = IMG_ReadXPMFromArray(tape_images_xpm);
-        tape_images_img = SDL_CreateTextureFromSurface(render, text);
-        SDL_SetTextureBlendMode(tape_images_img, SDL_BLENDMODE_BLEND);
-        SDL_FreeSurface(text);
-    }
-#endif
-
-    for (i = 0; i < unit->n_units; i++) {
-        x = unit->rect[i].x;
-        y = unit->rect[i].y;
-
-        if (ctx->tape[i]->file_name != NULL) {
+        if (ctx->tape[u]->file_name != NULL) {
             rect2.x = 0;
             rect2.y = 0;
-            rect2.w = unit->rect[i].w;
-            rect2.h = unit->rect[i].h;
+            rect2.w = unit->rect[u].w;
+            rect2.h = unit->rect[u].h;
             rect.x = x;
             rect.y = y;
-            rect.w = unit->rect[i].w;
-            rect.h = unit->rect[i].h;
+            rect.w = unit->rect[u].w;
+            rect.h = unit->rect[u].h;
             SDL_RenderCopy(render, model2415_img, &rect2, &rect);
-            sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
-            text = TTF_RenderText_Solid(font14, buf, c1);
+            sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + u);
+            text = TTF_RenderText_Solid(font14, buf, c_black);
             txt = SDL_CreateTextureFromSurface(render, text);
             SDL_FreeSurface(text);
             SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
@@ -126,23 +102,23 @@ model2415_draw(struct _device *unit, void *rend)
             rect.w = 9;
             rect.h = 7;
             /* Draw select */
-            if (tape_is_selected(ctx->tape[i])) {
+            if (tape_is_selected(ctx->tape[u])) {
                 SDL_RenderCopy(render, model2415_img, &rect, &rect2);
             }
             rect.x += rect.w;
             rect2.x += rect.w;
             /* Draw ready */
-            if (tape_ready(ctx->tape[i])) {
+            if (tape_ready(ctx->tape[u])) {
                 SDL_RenderCopy(render, model2415_img, &rect, &rect2);
             }
             rect.x += rect.w;
             rect2.x += rect.w;
             /* Draw file protect */
-            if (tape_ring(ctx->tape[i]) == 0) {
+            if (tape_ring(ctx->tape[u]) == 0) {
                SDL_RenderCopy(render, model2415_img, &rect, &rect2);
             }
             /* Draw supply reel */
-            reel = tape_supply_image(ctx->tape[i], &j);
+            reel = tape_supply_image(ctx->tape[u], &j);
             rect2.x = x + 34;
             rect2.y = y + 131;
             rect2.w = 69;
@@ -160,7 +136,7 @@ model2415_draw(struct _device *unit, void *rend)
             SDL_RenderDrawLine(render, x+177, y+99, x + 167, y + 85);
             /* Overlay reel */
             j = 35 - j;
-            switch (ctx->supply_color[i]) {
+            switch (ctx->supply_color[u]) {
             case 0: rect.x = (75 * 15) + 4; break;
             case 1: rect.x = (75 * 3) + 4; break;
             case 2: rect.x = (75 * 7) + 4; break;
@@ -180,12 +156,12 @@ model2415_draw(struct _device *unit, void *rend)
                 SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
             }
             /* Draw take up reel */
-            reel = tape_takeup_image(ctx->tape[i], &k);
+            reel = tape_takeup_image(ctx->tape[u], &k);
             rect2.x = x + 107;
             rect.x = reel->x+4;
             rect.y = reel->y+4;
             SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
-            switch (ctx->takeup_color[i]) {
+            switch (ctx->takeup_color[u]) {
             case 0: rect.x = (75 * 15) + 4; break;
             case 1: rect.x = (75 * 3) + 4; break;
             case 2: rect.x = (75 * 7) + 4; break;
@@ -199,7 +175,7 @@ model2415_draw(struct _device *unit, void *rend)
             SDL_RenderDrawLine(render, x + 177, y + 127,
                  x + (141 + reel->radius), y + 164 + (reel->radius / 2));
             SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
-            if (ctx->takeup_label[i]) {
+            if (ctx->takeup_label[u]) {
                 if (rect.x > 1125)
                     rect.x -= (75 * 2);
                 else
@@ -209,15 +185,15 @@ model2415_draw(struct _device *unit, void *rend)
         } else {
             rect2.x = 250;
             rect2.y = 0;
-            rect2.w = unit->rect[i].w;
-            rect2.h = unit->rect[i].h;
+            rect2.w = unit->rect[u].w;
+            rect2.h = unit->rect[u].h;
             rect.x = x;
             rect.y = y;
-            rect.w = unit->rect[i].w;
-            rect.h = unit->rect[i].h;
+            rect.w = unit->rect[u].w;
+            rect.h = unit->rect[u].h;
             SDL_RenderCopy(render, model2415_img, &rect2, &rect);
-            sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
-            text = TTF_RenderText_Solid(font14, buf, c1);
+            sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + u);
+            text = TTF_RenderText_Solid(font14, buf, c_black);
             txt = SDL_CreateTextureFromSurface(render, text);
             SDL_FreeSurface(text);
             SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
@@ -238,14 +214,14 @@ model2415_draw(struct _device *unit, void *rend)
             /* Draw take up reel */
             rect2.x = x + 107;
             SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
-            switch (ctx->takeup_color[i]) {
+            switch (ctx->takeup_color[u]) {
             case 0: rect.x = (75 * 15) + 4; break;
             case 1: rect.x = (75 * 3) + 4; break;
             case 2: rect.x = (75 * 7) + 4; break;
             }
             rect.y = 4;
             SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
-            if (ctx->takeup_label[i]) {
+            if (ctx->takeup_label[u]) {
                 if (rect.x > 1125)
                     rect.x -= (75 * 2);
                 else
@@ -267,7 +243,6 @@ model2415_draw(struct _device *unit, void *rend)
             rect.h = 40;
             SDL_RenderCopy(render, tape_images_img, &rect, &rect2);
         }
-    }
 }
 
 struct _2415_callback_args {
@@ -279,14 +254,14 @@ struct _2415_callback_args {
     Widget                file_text;
 };
 
-static void model2415_update(void *arg, int iarg)
+static void
+model2415_update(void *arg, int iarg)
 {
     struct _2415_callback_args *data = (struct _2415_callback_args *)arg;
     struct _device *unit = (struct _device *)data->unit;
     struct _2415_context *ctx = (struct _2415_context *)unit->dev;
     char                 *file_name;
 
-fprintf (stderr, "Tape key %d\n", iarg);
     file_name = get_textbuffer(data->file_text);
     switch (iarg) {
     case 0:  /* Load Rewind */
@@ -358,8 +333,8 @@ static SDL_Color start_color = {0x0c, 0x2e, 0x30};      /* Green */
 static SDL_Color reset_color = {0xc8, 0x3a, 0x30};      /* Blue */
 static SDL_Color eom_color = {0x0a, 0x52, 0x9a};        /* Blue */
 
-struct _popup *
-model2415_control(struct _device *unit, int hd, int wd, int u)
+void *
+model2415_control(struct _device *unit, int u)
 {
     struct _popup  *popup;
     struct _2415_context *ctx = (struct _2415_context *)unit->dev;
@@ -378,34 +353,21 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
     if (TTF_SizeText(font14, "M", NULL, &h) != 0) {
         return NULL;
     }
-    if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
-        return NULL;
-    if ((panel = (struct _panel_t *)calloc(1, sizeof(struct _panel_t))) == NULL) {
-        free(popup);
-        return NULL;
-    }
+    sprintf(buffer, "IBM2415 Dev 0x'%03X'", ctx->addr + u);
     if ((args = (struct _2415_callback_args *)calloc(1, sizeof(struct _2415_callback_args))) == NULL) {
-        free(panel);
-        free(popup);
         return NULL;
     }
+
+    if ((panel = create_window(buffer, 900, h*15, 1)) == NULL) {
+        free(args);
+        return NULL;
+    }
+
     args->unit = unit;
     args->unit_num = u;
     args->format_type = (ctx->tape[u]->format & TAPE_FMT) >> TAPE_FMT_V;
     args->density = ctx->tape[u]->format;
-    popup->panel = panel;
-    sprintf(buffer, "IBM2415 Dev 0x'%03X'", ctx->addr + u);
-    popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-        800, h*15, SDL_WINDOW_RESIZABLE );
-    popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
-    popup->device = unit;
-    popup->unit_num = u;
-    panel->screen = popup->screen;
-    panel->render = popup->render;
-    panel->windowID = SDL_GetWindowID(panel->screen);
 
-    popup->device = unit;
-    popup->unit_num = u;
     add_area(panel, 0, 0, h*15, 800, &c_white);
     add_indicator(panel, 20 + ((12*wx) * 0), 20 + ((3*hx) * 0),
                     2 * hx, 10 * wx, "SELECT", NULL, &ctx->tape[u]->format, 8,
@@ -437,44 +399,44 @@ model2415_control(struct _device *unit, int hd, int wd, int u)
 
     row = 20;
 
-    add_label(panel, 25 + (12 * wx) * 4, row, "Tape:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Tape:", font14, &c_black);
     args->file_text = add_textinput(panel, 25 + (12*wx) * 5, row, h+2, 45*wx,
                     ctx->tape[u]->file_name);
 
     row += h+10;
-    add_label(panel, 25 + (12 * wx) * 4, row, "Type:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Type:", font14, &c_black);
     args->format_type = (ctx->tape[u]->format & TAPE_FMT) >> TAPE_FMT_V;
     add_combo(panel, 25 + (12 * wx) * 5, row, h, 12 * wx, tape_format_type,
                         &args->format_type, font14, &c_black, &c_white);
 
     row += h+10;
-    add_label(panel, 25 + (12 * wx) * 4, row, "Density:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Density:", font14, &c_black);
     args->density = (ctx->tape[u]->format & DENSITY_MASK) >> DENSITY_V;
     add_combo(panel, 25 + (12 * wx) * 5, row, h, 12 * wx, tape_density_type, &args->density,
                         font14, &c_black, &c_white);
     row += h+10;
-    add_label(panel, 25 + (12 * wx) * 4, row, "7 Track:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "7 Track:", font14, &c_black);
     add_checkbox(panel, 30 + (12 * wx) * 5, row, h, wx, NULL,
                        &ctx->tape[u]->format, TRACK9_V, 1, font10, &c_black, &c_white);
 
     row += h+10;
     args->ring = (ctx->tape[u]->format & WRITE_RING) == 0;
-    add_label(panel, 25 + (12 * wx) * 4, row, "Ring:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Ring:", font14, &c_black);
     add_checkbox(panel, 30 + (12 * wx) * 5, row, h,  wx, NULL, &args->ring,
                         0, 1, font10, &c_black, &c_white);
     row += h+10;
-    add_label(panel, 25 + (12 * wx) * 4, row, "Supply:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Supply:", font14, &c_black);
     add_combo(panel, 25 + (12 * wx) * 5, row, h, 12 * wx, tape_reel_color, &ctx->supply_color[u],
                         font14, &c_black, &c_white);
     add_checkbox(panel, 25 + (12 * wx) * 7, row, h, 12 * wx, "Label:", &ctx->supply_label[u],
                         0, 1, font14, &c_black, &c_white);
     row += h+10;
-    add_label(panel, 25 + (12 * wx) * 4, row, "Takeup:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Takeup:", font14, &c_black);
     add_combo(panel, 25 + (12 * wx) * 5, row, h, 12 * wx, tape_reel_color, &ctx->takeup_color[u],
                         font14, &c_black, &c_white);
     add_checkbox(panel, 25 + (12 * wx) * 7, row, h, 12 * wx, "Label:", &ctx->takeup_label[u],
                         0, 1, font14, &c_black, &c_white);
-    return popup;
+    return (void *)panel;
 }
 
 void

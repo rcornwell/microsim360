@@ -144,7 +144,7 @@ add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value,
    l->rect_label.w = wh;
    l->rect_label.h = hh;
 
-   surf = TTF_RenderText_Blended(font, "ON", c1);
+   surf = TTF_RenderText_Blended(font, "ON", c_black);
    text = SDL_CreateTextureFromSurface(win->render, surf);
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);
@@ -154,7 +154,7 @@ add_timer(Panel win, int x, int y, int h, int w, char *label1, int *value,
    l->rect_on.w = wh;
    l->rect_on.h = hh;
 
-   surf = TTF_RenderText_Blended(font, "OFF", c1);
+   surf = TTF_RenderText_Blended(font, "OFF", c_black);
    text = SDL_CreateTextureFromSurface(win->render, surf);
    SDL_QueryTexture(text, &f, &k, &wh, &hh);
    SDL_FreeSurface(surf);

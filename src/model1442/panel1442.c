@@ -31,6 +31,7 @@
 #include <string.h>
 #include "logger.h"
 #include "event.h"
+#include "conf.h"
 #include "widgets.h"
 #include "label.h"
 #include "indicator.h"
@@ -52,14 +53,11 @@ static SDL_Texture *model1442_img = NULL;
  * Initialize device graphics.
  */
 void
-model1442_init(struct _device *unit, void *rend)
+model1442_init_graphics(struct _device *unit, void *rend)
 {
-     SDL_Renderer *render = (SDL_Renderer *)rend;
-     SDL_Surface *text;
-
-
     /* Create the image on first run of draw function */
     if (model1442_img == NULL) {
+        SDL_Renderer *render = (SDL_Renderer *)rend;
         SDL_Surface *text;
         text = IMG_ReadXPMFromArray(model1442_xpm);
         model1442_img = SDL_CreateTextureFromSurface(render, text);
@@ -69,10 +67,61 @@ model1442_init(struct _device *unit, void *rend)
 }
 
 /*
+ * Create a new 1442 device.
+ */
+int
+model1442_create(struct _option *opt)
+{
+     struct _device       *dev1442;
+     struct _1442_context *ctx;
+     struct _option       opts;
+     int             i;
+
+     /* Check for valid address */
+     if (opt->addr == 0) {
+         fprintf(stderr, "Missing address on 1442 device\n");
+         return 0;
+     }
+
+     /* Allocate structures to hold device information */
+     dev1442 = model1442_init(opt->addr);
+     ctx = (struct _1442_context *)dev1442->dev;
+
+     /* Parse options given on definition */
+     while (get_option(&opts)) {
+           if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
+               if (read_deck(ctx->feed, opts.string) != 1) {
+                  log_error("Unable to attach deck %s\n", opts.string);
+                  return 0;
+               }
+           } else if (strcmp(opts.opt, "EMPTY") == 0) {
+               empty_cards(ctx->feed);
+           } else if (strcmp(opts.opt, "BLANK") == 0 && opts.flags == 1) {
+               int num;
+               if (get_integer(&opts, &num) != 0)
+                   return 0;
+               blank_deck(ctx->feed, num);
+           } else if (strcmp(opts.opt, "FORMAT") == 0) {
+               i = get_index(&opts, card_fmt_type);
+               if (i >= 0)
+                   ctx->feed->mode = i;
+           } else {
+               fprintf(stderr, "Invalid option %s to 1442\n", opts.opt);
+               del_chan(dev1442, opt->addr);
+               free(dev1442);
+               return 0;
+           }
+     }
+
+     return 1;
+}
+
+
+/*
  * Draw device in peripheral window.
  */
 void
-model1442_draw(struct _device *unit, void *rend)
+model1442_draw(struct _device *unit, void *rend, int u)
 {
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
     SDL_Renderer *render = (SDL_Renderer *)rend;
@@ -81,8 +130,8 @@ model1442_draw(struct _device *unit, void *rend)
     SDL_Rect     rect2;
     SDL_Surface *text;
     SDL_Texture *txt;
-    int           x = unit->rect[0].x;
-    int           y = unit->rect[0].y;
+    int           x = unit->rect[u].x;
+    int           y = unit->rect[u].y;
     char          buf[100];
 
     /* Draw basic device */
@@ -97,7 +146,7 @@ model1442_draw(struct _device *unit, void *rend)
     SDL_RenderCopy(render, model1442_img, &rect2, &rect);
     /* Draw device number */
     sprintf(buf, "%03X", unit->addr);
-    text = TTF_RenderText_Solid(font14, buf, c1);
+    text = TTF_RenderText_Solid(font14, buf, c_black);
     txt = SDL_CreateTextureFromSurface(render, text);
     SDL_FreeSurface(text);
     SDL_QueryTexture(txt, &i, &j, &rect2.w, &rect2.h);
@@ -177,7 +226,6 @@ static void model1442_update(void *arg, int iarg)
     int r;
     int cards;
 
-printf("1442 click %d\n", iarg);
     switch (iarg) {
     case 0:  /* End of file key */
           ctx->eof_flag = !ctx->eof_flag;
@@ -191,7 +239,6 @@ printf("1442 click %d\n", iarg);
                   model1442_feed(ctx);
               }
               if (ctx->rdr_full) {
-//                  ctx->state = STATE_END;
                   ctx->status = SNS_DEVEND;
                   ctx->data_end = 1;
                   ctx->feed_done = 1;
@@ -262,10 +309,9 @@ static SDL_Color button_col = {0x80, 0x80, 0x80};
 /*
  * Create a popup control window for device.
  */
-struct _popup *
-model1442_control(struct _device *unit, int hd, int wd, int u)
+void *
+model1442_control(struct _device *unit, int u)
 {
-    struct _popup  *popup;
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
     SDL_Surface *text;
     int    row;
@@ -283,21 +329,13 @@ model1442_control(struct _device *unit, int hd, int wd, int u)
     if (TTF_SizeText(font14, "M", NULL, &h) != 0) {
         return NULL;
     }
-    if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
-        return NULL;
-    if ((panel = (struct _panel_t *)calloc(1, sizeof(struct _panel_t))) == NULL) {
-        free(popup);
+
+    /* Create device panel. */
+    sprintf(buffer, "IBM1442 Dev 0x'%03X'", ctx->addr);
+    if ((panel = create_window(buffer, 1000, 200, 1)) == NULL) {
         return NULL;
     }
-    popup->panel = panel;
-    sprintf(buffer, "IBM1442 Dev 0x'%03X'", ctx->addr);
-    popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-        1000, 200, SDL_WINDOW_RESIZABLE );
-    popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
-    popup->device = unit;
-    panel->screen = popup->screen;
-    panel->render = popup->render;
-    panel->windowID = SDL_GetWindowID(panel->screen);
+
     add_area(panel, 20+(12*wx) * 3, 0, 200, 800, &c_white);
     add_indicator(panel, 20 + ((12*wx) * 0), 20 + ((3*hx) * 0),
                     2 * hx, 10 * wx, "POWER", "ON", &POWER, 0, font10,
@@ -330,7 +368,7 @@ model1442_control(struct _device *unit, int hd, int wd, int u)
     h = hx;
     w = wx * 15;
     row = 20;
-    add_label(panel, 25 + (12 * wx) * 3, row, "Hopper:", font10, &c1);
+    add_label(panel, 25 + (12 * wx) * 3, row, "Hopper:", font10, &c_black);
     ctx->input[0] = (void *)add_textinput(panel, 25 + (12*wx) * 4, row, h+2, 40*wx,
                     ctx->feed->file_name);
     add_button_callback(panel, 20 + ((12*wx) * 8), row,
@@ -346,7 +384,7 @@ model1442_control(struct _device *unit, int hd, int wd, int u)
                         font14, &c_black, &c_white);
     add_number(panel, 25 + (12*wx) * 12, row, h+2, 5 * wx, &ctx->hop_cnt, font14, &c_black, &c_white);
     row += 3*hx;
-    add_label(panel, 25 + (12 * wx) * 3, row, "Stack 1:", font10, &c1);
+    add_label(panel, 25 + (12 * wx) * 3, row, "Stack 1:", font10, &c_black);
     ctx->input[1] = (void *)add_textinput(panel, 25 + (12*wx) * 4, row, hx+5, 40*wx,
                    ctx->stack[0]->file_name);
     add_button_callback(panel, 20 + ((12*wx) * 8), row,
@@ -360,7 +398,7 @@ model1442_control(struct _device *unit, int hd, int wd, int u)
     add_number(panel, 25 + (12*wx) * 12, row, h+2, 5 * wx, &ctx->stk_cnt[0], font14,
                             &c_black, &c_white);
     row += 3*hx;
-    add_label(panel, 25 + (12 * wx) * 3, row, "Stack 2:", font10, &c1);
+    add_label(panel, 25 + (12 * wx) * 3, row, "Stack 2:", font10, &c_black);
     ctx->input[2] = (void *)add_textinput(panel, 25 + (12*wx) * 4, row, hx+5, 40*wx,
                    ctx->stack[1]->file_name);
     add_button_callback(panel, 20 + ((12*wx) * 8), row,
@@ -373,6 +411,6 @@ model1442_control(struct _device *unit, int hd, int wd, int u)
                         font14, &c_black, &c_white);
     add_number(panel, 25 + (12*wx) * 12, row, h+2, 5 * wx, &ctx->stk_cnt[1], font14,
                             &c_black, &c_white);
-    return popup;
+    return (void *)panel;
 }
 

@@ -32,6 +32,7 @@
 #define CTEST_NO_COLORS
 
 #include "ctest.h"
+#include "device.h"
 #include "conf.h"
 #include "logger.h"
 
@@ -69,5 +70,4 @@ main(int argc, const char *argv[])
     result = ctest_main(arg_cnt, args);
     return result;
 }
-
 

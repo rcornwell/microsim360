@@ -121,13 +121,15 @@ struct _2415_context {
     int                    mode9;        /* Tape mode for 9 track tapes */
 };
 
+int model2415_create(struct _option *opt);
+
 void model2415_rewind_callback(struct _device *unit, void *arg, int u);
 
-struct _popup * model2415_control(struct _device *unit, int hd, int wd, int u);
+void *model2415_control(struct _device *unit, int u);
 
 void model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 
-void model2415_draw(struct _device *unit, void *rend);
+void model2415_draw(struct _device *unit, void *rend, int u);
 
 void model2415_init(struct _device *unit, void *rend);
 #endif

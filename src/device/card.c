@@ -68,6 +68,8 @@
 #include "logger.h"
 #include "card.h"
 
+char *card_fmt_type[6] = { "AUTO", "ASCII", "EBCDIC", "BIN", "OCTAL", NULL};
+
 /* Character conversion tables */
 
 /* Set for IBM 029 codes */
@@ -905,6 +907,7 @@ init_card_context()
     card_ctx->hopper_size = 0;
     card_ctx->hopper_cards = 0;
     card_ctx->hopper_pos = 0;
+    card_ctx->mode = MODE_AUTO;
     free(card_ctx->images);
     card_ctx->images = NULL;
     free(card_ctx->file_name);

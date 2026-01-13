@@ -62,18 +62,18 @@ struct _option {
 #define DEV_LIST_SECTION __attribute__ ((used, section (".devlist"), aligned(1)))
 #endif
 
-
-#define DEV_LIST_STRUCT(mod, type, opts) \
-    DEV_LIST_SECTION static struct _control model_##mod = { \
-        #mod, type, opts, model##mod##_create, NULL, DEV_LIST_MAGIC, \
-    }
-
 #define STRINGIFY(x) #x
 
+#define DEV_LIST_STRUCT(mod, type, opts) \
+    DEV_LIST_SECTION struct _control model_##mod = { \
+        STRINGIFY(mod), type, opts, model##mod##_create, NULL, DEV_LIST_MAGIC, \
+    }
+
 #define LOG_OPT_STRUCT(opt) \
-    DEV_LIST_SECTION static struct _control log_##opt = { \
+    DEV_LIST_SECTION struct _control log_##opt = { \
         STRINGIFY(LOG##opt), LOG_TYPE, 0, log##opt##_create, NULL, DEV_LIST_MAGIC, \
     }
+
 
 
 /* Example

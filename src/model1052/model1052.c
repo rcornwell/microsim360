@@ -43,6 +43,8 @@
 #include "model1052.h"
 #include "xlat.h"
 
+DEV_LIST_STRUCT(1052, DEV_TYPE, 0);
+
 /* Telnet protocol constants - negatives are for init'ing signed char data */
 
 #define TN_IAC          -1                              /* protocol delim */
@@ -1106,5 +1108,4 @@ model1052_create(struct _option *opt)
     return 1;
 }
 
-DEV_LIST_STRUCT(1052, DEV_TYPE, 0);
 

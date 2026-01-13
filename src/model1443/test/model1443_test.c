@@ -58,7 +58,7 @@ static const uint16_t cctape_std1[] = {
  * Panel display functions
  */
 void
-model1443_draw(struct _device *unit, void *rend)
+model1443_draw(struct _device *unit, void *rend, int u)
 {
 }
 
@@ -71,10 +71,10 @@ model1443_init(struct _device *init, void *rend)
  * Popup device control panel.
  */
 
-struct _popup *
-model1443_control(struct _device *unit, int hd, int wd, int u)
+void *
+model1443_control(struct _device *unit, int u)
 {
-     return NULL;
+    return NULL;
 }
 
 
@@ -162,7 +162,6 @@ CTEST2(model1443_test, nop) {
 
 /* Try to issue sense command */
 CTEST2(model1443_test, sense) {
-     struct _1443_context *ctx = (struct _1443_context *)(data->dev->dev);
      uint16_t status;
      log_trace("Sense\n");
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */

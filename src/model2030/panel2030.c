@@ -492,7 +492,7 @@ log_trace("Initialize panel\n");
                &ROAR_RST, font10, &c_white, &c_blue, 0);
     add_blank(cpu_panel, s, pos + (hx * 6), hx * 2, wx * 10, &c_white);
     add_button(cpu_panel, s, pos + (hx * 8) + (hx/2), hx * 2, wx * 10, "START", NULL,
-               &START, font10, &c_white, &c2, 0);
+               &START, font10, &c_white, &c_green, 0);
 
     s += wx * 12;
     add_blank(cpu_panel, s, pos + hx, hx * 2, wx * 10, &c_white);

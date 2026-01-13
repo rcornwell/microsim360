@@ -119,8 +119,8 @@ typedef struct _device {
                           uint16_t *tags,
                           uint16_t bus_out,
                           uint16_t *bus_in);
-    void      (*draw_model)(struct _device *unit, void *render);
-    struct _popup *(*create_ctrl)(struct _device *unit, int hd, int wd, int u);
+    void      (*draw_model)(struct _device *unit, void *render, int u);
+    void      *(*create_ctrl)(struct _device *unit, int u);
     void      (*init_device)(struct _device *unit, void *render);
     void      (*close_device)(struct _device *unit);
     void       *dev;               /* Pointer to device context */

@@ -18,15 +18,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_library(devicelib card.c disassem.c device.c tape.c xlat.c dasd.c)
-target_include_directories(devicelib PUBLIC ${includes}
-                                            ${SDL2_INCLUDE_DIRS}
-                                            ${SDL2_IMAGE_INCLUDE_DIRS}
-                                            ${SDL2_TTF_INCLUDE_DIRS})
+add_library(devicelib STATIC card.c disassem.c device.c tape.c xlat.c dasd.c)
+target_include_directories(devicelib PRIVATE ${includes})
+#                                            ${SDL2_INCLUDE_DIRS}
+#                                            ${SDL2_IMAGE_INCLUDE_DIRS}
+#                                            ${SDL2_TTF_INCLUDE_DIRS})
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-#target_link_libraries(${PROJECT_NAME} PUBLIC devicelib)
+#target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(${PROJECT_NAME} PUBLIC devicelib)
 
 if (RUN_TESTS)
 add_executable(device_test)

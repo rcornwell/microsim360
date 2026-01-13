@@ -36,6 +36,7 @@
 #include "xlat.h"
 #include "model1442.h"
 
+DEV_LIST_STRUCT(1442, DEV_TYPE, 0);
 /*
  *  Commands.
  *
@@ -52,8 +53,6 @@
 #define SENSE_EQUCHK    BIT3  /* Equipment check, not implemented */
 #define SENSE_DATCHK    BIT4  /* More then 1 punch in rows 1-7 */
 #define SENSE_OVRRUN    BIT5  /* Data missed */
-
-char *card_fmt_type[6] = { "AUTO", "ASCII", "EBCDIC", "BIN", "OCTAL", NULL};
 
 static void feed_callback(struct _device *unit, void *arg, int iarg);
 
@@ -796,20 +795,11 @@ log_device("intervent\n");
     }
 }
 
-
-static int
-model1442_create(struct _option *opt)
+struct _device *
+model1442_init(uint16_t addr)
 {
      struct _device       *dev1442;
      struct _1442_context *card;
-     struct _option       opts;
-     int             i;
-
-     /* Check for valid address */
-     if (opt->addr == 0) {
-         fprintf(stderr, "Missing address on 1442 device\n");
-         return 0;
-     }
 
      /* Allocate structures to hold device information */
      if ((dev1442 = calloc(1, sizeof(struct _device))) == NULL)
@@ -822,18 +812,18 @@ model1442_create(struct _option *opt)
      /* Fill in structures */
      dev1442->bus_func = &model1442_dev;
      dev1442->dev = (void *)card;
-     dev1442->draw_model = (void *)&model1442_draw;
-     dev1442->create_ctrl = (void *)&model1442_control;
-     dev1442->init_device = (void *)&model1442_init;
+     dev1442->draw_model = &model1442_draw;
+     dev1442->create_ctrl = &model1442_control;
+     dev1442->init_device = &model1442_init_graphics;
      dev1442->type_name = "1442";
      dev1442->rect[0].x = 0;
      dev1442->rect[0].y = 0;
      dev1442->rect[0].w = 305;
      dev1442->rect[0].h = 142;
      dev1442->n_units = 1;
-     dev1442->addr = opt->addr;
-     card->addr = opt->addr & 0xff;
-     card->chan = (opt->addr >> 8) & 0xf;
+     dev1442->addr = addr;
+     card->addr = addr & 0xff;
+     card->chan = (addr >> 8) & 0xf;
      card->state = STATE_IDLE;
      card->selected = 0;
      card->sense = 0;
@@ -843,36 +833,7 @@ model1442_create(struct _option *opt)
      card->hop_cnt = hopper_size(card->feed);
      card->stk_cnt[0] = stack_size(card->stack[0]);
      card->stk_cnt[1] = stack_size(card->stack[1]);
-     add_chan(dev1442, opt->addr);
-
-     /* Parse options given on definition */
-     while (get_option(&opts)) {
-           if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
-               if (read_deck(card->feed, opts.string) != 1) {
-                  log_error("Unable to attach deck %s\n", opts.string);
-                  return 0;
-               }
-           } else if (strcmp(opts.opt, "EMPTY") == 0) {
-               empty_cards(card->feed);
-           } else if (strcmp(opts.opt, "BLANK") == 0 && opts.flags == 1) {
-               int num;
-               if (get_integer(&opts, &num) != 0)
-                   return 0;
-               blank_deck(card->feed, num);
-           } else if (strcmp(opts.opt, "FORMAT") == 0) {
-               i = get_index(&opts, card_fmt_type);
-               if (i >= 0)
-                   card->feed->mode = i;
-           } else {
-               fprintf(stderr, "Invalid option %s to 1442\n", opts.opt);
-               free(card);
-               free(dev1442);
-               return 0;
-           }
-     }
-
-     return 1;
+     add_chan(dev1442, addr);
+     return dev1442;
 }
-
-DEV_LIST_STRUCT(1442, DEV_TYPE, 0);
 

@@ -49,7 +49,200 @@
 SDL_Texture *model2314_img = NULL;
 
 void
-model2314_draw(struct _device *unit, void *rend)
+model2314_init_graphics(struct _device *unit, void *rend)
+{
+    if (model2314_img == NULL) {
+        SDL_Renderer *render = (SDL_Renderer *)rend;
+        SDL_Surface *text;
+
+        text = IMG_ReadXPMFromArray(model2314_xpm);
+        model2314_img = SDL_CreateTextureFromSurface(render, text);
+        SDL_SetTextureBlendMode(model2314_img, SDL_BLENDMODE_BLEND);
+        SDL_FreeSurface(text);
+    }
+}
+
+
+/*
+ * microsim360 - Model 2844 microcode simulator.
+ *
+ * Copyright 2022, Richard Cornwell
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
+#include "device.h"
+#include "logger.h"
+#include "conf.h"
+#include "model2844.h"
+
+DEV_LIST_STRUCT(2314, UNIT_TYPE, 0);
+DEV_LIST_STRUCT(2844, CTRL_TYPE, 0);
+
+#if 0
+/*
+ * Initialize graphics images.
+ */
+struct _device *
+model2844_init(uint16_t addr)
+{
+     int    i;
+     struct _device *dev2844;
+     struct _2844_context *ctx;
+
+     if ((dev2844 = (struct _device *)calloc(1,
+                                          sizeof(struct _device))) == NULL)
+         return NULL;
+
+     if ((ctx = (struct _2844_context *)calloc(1,
+                                       sizeof(struct _2844_context))) == NULL) {
+         free(dev2844);
+         return NULL;
+     }
+
+     dev2844->bus_func = &model2844_dev;
+     dev2844->dev = (void *)ctx;
+     dev2844->draw_model = (void *)NULL;
+     dev2844->create_ctrl = (void *)NULL;
+     dev2844->type_name = "2844";
+     dev2844->n_units = 8;
+     dev2844->addr = addr;
+     ctx->addr = addr;
+     ctx->chan = (addr >> 8) & 0xf;
+     ctx->WX = 0;
+     for (i = 0; i < 8; i++) {
+         ctx->disk[i] = NULL;
+         dev2844->rect[i].x = 0;
+         dev2844->rect[i].y = 0;
+         dev2844->rect[i].w = 0;
+         dev2844->rect[i].h = 0;
+     }
+     add_chan(dev2844, addr);
+     add_disk(&step_2844, (void *)ctx);
+     return dev2844;
+}
+#endif
+
+
+int
+model2844_create(struct _option *opt)
+{
+     struct  _device *dev2844;
+
+     /* Check for valid address */
+     if (opt->addr == 0) {
+         fprintf(stderr, "Missing address on 2844 device\n");
+         return 0;
+     }
+
+     dev2844 = model2844_init(opt->addr);
+
+     return 1;
+}
+
+/*
+ * Create a new 2314 disk drive.
+ */
+int
+model2314_create(struct _option *opt)
+{
+     struct  _device *dev2844;
+     struct  _2844_context *ctx;
+     struct _option   opts;
+     int              i;
+     char            *file;
+     int              fmt;
+     char            *vol;
+     int              t;
+
+     dev2844 = find_chan(opt->addr, 0xf8);
+     if (dev2844 == NULL) {
+         fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     i = opt->addr & 0x7;
+     ctx = (struct _2844_context *)dev2844->dev;
+     if (ctx->disk[i] != NULL) {
+         fprintf(stderr, "Duplicate device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     ctx->disk[i] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
+     if (ctx->disk[i] == NULL) {
+         fprintf(stderr, "Unable to create device %s %03x\n", opt->opt, opt->addr);
+         return 0;
+     }
+     if (dasd_settype(ctx->disk[i], "2314") == 0) {
+         fprintf(stderr, "Unknown type %s %03x\n", opt->opt, opt->addr);
+         free(ctx->disk[i]);
+         ctx->disk[i] = NULL;
+         return 0;
+     }
+     file = NULL;
+     vol = NULL;
+     fmt = 0;
+     while (get_option(&opts)) {
+         if (strcmp(opts.opt, "FILE") == 0 && opts.flags == 1) {
+             file = strdup(opts.string);
+         } else if (strcmp(opts.opt, "FORMAT") == 0) {
+             fmt = 1;
+         } else if (strcmp(opts.opt, "VOLID") == 0) {
+             vol = strdup(opts.string);
+         } else {
+             fprintf(stderr, "Invalid option %s to 2314 Unit\n", opts.opt);
+             free(ctx->disk[i]);
+             ctx->disk[i] = NULL;
+             return 0;
+         }
+     }
+     dev2844->rect[i].x = 0;
+     dev2844->rect[i].y = 0;
+     dev2844->rect[i].w = 180;
+     dev2844->rect[i].h = 100;
+     if (vol != NULL) {
+         for (t = 0; t < 8; t++) {
+             if (vol[t] == '\0')
+                 break;
+             ctx->disk[i]->vol_label[t] = vol[t];
+         }
+         for (;t < 8; t++) {
+             ctx->disk[i]->vol_label[t] = ' ';
+         }
+         ctx->disk[i]->vol_label[t] = '\0';
+         free(vol);
+     }
+     if (file != NULL) {
+         if (dasd_attach(ctx->disk[i], file, fmt) == 0) {
+             log_warn("Unable to open file %s\n", file);
+         }
+         free(file);
+     }
+     return 1;
+}
+
+
+void
+model2314_draw(struct _device *unit, void *rend, int u)
 {
     struct _2844_context *ctx = (struct _2844_context *)unit->dev;
     SDL_Renderer *render = (SDL_Renderer *)rend;
@@ -59,45 +252,32 @@ model2314_draw(struct _device *unit, void *rend)
     SDL_Texture *txt;
     int          i, j, k;
     int          t1, t2;
-    int          x;
-    int          y;
+    int          x = unit->rect[u].x;
+    int          y = unit->rect[u].y;
     char         buf[100];
 
-    if (model2314_img == NULL) {
-        SDL_Surface *text;
 
-        text = IMG_ReadXPMFromArray(model2314_xpm);
-        model2314_img = SDL_CreateTextureFromSurface(render, text);
-        SDL_SetTextureBlendMode(model2314_img, SDL_BLENDMODE_BLEND);
-        SDL_FreeSurface(text);
-    }
+    if (ctx->disk[u] == NULL)
+        return;
 
-    for (i = 0; i < unit->n_units; i++) {
-        x = unit->rect[i].x;
-        y = unit->rect[i].y;
-
-        if (ctx->disk[i] == NULL)
-            continue;
-
-        rect2.x = 0;
-        rect2.y = 0;
-        rect2.w = unit->rect[i].w;
-        rect2.h = unit->rect[i].h;
-        rect.x = x;
-        rect.y = y;
-        rect.w = unit->rect[i].w;
-        rect.h = unit->rect[i].h;
-        SDL_RenderCopy(render, model2314_img, &rect2, &rect);
-        sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + i);
-        text = TTF_RenderText_Solid(font14, buf, c1);
-        txt = SDL_CreateTextureFromSurface(render, text);
-        SDL_FreeSurface(text);
-        SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
-        rect2.x = x + 52;
-        rect2.y = y + 20;
-        SDL_RenderCopy(render, txt, NULL, &rect2);
-        SDL_DestroyTexture(txt);
-    }
+    rect2.x = 0;
+    rect2.y = 0;
+    rect2.w = unit->rect[u].w;
+    rect2.h = unit->rect[u].h;
+    rect.x = x;
+    rect.y = y;
+    rect.w = unit->rect[u].w;
+    rect.h = unit->rect[u].h;
+    SDL_RenderCopy(render, model2314_img, &rect2, &rect);
+    sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + u);
+    text = TTF_RenderText_Solid(font14, buf, c_black);
+    txt = SDL_CreateTextureFromSurface(render, text);
+    SDL_FreeSurface(text);
+    SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
+    rect2.x = x + 52;
+    rect2.y = y + 20;
+    SDL_RenderCopy(render, txt, NULL, &rect2);
+    SDL_DestroyTexture(txt);
 }
 
 struct _2844_callback_args {
@@ -108,7 +288,8 @@ struct _2844_callback_args {
      int            init_dsk;
 };
 
-static void model2844_update(void *args, int iarg)
+static void
+model2844_update(void *args, int iarg)
 {
     struct _2844_callback_args *data = (struct _2844_callback_args *)args;
     struct _device *unit = (struct _device *)data->unit;
@@ -117,7 +298,6 @@ static void model2844_update(void *args, int iarg)
     char    *volid;
     int      u;
 
-fprintf (stderr, "Disk key %d\n", iarg);
     file_name = get_textbuffer(data->file_text);
     volid = get_textbuffer(data->volid_text);
     switch (iarg) {
@@ -140,17 +320,13 @@ fprintf (stderr, "Disk key %d\n", iarg);
     }
 }
 
-extern int textpos(struct _text *text, int pos);
-
 static SDL_Color   col_green_on = { 0x7f, 0xc0, 0x86 };
 static SDL_Color   col_green_off = { 0x0c, 0x2e, 0x30 };
 static SDL_Color   col_red_on = { 0xd0, 0x08, 0x42 };
 static SDL_Color   col_red_off = { 0xff, 0x00, 0x4a };
 
-static char *format_mode[] = {"No", "Yes", NULL };
-
-struct _popup *
-model2314_control(struct _device *unit, int hd, int wd, int u)
+void *
+model2314_control(struct _device *unit, int u)
 {
     struct _popup  *popup;
     struct _2844_context *ctx = (struct _2844_context *)unit->dev;
@@ -171,26 +347,20 @@ model2314_control(struct _device *unit, int hd, int wd, int u)
         return NULL;
     int    row;
     }
-    if ((popup = (struct _popup *)calloc(1, sizeof(struct _popup))) == NULL)
-        return NULL;
-    if ((panel = (struct _panel_t *)calloc(1, sizeof(struct _panel_t))) == NULL) {
-        free(popup);
-        return NULL;
-    }
+
     if ((args = (struct _2844_callback_args *)calloc(1, sizeof(struct _2844_callback_args))) == NULL) {
-        free(panel);
-        free(popup);
         return NULL;
     }
 
-    sprintf(buffer, "IBM2314 Dev 0x'%03X'", ctx->addr + u);
-    popup->screen = SDL_CreateWindow(buffer, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-        800, 200, SDL_WINDOW_RESIZABLE );
-    popup->render = SDL_CreateRenderer( popup->screen, -1, SDL_RENDERER_ACCELERATED);
-    popup->device = unit;
-    popup->panel = panel;
     args->unit = unit;
     args->unit_num = u;
+
+    sprintf(buffer, "IBM2314 Dev 0x'%03X'", ctx->addr + u);
+    if ((panel = create_window(buffer, 900, h*10, 1)) == NULL) {
+        free(args);
+        return NULL;
+    }
+
     add_area(panel, 0, 0, 200, 800, &c_white);
     lab[0] = u + '0';
     lab[1] = '\0';
@@ -209,22 +379,20 @@ model2314_control(struct _device *unit, int hd, int wd, int u)
                font10, &c_black, &col_green_on);
     row = 20;
 
-    add_label(panel, 25 + (12 * wx) * 4, row, "Disk:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Disk:", font14, &c_black);
     args->file_text = add_textinput(panel, 25 + (12*wx) * 5, row, h+2, 50*wx,
                     ctx->disk[u]->file_name);
 
     row += 20;
 
-    add_label(panel, 25 + (12 * wx) * 4, row, "Vol ID:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Vol ID:", font14, &c_black);
     args->volid_text = add_textinput(panel, 25 + (12*wx) * 5, row, h+2, 12*wx,
                     ctx->disk[u]->vol_label);
 
     row += h+10;
-    add_label(panel, 25 + (12 * wx) * 4, row, "Format:", font14, &c1);
+    add_label(panel, 25 + (12 * wx) * 4, row, "Format:", font14, &c_black);
     add_checkbox(panel, 30 + (12 * wx) * 5, row, h, wx, NULL,
                        &args->init_dsk, 0, 0, font10, &c_black, &c_white);
-    return popup;
+    return panel;
 }
 
-DEV_LIST_STRUCT(2314, UNIT_TYPE, 0);
-DEV_LIST_STRUCT(2844, CTRL_TYPE, 0);

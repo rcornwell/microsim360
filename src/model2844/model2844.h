@@ -54,7 +54,6 @@ extern struct ROS_2844 {
 #include "dasd.h"
 
 struct _2844_context {
-    int         created;
     int         addr;               /* Device address */
     int         chan;               /* Channel address */
     int         selected;           /* Device currently selected */
@@ -202,14 +201,15 @@ struct _2844_context {
 };
 
 void step_2844(void *data);
-struct _device *model2844_init(void *render, uint16_t addr);
 
+void model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 
 /* Panel display functions */
-void   model2314_draw(struct _device *unit, void *rend);
-struct _popup *model2314_control(struct _device *unit, int hd, int wd, int u);
+void   model2314_draw(struct _device *unit, void *rend, int u);
+void   *model2314_control(struct _device *unit, int u);
+void    model2314_init_graphics(struct _device *unit, void *rend);
 
-
+struct _device *model2844_init(uint16_t addr);
 int     model2844_create(struct _option *opt);
 int     model2314_create(struct _option *opt);
 

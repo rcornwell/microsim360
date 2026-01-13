@@ -46,16 +46,20 @@ char       *test_log_level = "info warn error trace device disk dmicro dreg";
 
 /* Panel display functions */
 void
-model2314_draw(struct _device *unit, void *rend)
+model2314_draw(struct _device *unit, void *rend, int u)
 {
 }
 
-struct _popup *
-model2314_control(struct _device *unit, int hd, int wd, int u)
+void *
+model2314_control(struct _device *unit, int u)
 {
-     return NULL;
+    return NULL;
 }
 
+void
+model2314_init_graphics(struct _device *unit, void *rend)
+{
+}
 
 void
 init_tests()
@@ -66,7 +70,7 @@ init_tests()
 
     init_event();
     disk = NULL;
-    dev = model2844_init(NULL, 0x90);
+    dev = model2844_init(0x90);
     ctx = (struct _2844_context *)(dev->dev);
     ctx->disk[1] = (struct _dasd_t *)calloc(1, sizeof(struct _dasd_t));
     dasd_settype(ctx->disk[1], "2314");

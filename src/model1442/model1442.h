@@ -72,16 +72,16 @@ struct _1442_context {
     void                  *input[3];     /* Input */
 };
 
-extern char *card_fmt_type[6];
+int model1442_create(struct _option *opt);
 
 void model1442_feed(struct _1442_context *ctx);
 
 void model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 
-struct _popup * model1442_control(struct _device *unit, int hd, int wd, int u);
+void *model1442_control(struct _device *unit, int u);
 
-void model1442_draw(struct _device *unit, void *rend);
+void model1442_draw(struct _device *unit, void *rend, int u);
 
-void model1442_init(struct _device *unit, void *rend);
+void model1442_init_graphics(struct _device *unit, void *rend);
 
-//int model1442_create(struct _option *opt);
+struct _device *model1442_init(uint16_t addr);

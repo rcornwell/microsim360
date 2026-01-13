@@ -45,6 +45,7 @@
  *  Sense          00000100
  */
 
+DEV_LIST_STRUCT(1443, DEV_TYPE, 0);
 
 #define SENSE_CMDREJ    BIT0  /* Invalid command */
 #define SENSE_INTERV    BIT1  /* Operator intervention, stop key pressed */
@@ -1125,4 +1126,3 @@ model1443_create(struct _option *opt)
      return 1;
 }
 
-DEV_LIST_STRUCT(1443, DEV_TYPE, 0);

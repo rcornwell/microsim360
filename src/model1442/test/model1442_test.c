@@ -147,7 +147,7 @@ int create_card_file3 (const char *filename, int cards)
  * Panel display functions
  */
 void
-model1442_draw(struct _device *unit, void *rend)
+model1442_draw(struct _device *unit, void *rend, int u)
 {
 }
 
@@ -155,46 +155,28 @@ model1442_draw(struct _device *unit, void *rend)
  * Popup device control panel.
  */
 
-struct _popup *
-model1442_control(struct _device *unit, int hd, int wd, int u)
+void *
+model1442_control(struct _device *unit, int u)
 {
-     return NULL;
+   return NULL;
 }
 
 void
-model1442_init(struct _device *unit, void *rend)
+model1442_init_graphics(struct _device *unit, void *rend)
 {
+}
+
+int
+model1442_create(struct _option *opt)
+{
+    return 1;
 }
 
 void
 init_tests()
 {
-    struct _device *dev1442;
-    struct _1442_context *ctx;
     init_event();
-    /* Create devices for testing. */
-    if ((dev1442 = calloc(1, sizeof(struct _device))) == NULL)
-        return;
-    if ((ctx = calloc(1, sizeof(struct _1442_context))) == NULL) {
-        free(dev1442);
-        return;
-    }
-
-    dev1442->bus_func = &model1442_dev;
-    dev1442->dev = (void *)ctx;
-    dev1442->type_name = "1442";
-    dev1442->addr = 0x0C;
-    ctx->addr = 0x0C;
-    ctx->chan = 0;
-    ctx->state = STATE_IDLE;
-    ctx->selected = 0;
-    ctx->feed = init_card_context();
-    ctx->stack[0] = init_card_context();
-    ctx->stack[1] = init_card_context();
-    ctx->hop_cnt = hopper_size(ctx->feed);
-    ctx->stk_cnt[0] = stack_size(ctx->stack[0]);
-    ctx->stk_cnt[1] = stack_size(ctx->stack[1]);
-    add_chan(dev1442, dev1442->addr);
+    (void)model1442_init(0xc);
 }
 
 void
