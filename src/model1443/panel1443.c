@@ -222,7 +222,7 @@ static SDL_Color space_col = {0xdd, 0xdc, 0x8a};
 static SDL_Color ready_col = {0xd8, 0xcb, 0x72};
 
 void *
-model1443_control(struct _device *unit, int u)
+model1443_control(struct _device *unit, int u, int x, int y)
 {
     struct _popup *popup;
     struct _1443_context *ctx = (struct _1443_context *)unit->dev;

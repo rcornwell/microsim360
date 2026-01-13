@@ -43,7 +43,7 @@ struct _perip {
 /* Widget structure to hold pointer to control create routine */
 struct _device_win_t {
     void    (*display_device)(struct _device *unit, void *render, int u);
-    void    *(*create_control)(struct _device *unit, int u);
+    void    *(*create_control)(struct _device *unit, int u, int x, int y);
     struct  _device *unit;
     Panel    popup;
     int      popupID;
@@ -86,12 +86,14 @@ click_device(Widget wid, int x, int y)
     struct _device_win_t *ctrl = (struct _device_win_t *)wid->data;
     Panel    popup;
 
+    printf("Click %d, %d\n", x, y);
+
     if (ctrl->popup != NULL) {
         SDL_RaiseWindow(ctrl->popup->screen);
         return;
     }
     if (ctrl->create_control != NULL) {
-        popup = (Panel)(*ctrl->create_control)(ctrl->unit, ctrl->u);
+        popup = (Panel)(*ctrl->create_control)(ctrl->unit, ctrl->u, x, y);
         ctrl->popup = popup;
         ctrl->popupID = popup->windowID;
         popup->parentID =  ctrl->parentID;
@@ -157,9 +159,24 @@ create_device_window()
                   } else {
                       p->next = np;
                   }
+                  /* If offset to pair device, create one with no size */
+                  if (dev->rect[j].u_offset_x != 0 || dev->rect[j].u_offset_y != 0) {
+                      struct _perip  *np2;
+                      if ((np2 = (struct _perip *)calloc(1, sizeof(struct _perip))) == NULL) {
+                          return 0;
+                      }
+//printf("D=%03x %d %d\n", dev->addr+j, dev->rect[j].h, dev->rect[j].w);
+                      np2->h = 0;
+                      np2->w = 0;
+                      np2->dev = dev;
+                      np2->unit = j + 1;
+                      np2->next = np;
+                      np = np2;
+                  }
                   p = np;
-            }
-       }
+             }
+
+        }
    }
 //   printf("MW=%d MH=%d TW=%d TH=%d\n", max_width, max_height, width, height);
    /* Try various layouts to figure out best window size */
@@ -216,30 +233,63 @@ create_device_window()
 
    /* Create widgets for each window */
    for (p = perph; p != NULL; p = p->next) {
+       if (p->dev->rect[p->unit].h == 0 || p->dev->rect[p->unit].w == 0) {
+           continue;
+       }
        if ((nwid = (Widget)calloc(1, sizeof(struct _widget_t))) == NULL) {
            continue;
        }
 
-      if ((ndev = (struct _device_win_t *)calloc(1, sizeof(struct _device_win_t))) == NULL) {
-         free(nwid);
-         continue;
+       if ((ndev = (struct _device_win_t *)calloc(1, sizeof(struct _device_win_t))) == NULL) {
+          free(nwid);
+          continue;
+       }
+      
+       ndev->create_control = p->dev->create_ctrl;
+       ndev->display_device = p->dev->draw_model;
+       ndev->unit = p->dev;
+       ndev->u = p->unit;
+       ndev->parentID = panel->windowID;
+      
+       nwid->rect.x = p->dev->rect[p->unit].x;
+       nwid->rect.y = p->dev->rect[p->unit].y;
+       nwid->rect.w = p->dev->rect[p->unit].h;
+       nwid->rect.h = p->dev->rect[p->unit].w;
+       nwid->back_color = &c_black;
+       nwid->draw = display_device;
+       nwid->click = click_device;
+       nwid->close = close_device;
+       nwid->data = (void *)ndev;
+       if (p->dev->rect[p->unit].u_offset_x != 0 || p->dev->rect[p->unit].u_offset_y != 0) {
+            Widget    second;
+            struct _device_win_t  *ndev2; /* widget structure */
+            if ((second = (Widget)calloc(1, sizeof(struct _widget_t))) == NULL) {
+                continue;
+            }
+          
+            if ((ndev2 = (struct _device_win_t *)calloc(1, sizeof(struct _device_win_t))) == NULL) {
+               free(second);
+               continue;
+            }
+           
+            ndev2->create_control = p->dev->create_ctrl;
+            ndev2->display_device = NULL;
+            ndev2->unit = p->dev;
+            ndev2->u = p->unit + 1;
+            ndev2->parentID = panel->windowID;
+           
+            second->rect.x = p->dev->rect[p->unit].x + p->dev->rect[p->unit].u_offset_x;
+            second->rect.y = p->dev->rect[p->unit].y + p->dev->rect[p->unit].u_offset_y;
+            second->rect.w = p->dev->rect[p->unit].h + p->dev->rect[p->unit].u_offset_x;
+            second->rect.h = p->dev->rect[p->unit].w + p->dev->rect[p->unit].u_offset_y;
+            nwid->rect.w = p->dev->rect[p->unit].w - p->dev->rect[p->unit].u_offset_x;
+            nwid->rect.h = p->dev->rect[p->unit].h - p->dev->rect[p->unit].u_offset_y;
+            second->back_color = &c_black;
+            second->click = click_device;
+            second->close = close_device;
+            second->data = (void *)ndev2;
+            add_widget(panel, second);
       }
-
-      ndev->create_control = p->dev->create_ctrl;
-      ndev->display_device = p->dev->draw_model;
-      ndev->unit = p->dev;
-      ndev->u = p->unit;
-      ndev->parentID = panel->windowID;
-
-      nwid->rect.x = p->dev->rect[p->unit].x;
-      nwid->rect.y = p->dev->rect[p->unit].y;
-      nwid->rect.w = p->dev->rect[p->unit].h;
-      nwid->rect.h = p->dev->rect[p->unit].w;
-      nwid->back_color = &c_black;
-      nwid->draw = display_device;
-      nwid->click = click_device;
-      nwid->close = close_device;
-      nwid->data = (void *)ndev;
       add_widget(panel, nwid);
    }
 

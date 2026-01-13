@@ -78,7 +78,7 @@ void model1442_feed(struct _1442_context *ctx);
 
 void model1442_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 
-void *model1442_control(struct _device *unit, int u);
+void *model1442_control(struct _device *unit, int u, int x, int y);
 
 void model1442_draw(struct _device *unit, void *rend, int u);
 

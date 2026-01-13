@@ -334,7 +334,7 @@ static SDL_Color reset_color = {0xc8, 0x3a, 0x30};      /* Blue */
 static SDL_Color eom_color = {0x0a, 0x52, 0x9a};        /* Blue */
 
 void *
-model2415_control(struct _device *unit, int u)
+model2415_control(struct _device *unit, int u, int x, int y)
 {
     struct _popup  *popup;
     struct _2415_context *ctx = (struct _2415_context *)unit->dev;

@@ -206,7 +206,7 @@ void model2844_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint1
 
 /* Panel display functions */
 void   model2314_draw(struct _device *unit, void *rend, int u);
-void   *model2314_control(struct _device *unit, int u);
+void   *model2314_control(struct _device *unit, int u, int x, int y);
 void    model2314_init_graphics(struct _device *unit, void *rend);
 
 struct _device *model2844_init(uint16_t addr);

@@ -310,7 +310,7 @@ static SDL_Color button_col = {0x80, 0x80, 0x80};
  * Create a popup control window for device.
  */
 void *
-model1442_control(struct _device *unit, int u)
+model1442_control(struct _device *unit, int u, int x, int y)
 {
     struct _1442_context *ctx = (struct _1442_context *)unit->dev;
     SDL_Surface *text;

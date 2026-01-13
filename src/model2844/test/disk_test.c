@@ -61,6 +61,18 @@ model2314_init_graphics(struct _device *unit, void *rend)
 {
 }
 
+int
+model2314_create(struct _option *opt)
+{
+    return 1;
+}
+
+int
+model2844_create(struct _option *opt)
+{
+    return 1;
+}
+
 void
 init_tests()
 {

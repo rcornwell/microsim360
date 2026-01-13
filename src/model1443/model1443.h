@@ -80,7 +80,7 @@ void model1443_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint1
 
 void model1443_draw(struct _device *unit, void *rend, int u);
 
-void *model1443_control(struct _device *unit, int u);
+void *model1443_control(struct _device *unit, int u, int x, int y);
 
 void model1443_init(struct _device *unit, void *rend);
 

@@ -97,52 +97,8 @@ model2314_init_graphics(struct _device *unit, void *rend)
 #include "conf.h"
 #include "model2844.h"
 
-DEV_LIST_STRUCT(2314, UNIT_TYPE, 0);
-DEV_LIST_STRUCT(2844, CTRL_TYPE, 0);
-
-#if 0
-/*
- * Initialize graphics images.
- */
-struct _device *
-model2844_init(uint16_t addr)
-{
-     int    i;
-     struct _device *dev2844;
-     struct _2844_context *ctx;
-
-     if ((dev2844 = (struct _device *)calloc(1,
-                                          sizeof(struct _device))) == NULL)
-         return NULL;
-
-     if ((ctx = (struct _2844_context *)calloc(1,
-                                       sizeof(struct _2844_context))) == NULL) {
-         free(dev2844);
-         return NULL;
-     }
-
-     dev2844->bus_func = &model2844_dev;
-     dev2844->dev = (void *)ctx;
-     dev2844->draw_model = (void *)NULL;
-     dev2844->create_ctrl = (void *)NULL;
-     dev2844->type_name = "2844";
-     dev2844->n_units = 8;
-     dev2844->addr = addr;
-     ctx->addr = addr;
-     ctx->chan = (addr >> 8) & 0xf;
-     ctx->WX = 0;
-     for (i = 0; i < 8; i++) {
-         ctx->disk[i] = NULL;
-         dev2844->rect[i].x = 0;
-         dev2844->rect[i].y = 0;
-         dev2844->rect[i].w = 0;
-         dev2844->rect[i].h = 0;
-     }
-     add_chan(dev2844, addr);
-     add_disk(&step_2844, (void *)ctx);
-     return dev2844;
-}
-#endif
+//DEV_LIST_STRUCT(2314, UNIT_TYPE, 0);
+//DEV_LIST_STRUCT(2844, CTRL_TYPE, 0);
 
 
 int
@@ -215,10 +171,11 @@ model2314_create(struct _option *opt)
              return 0;
          }
      }
-     dev2844->rect[i].x = 0;
-     dev2844->rect[i].y = 0;
-     dev2844->rect[i].w = 180;
-     dev2844->rect[i].h = 100;
+     dev2844->rect[i&6].x = 0;
+     dev2844->rect[i&6].y = 0;
+     dev2844->rect[i&6].w = 180;
+     dev2844->rect[i&6].h = 400;
+     dev2844->rect[i&6].u_offset_y = 200;
      if (vol != NULL) {
          for (t = 0; t < 8; t++) {
              if (vol[t] == '\0')
@@ -277,6 +234,15 @@ model2314_draw(struct _device *unit, void *rend, int u)
     rect2.x = x + 52;
     rect2.y = y + 20;
     SDL_RenderCopy(render, txt, NULL, &rect2);
+
+    sprintf(buf, "%1X%02X", ctx->chan, ctx->addr + u + 1);
+    text = TTF_RenderText_Solid(font14, buf, c_black);
+    txt = SDL_CreateTextureFromSurface(render, text);
+    SDL_FreeSurface(text);
+    SDL_QueryTexture(txt, &t1, &t2, &rect2.w, &rect2.h);
+    rect2.x = x + 52;
+    rect2.y = y + 80;
+    SDL_RenderCopy(render, txt, NULL, &rect2);
     SDL_DestroyTexture(txt);
 }
 
@@ -326,7 +292,7 @@ static SDL_Color   col_red_on = { 0xd0, 0x08, 0x42 };
 static SDL_Color   col_red_off = { 0xff, 0x00, 0x4a };
 
 void *
-model2314_control(struct _device *unit, int u)
+model2314_control(struct _device *unit, int u, int x, int y)
 {
     struct _popup  *popup;
     struct _2844_context *ctx = (struct _2844_context *)unit->dev;

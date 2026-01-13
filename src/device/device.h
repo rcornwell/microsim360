@@ -120,7 +120,7 @@ typedef struct _device {
                           uint16_t bus_out,
                           uint16_t *bus_in);
     void      (*draw_model)(struct _device *unit, void *render, int u);
-    void      *(*create_ctrl)(struct _device *unit, int u);
+    void      *(*create_ctrl)(struct _device *unit, int u, int x, int y);
     void      (*init_device)(struct _device *unit, void *render);
     void      (*close_device)(struct _device *unit);
     void       *dev;               /* Pointer to device context */
@@ -133,6 +133,8 @@ typedef struct _device {
         int     y;                 /* Y offset for device image */
         int     w;                 /* Width of device image */
         int     h;                 /* Height of image */
+        int     u_offset_x;        /* Offset to second unit */
+        int     u_offset_y;        /* Offset to second unit */
     }           rect[8];
     uint8_t     request;           /* Request pending */
     uint8_t     stacked;           /* Stacked status */

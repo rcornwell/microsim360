@@ -19,6 +19,13 @@
 # SOFTWARE.
 
 
+add_library(model2844lib)
+target_sources(model2844lib PRIVATE model2844.c model2844_ros.c)
+target_include_directories(model2844lib PRIVATE ${includes}
+                                                ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(${PROJECT_NAME} PUBLIC model2844lib)
+target_sources(${PROJECT_NAME} PUBLIC panel2844.c)
+
 # Program to convert ROS text into C data.
 set(CROS2844 ${CMAKE_CURRENT_SOURCE_DIR}/model2844_ros.txt)
 add_executable(cros2844 cros2844.c)
@@ -29,16 +36,7 @@ add_custom_target(model2844_ros.h
        COMMENT "Building model 2844 ROS data"
        DEPENDS cros2844 ${CROS2844})
 
-add_library(model2844lib)
-target_sources(model2844lib PRIVATE model2844.c model2844_ros.c)
-target_include_directories(model2844lib PRIVATE ${includes})
-target_include_directories(model2844lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(model2844lib model2844_ros.h)
-
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_sources(${PROJECT_NAME} PUBLIC panel2844.c)
-target_link_libraries(${PROJECT_NAME} PUBLIC model2844lib)
 
 if (RUN_TESTS)
 add_executable(model2844_test ../test/ctest_main.c test/disk_test.c ../test/test_chan.c)

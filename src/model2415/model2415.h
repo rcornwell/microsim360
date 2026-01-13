@@ -125,7 +125,7 @@ int model2415_create(struct _option *opt);
 
 void model2415_rewind_callback(struct _device *unit, void *arg, int u);
 
-void *model2415_control(struct _device *unit, int u);
+void *model2415_control(struct _device *unit, int u, int x, int y);
 
 void model2415_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *bus_in);
 
