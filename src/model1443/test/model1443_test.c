@@ -72,7 +72,7 @@ model1443_init(struct _device *init, void *rend)
  */
 
 void *
-model1443_control(struct _device *unit, int u)
+model1443_control(struct _device *unit, int u, int x, int y)
 {
     return NULL;
 }

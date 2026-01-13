@@ -156,7 +156,7 @@ model1442_draw(struct _device *unit, void *rend, int u)
  */
 
 void *
-model1442_control(struct _device *unit, int u)
+model1442_control(struct _device *unit, int u, int x, int y)
 {
    return NULL;
 }

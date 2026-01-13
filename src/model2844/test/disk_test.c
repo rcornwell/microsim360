@@ -51,7 +51,7 @@ model2314_draw(struct _device *unit, void *rend, int u)
 }
 
 void *
-model2314_control(struct _device *unit, int u)
+model2314_control(struct _device *unit, int u, int x, int y)
 {
     return NULL;
 }

@@ -63,7 +63,7 @@ model2415_init(struct _device *unit, void *rend)
  */
 
 void *
-model2415_control(struct _device *unit, int u)
+model2415_control(struct _device *unit, int u, int x, int y)
 {
     return NULL;
 }
