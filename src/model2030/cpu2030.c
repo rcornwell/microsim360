@@ -35,8 +35,6 @@
 #include "model2030.h"
 #include "model1052.h"
 
-DEV_LIST_STRUCT(2030, CPU_TYPE, CHAR_OPT|NUM_MOD);
-
 struct CPU_2030 cpu_2030;
 
 /* Machine check bits */
@@ -241,6 +239,8 @@ static int        cg_mask[4] = { 0x00, 0x0f, 0xf0, 0xff };
 */
 
 static char  dis_buffer[1024];
+
+DEV_LIST_STRUCT(2030, CPU_TYPE, CHAR_OPT|NUM_MOD);
 
 void
 cycle_2030()
@@ -2835,57 +2835,5 @@ chan_scan:
     /* Restore Operational out */
     cpu_2030.MPX_TAGS |= CHAN_OPR_OUT;
 
-}
-
-struct _device *
-model2030_init(void *render, uint16_t addr)
-{
-    INT_TMR = 1;   /* By default enable interval timer */
-    return NULL;
-}
-
-/* Create a 2030 cpu system. */
-int
-model2030_create(struct _option *opt)
-{
-    extern  void setup_fp2030(void *rend);
-    int     msize;
-    uint16_t         port = 3270;
-    struct _option   opts;
-
-    if (title != NULL) {
-        fprintf(stderr, "CPU already defined, can't support more then one\n");
-        return 0;
-    }
-    title = "IBM360/30";
-    setup_cpu = &setup_fp2030;
-    step_cpu = &cycle_2030;
-
-    while (get_option(&opts)) {
-         int       v;
-
-         if (strcmp(opts.opt, "PORT") == 0 && get_integer(&opts, &v)) {
-             port = v;
-         } else {
-             fprintf(stderr, "Invalid option %s\n", opts.opt);
-             return 0;
-         }
-    }
-
-    if (opt->model != '\0') {
-        msize = 2048 << (opt->model - 'A');
-        if (msize > (64 * 1024)) {
-            return 0;
-        }
-    } else {
-        msize = 64 * 1024;
-    }
-    if ((M = (uint32_t *)calloc(msize, sizeof(uint32_t))) == NULL)
-        return 0;
-    mem_max = msize - 1;
-    log_info("Model 30 configured %d %04x mem\n", msize, mem_max);
-    cpu_2030.console = model1052_init_ctx(port);
-    INT_TMR = 1;   /* By default enable interval timer */
-    return 1;
 }
 

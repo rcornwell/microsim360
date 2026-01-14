@@ -76,4 +76,11 @@ extern uint8_t  load_mode;
 
 extern uint32_t *M;
 extern uint32_t mem_max;     /* 8K = 0x1FFF, 16K = 0x3FFF, 32K = 0x7FF, 64k = 0xFFFF */
+
+extern char *title;
+
+extern void *(*setup_cpu)(char *title);
+
+extern void (*step_cpu)();
+
 #endif

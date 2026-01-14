@@ -87,6 +87,7 @@
 #include "device.h"
 #include "widgets.h"
 #include "conf.h"
+#include "cpu.h"
 #ifdef _WIN32
 #include "getopt.h"
 #endif

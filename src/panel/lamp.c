@@ -81,8 +81,8 @@ add_lamp(Panel win, int x, int y, char *label1,
    SDL_Surface *surf;
    SDL_Texture *text;
    struct _lamp_t *l;
-   int          hh, wh, k;
-   Uint32       f;
+   int          hh, wh;
+
    if ((nwid = (Widget)calloc(1, sizeof(struct _widget_t))) == NULL) {
        return NULL;
    }
@@ -102,7 +102,7 @@ add_lamp(Panel win, int x, int y, char *label1,
    if (label1 != NULL) {
        surf = TTF_RenderText_Blended(font, label1, *t_col);
        text = SDL_CreateTextureFromSurface(win->render, surf);
-       SDL_QueryTexture(text, &f, &k, &wh, &hh);
+       SDL_QueryTexture(text, NULL, NULL, &wh, &hh);
        SDL_FreeSurface(surf);
        l->label = text;
        l->rect_label.x = x + 7 - (wh/2);

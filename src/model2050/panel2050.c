@@ -138,10 +138,9 @@ static int switch_offset[33] = {
 };
 
 
-void
-setup_fp2050(void *rend)
+void *
+setup_fp2050(char *title)
 {
-    SDL_Renderer *render = (SDL_Renderer *)rend;
     SDL_Rect rect, rect2;
     SDL_Surface *text;
     SDL_Texture *txt;
@@ -160,25 +159,29 @@ setup_fp2050(void *rend)
     int      mark[40];
     int      pos_reg[20];
     char     buffer[40];
-    Uint32   f;
     dial_label label;
+    Panel    cpu_panel;
 
     j = 0;
 
     /* Compute size of fonts */
     if (TTF_SizeText(font10, "M", &wx, &hx) != 0) {
-        return;
+        return NULL;
     }
 
     if (TTF_SizeText(font1, "M", &w1, &h1) != 0) {
-        return;
+        return NULL;
     }
 
+    cpu_panel = create_window(title, 1100, 975, 0);
+    if (cpu_panel == NULL) {
+        return NULL;
+    }
 
     text = IMG_ReadXPMFromArray(rollers_img);
-    roll = SDL_CreateTextureFromSurface( render, text);
+    roll = SDL_CreateTextureFromSurface( cpu_panel->render, text);
     SDL_FreeSurface(text);
-    SDL_QueryTexture(roll, &f, NULL, &rw, NULL);
+    SDL_QueryTexture(roll, NULL, NULL, &rw, NULL);
 
     /* Draw top of display */
     add_area(cpu_panel, 0, 0, 975, 1100, &c_back);
@@ -648,6 +651,8 @@ setup_fp2050(void *rend)
              font1, LAMP_RED, &c_black);
     add_lamp(cpu_panel, s + 100, p + (7*hx), "LOAD", &cpu_2050.load_mode,
              font1, LAMP_WHITE, &c_black);
+
+   return (void *)cpu_panel;
 
 }
 

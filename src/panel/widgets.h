@@ -84,18 +84,9 @@ typedef struct _panel_t {
 
 void run_sim();
 
-extern Panel       cpu_panel;
-extern Panel       popup_panel;
-
 extern uint64_t    step_count;
 
-extern char *title;
-
 void SDL_Setup(char *title);
-
-extern void (*setup_cpu)(void *rend);
-
-extern void (*step_cpu)();
 
 Panel create_window(char *title, int w, int h, int popup);
 

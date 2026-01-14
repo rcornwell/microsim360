@@ -1589,6 +1589,9 @@ cycle_2050()
 
     /* Save next ROAR address. */
     cpu_2050.NROAR |= (a_bit << 1)|b_bit;
+    cpu_2050.a_bit = a_bit;
+    cpu_2050.b_bit = b_bit;
+
 
 
     /* On dead cycle, save state, and ignore rest of cycle */
@@ -6288,7 +6291,7 @@ model2050_init(void *render, uint16_t addr)
 int
 model2050_create(struct _option *opt)
 {
-    extern  void setup_fp2050(void *rend);
+    extern  void *setup_fp2050(char *title);
     int     msize;
 
     if (title != NULL) {

@@ -74,12 +74,6 @@ SDL_Color c_outline = {0x7d, 0x79, 0x78};    /* Outline color */
 SDL_Color c_label = {0xb4, 0xb0, 0xa5};    /* Label background */
 SDL_Color c_on = {0xd8, 0xcb, 0x72};   /* On digit */
 SDL_Color c_off = {0x1a, 0x1a, 0x1a};   /* Off digit */
-SDL_Window *screen = NULL;
-SDL_Window *screen2 = NULL;
-SDL_Window *screen3 = NULL;
-SDL_Renderer *render = NULL;
-SDL_Renderer *render2 = NULL;
-SDL_Renderer *render3 = NULL;
 SDL_Texture *lamps;
 SDL_Texture *toggle_pic;
 SDL_Texture *hex_dials;
@@ -93,61 +87,6 @@ SDL_cond   *display_wait;            /* Display waiting for update */
 
 uint64_t step_count;
 int      cpu_count;
-
-int      SYS_RST;
-int      ROAR_RST;
-int      START;
-int      SET_IC;
-int      CHECK_RST;
-int      STOP;
-int      INT_TMR;
-int      STORE;
-int      DISPLAY;
-int      LAMP_TEST;
-int      POWER;
-int      INTR;
-int      LOAD;
-int      timer_event;
-
-uint32_t ADR_CMP;
-uint32_t INST_REP;
-uint32_t ROS_CMP;
-uint32_t ROS_REP;
-uint32_t SAR_CMP;
-uint32_t FORC_IND;
-uint32_t FLT_MODE;
-uint32_t CHN_MODE;
-uint8_t  SEL_SW;
-int      SEL_ENTER;
-
-uint8_t  A_SW;
-uint8_t  B_SW;
-uint8_t  C_SW;
-uint8_t  D_SW;
-uint8_t  E_SW;
-uint8_t  F_SW;
-uint8_t  G_SW;
-uint8_t  H_SW;
-uint8_t  J_SW;
-
-uint8_t  PROC_SW;
-uint8_t  RATE_SW;
-uint8_t  CHK_SW;
-uint8_t  MATCH_SW;
-uint8_t  STORE_SW;
-
-uint16_t end_of_e_cycle;
-uint16_t store;
-uint16_t allow_write;
-uint16_t match;
-uint16_t t_request;
-uint8_t  allow_man_operation;
-uint8_t  wait;
-uint8_t  test_mode;
-uint8_t  clock_start_lch;
-uint8_t  load_mode;
-Panel    cpu_panel;
-Panel    popup_panel;
 
 /* Add widget to window list */
 void
@@ -200,6 +139,10 @@ create_window(char *title, int w, int h, int popup)
    return win->panel;
 }
 
+/*
+ * Close a window and remove it from list of windows.
+ * Call each widgets close routine to clean up house.
+ */
 void
 close_window(Window win)
 {
@@ -256,8 +199,10 @@ close_window(Window win)
 void
 SDL_Setup(char *title)
 {
+    SDL_Renderer *render;
     SDL_Surface *text;
     Panel       dev_panel;
+    Panel       cpu_panel;
 
     /* Start SDL */
     SDL_Init( SDL_INIT_EVERYTHING );
@@ -270,17 +215,21 @@ SDL_Setup(char *title)
     win_list_tail = NULL;
 
 
-    /* Set up screen */
-    cpu_panel = create_window(title, 1100, 975, 0);
-    screen = cpu_panel->screen;
-    render = cpu_panel->render;
-
     /* Create fonts */
     font0 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 6);
     font1 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 9);
     font10 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 10);
     font12 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 12);
     font14 = TTF_OpenFont("../fonts/SourceCodePro-Black.ttf", 14);
+
+    /* Set up screen */
+    if (setup_cpu == NULL) {
+        fprintf(stderr, "No CPU defined\n");
+        return;
+    }
+    cpu_panel = (Panel)(*setup_cpu)(title);
+    render = cpu_panel->render;
+
     /* Load in base images for CPU */
     text = IMG_ReadXPMFromArray(lamps_img);
     lamps = SDL_CreateTextureFromSurface( render, text);
@@ -298,35 +247,26 @@ SDL_Setup(char *title)
     SDL_SetTextureBlendMode(toggle_pic, SDL_BLENDMODE_BLEND);
     SDL_FreeSurface(text);
 
-    SDL_SetRenderDrawColor( render, 0x00, 0x00, 0x00, 0xFF);
-    SDL_RenderClear( render);
-    if (setup_cpu != NULL)
-        (*setup_cpu)((void *)render);
     cpu_count = 0;
     add_number(cpu_panel, 800, 5, 16, 80, &cpu_count, font14, &c_black, &c_white);
     dev_panel = create_device_window();
     system_init((void *)dev_panel->render);
 }
 
+/*
+ * Close all open windows.
+ */
 void
-draw_panels()
+close_windows()
 {
-    Widget       wp;
-
-    /* Clear display */
-    SDL_SetRenderDrawColor( render, 0x00, 0x00, 0x00, 0xFF);
-    SDL_RenderClear( render);
-
-    /* Render all cpu panel */
-    for (wp = cpu_panel->list; wp != NULL; wp = wp->next) {
-         if (wp->draw != NULL)
-             wp->draw(wp, render);
+    while (win_list_head != NULL) {
+        close_window(win_list_head);
     }
-
-    SDL_RenderPresent( render );
 }
 
-
+/*
+ * Refresh all windows.
+ */
 void
 draw_screen()
 {
@@ -347,23 +287,9 @@ draw_screen()
     }
 }
 
-void
-draw_popup(struct _popup *popup)
-{
-    Widget       wp;
-
-    /* Clear display */
-    SDL_SetRenderDrawColor( popup->render, 0x00, 0x00, 0x00, 0xFF);
-    SDL_RenderClear( popup->render);
-    /* Render all popup function */
-    if (popup->panel != NULL && popup->panel->list != NULL) {
-        for (wp = popup->panel->list; wp != NULL; wp = wp->next) {
-             if (wp->draw != NULL)
-                 wp->draw(wp, popup->render);
-        }
-    }
-}
-
+/*
+ * Handle 50hz timer events.
+ */
 uint32_t
 timer_callback(uint32_t interval, void *param)
 {
@@ -431,10 +357,11 @@ run_sim()
                                                 event.button.y - wp->rect.y);
                                   wp->active = 1;
                                   if (wp->focus) {
-                                      if (cpu_panel->focus != NULL) {
-                                          cpu_panel->focus->focus = 0;
+                                      if (winp->panel->focus != NULL) {
+                                          winp->panel->focus->focus = 0;
                                       }
-                                      cpu_panel->focus = wp;
+                                      winp->panel->focus = wp;
+                                      wp->focus = 1;
                                   }
                              }
                          }
@@ -521,14 +448,7 @@ run_sim()
 
 	log_trace("Done\n");
     system_shutdown();
-    /* Clear any widgets that have resources to remove */
-    for (wp = cpu_panel->list; wp != NULL;) {
-         Widget wpn = wp->next;
-         if (wp->close != NULL)
-             wp->close(wp);
-         free(wp);
-         wp = wpn;
-    }
+    close_windows();
 
     SDL_WaitThread(thrd, NULL);
     SDL_RemoveTimer(disp_timer);
@@ -539,8 +459,6 @@ run_sim()
     TTF_Quit();
     SDL_DestroyCond(display_wait);
     SDL_DestroyMutex(display_mutex);
-    SDL_DestroyRenderer(render);
-    SDL_DestroyWindow(screen);
     SDL_Quit();
 	return;
 }

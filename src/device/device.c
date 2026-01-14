@@ -45,12 +45,6 @@ struct _device *chan[6];         /* Channels */
 uint32_t      *M;
 uint32_t      mem_max;
 
-char *title = NULL;
-
-void (*setup_cpu)(void *rend) = NULL;
-
-void (*step_cpu)() = NULL;
-
 /*
  * Log channel control bits to log.
  */
@@ -235,7 +229,8 @@ step_disk()
 {
     struct _disk  *d;
 
-    for (d = disk; d != NULL; d = d->next)
+    for (d = disk; d != NULL; d = d->next) {
         (d->step)(d->disk);
+    }
 }
 

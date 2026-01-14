@@ -30,7 +30,7 @@ add_custom_target(model2030_ros.h
        DEPENDS cros2030 ${CROS30})
 
 add_library(model2030lib)
-target_sources(model2030lib PRIVATE cpu2030.c model2030_ros.c)
+target_sources(model2030lib PRIVATE model2030.c cpu2030.c model2030_ros.c)
 target_include_directories(model2030lib PRIVATE ${includes})
 target_include_directories(model2030lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(model2030lib model2030_ros.h)

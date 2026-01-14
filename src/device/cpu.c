@@ -1,7 +1,7 @@
 /*
- * microsim360 - Front panel control definitions.
+ * microsim360 - CPU external front panel switch definitions.
  *
- * Copyright 2021, Richard Cornwell
+ * Copyright 2022, Richard Cornwell
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,35 +23,60 @@
  *
  */
 
-#ifndef _PANEL_H_
-#define _PANEL_H_
-#include <SDL.h>
-#include <SDL_ttf.h>
+
 #include <stdint.h>
+#include <stddef.h>
+#include "cpu.h"
+
+int      SYS_RST;
+int      ROAR_RST;
+int      START;
+int      SET_IC;
+int      CHECK_RST;
+int      STOP;
+int      INT_TMR;
+int      STORE;
+int      DISPLAY;
+int      LAMP_TEST;
+int      POWER;
+int      INTR;
+int      LOAD;
+int      timer_event;
+uint32_t ADR_CMP;
+uint32_t INST_REP;
+uint32_t ROS_CMP;
+uint32_t ROS_REP;
+uint32_t SAR_CMP;
+uint32_t FORC_IND;
+uint32_t FLT_MODE;
+uint32_t CHN_MODE;
+uint8_t  SEL_SW;
+int      SEL_ENTER;
+
+uint8_t  A_SW;
+uint8_t  B_SW;
+uint8_t  C_SW;
+uint8_t  D_SW;
+uint8_t  E_SW;
+uint8_t  F_SW;
+uint8_t  G_SW;
+uint8_t  H_SW;
+uint8_t  J_SW;
+
+uint8_t  PROC_SW;
+uint8_t  RATE_SW;
+uint8_t  CHK_SW;
+uint8_t  MATCH_SW;
+uint8_t  STORE_SW;
+
+uint8_t  wait;
+uint8_t  test_mode;
+uint8_t  load_mode;
+
+char *title = NULL;
+
+void *(*setup_cpu)(char *title) = NULL;
+
+void (*step_cpu)() = NULL;
 
 
-/* Structure of device control popup */
-struct _popup {
-      int        unit_num;
-      SDL_Window *screen;
-      SDL_Renderer *render;
-      void       *device;
-      void       (*update)(struct _popup *pop, void *device, int index);
-      Panel      panel;
-};
-
-typedef struct _window_t {
-      struct   _window_t  *next, *prev;
-      SDL_Window   *screen;
-      SDL_Renderer  *render;
-      int           windowID;
-      Panel         panel;
-      char         *title;
-      int           popup;
-} window, *Window;
-
-void run_sim();
-
-extern uint64_t    step_count;
-
-#endif

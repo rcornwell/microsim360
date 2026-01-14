@@ -100,8 +100,8 @@ struct _labels sel_labels[] = {
     { "INT", "FACE" },
 };
 
-void
-setup_fp2030(void *rend)
+void *
+setup_fp2030(char *title)
 {
     reg_row  reg;
     int	     i, j, k;
@@ -119,18 +119,24 @@ setup_fp2030(void *rend)
     int      e;           /* Temporary end position */
     int      p;           /* Temporary row position */
     int      pos_reg[32]; /* Position of digits in register */
-    Uint32   f;
+    Panel    cpu_panel;
     dial_label label;
 
-log_trace("Initialize panel\n");
+    log_trace("Initialize panel\n");
     j = 0;
 
     /* Compute size of fonts */
     if (TTF_SizeText(font10, "M", &wx, &hx) != 0) {
-        return;
+        return NULL;
     }
     if (TTF_SizeText(font1, "M", &w1, &h1) != 0) {
-        return;
+        return NULL;
+    }
+
+    cpu_panel = create_window(title, 1100, 975, 0);
+
+    if (cpu_panel == NULL) {
+        return NULL;
     }
 
     step = hx;
@@ -707,5 +713,6 @@ log_trace("Initialize panel\n");
               2, 0, font1, &c_black);
     add_label(cpu_panel, pos_reg[7] + 150 - (6*wx), control_row,
               "CHECK CONTROL", font10, &c_black);
+    return (void *)cpu_panel;
 }
 

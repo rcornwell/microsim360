@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_library(devicelib STATIC card.c disassem.c device.c tape.c xlat.c dasd.c)
+add_library(devicelib STATIC card.c disassem.c device.c tape.c xlat.c dasd.c cpu.c)
 target_include_directories(devicelib PRIVATE ${includes})
 #                                            ${SDL2_INCLUDE_DIRS}
 #                                            ${SDL2_IMAGE_INCLUDE_DIRS}

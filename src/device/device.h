@@ -185,13 +185,6 @@ void system_init(void *render);
 
 void system_shutdown();
 
-extern char *title;
-
-extern void (*setup_cpu)(void *rend);
-
-extern void (*step_cpu)();
-
-
 /*
  *    Bus-Out   Bus-In     Tags                                       Function
  *    dev        ~        Addr-out                                    Initial select
