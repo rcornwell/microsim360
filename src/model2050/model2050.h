@@ -118,6 +118,8 @@ uint8_t     n_s_reg;            /* Next cycle S register */
 uint8_t     u_bus;              /* Mover u input */
 uint8_t     v_bus;              /* Mover v input */
 uint8_t     w_bus;              /* Mover w output */
+int         a_bit;
+int         b_bit;
 
 uint8_t     mvfnc;              /* Mover function register */
 uint8_t     io_mvfnc;           /* Mover I/O function register */
