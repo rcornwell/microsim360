@@ -32,9 +32,9 @@
 #include "logger.h"
 #include "device.h"
 
-int log_level;
+int log_level = 0;
 extern uint64_t     step_count;
-int log_enable;
+int log_enable = 0;
 
 FILE *log_file = NULL;
 
@@ -73,7 +73,6 @@ log_init(char *filename)
         fprintf(stderr, "Unable to open log file %s\n", filename);
         exit(1);
     }
-    log_enable = 1;
 }
 
 static int last_level = 0;
@@ -244,5 +243,24 @@ logLEVEL_create(struct _option *opt)
     return r;
 }
 
+int
+logENABLE_create(struct _option *opt)
+{
+    printf("Logging enabled\n");
+    log_enable = 1;
+    return 1;
+}
+
+int
+logDISABLE_create(struct _option *opt)
+{
+    printf("Logging disabled\n");
+    log_enable = 0;
+    return 1;
+}
+
+
 LOG_OPT_STRUCT(FILE);
 LOG_OPT_STRUCT(LEVEL);
+LOG_OPT_STRUCT(ENABLE);
+LOG_OPT_STRUCT(DISABLE);
