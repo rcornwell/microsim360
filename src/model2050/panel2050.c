@@ -216,7 +216,7 @@ setup_fp2050(char *title)
 
     roffset = 180;
 
-    add_roller(cpu_panel, roffset, pos, &rect, roll, 8, &roller_1, 36, roller_offset, LAMP_WHITE);
+    add_roller(cpu_panel, roffset, pos, &rect, roll, 7, &roller_1, 36, roller_offset, LAMP_WHITE);
     rect.y += 8 * rect.h;
     pos += (rect.h * 3) + 25;
 
@@ -241,13 +241,13 @@ setup_fp2050(char *title)
     add_label_center(cpu_panel, wx*2, p+(h1/2)+2, wx*8, "DISPLAY", font1, &c_black);
 
 
-    add_roller(cpu_panel, roffset, pos, &rect, roll, 8, &roller_2, 36, roller_offset, LAMP_WHITE);
+    add_roller(cpu_panel, roffset, pos, &rect, roll, 7, &roller_2, 36, roller_offset, LAMP_WHITE);
     rect.y += 8 * rect.h;
     pos += (rect.h * 3) + 25;
-    add_roller(cpu_panel, roffset, pos, &rect, roll, 8, &roller_3, 36, roller_offset, LAMP_WHITE);
+    add_roller(cpu_panel, roffset, pos, &rect, roll, 7, &roller_3, 36, roller_offset, LAMP_WHITE);
     rect.y += 8 * rect.h;
     pos += (rect.h * 3) + 25;
-    add_roller(cpu_panel, roffset, pos, &rect, roll, 8, &roller_4, 36, roller_offset, LAMP_WHITE);
+    add_roller(cpu_panel, roffset, pos, &rect, roll, 7, &roller_4, 36, roller_offset, LAMP_WHITE);
     pos += (rect.h * 3);
     add_area(cpu_panel, roffset, pos, hx, rw2, &c_black);
     h = hx*4 + (hx/2);

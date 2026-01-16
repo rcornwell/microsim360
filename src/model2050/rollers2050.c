@@ -25,46 +25,64 @@
 
 #include <stdint.h>
 #include "model2050.h"
+#include "xlat.h"
 #include "rollers2050.h"
+
+
+uint64_t
+add_parity(uint32_t data)
+{
+    uint64_t  result;
+
+   result = ((uint64_t)odd_parity[data&0xff]) | 
+                         ((uint64_t)data & 0xff);
+   result |= ((uint64_t)odd_parity[(data>>8)&0xff] << 9) |
+                         (((uint64_t)data & 0xff00) << 9);
+   result |= ((uint64_t)odd_parity[(data>>16)&0xff] << 18) |
+                         (((uint64_t)data & 0xff0000) << 18);
+   result |= ((uint64_t)odd_parity[(data>>24)&0xff] << 27) |
+                         (((uint64_t)data & 0xff000000) << 27);
+   return result;
+}
 
 uint64_t
 roller_1(int position)
 {
-    uint64_t bits = 0;
+    uint64_t bits = position;
 
     switch(position) {
     case 0:
             if ((cpu_2050.CHCTL & 1) != 0) {   /* SIO */
-                bits |= 1 << 17;
+                bits |= 1llu << 35;
             }
             if ((cpu_2050.CHCTL & 4) != 0) {   /* TIO */
-                bits |= 1 << 16;
+                bits |= 1llu << 34;
             }
             if ((cpu_2050.CHCTL & 2) != 0) {   /* HIO */
-                bits |= 1 << 15;
+                bits |= 1llu << 33;
             }
             if ((cpu_2050.CHCTL & 8) != 0) {   /* TCH */
-                bits |= 1 << 14;
+                bits |= 1llu << 32;
             }
             if ((cpu_2050.CH & 4) != 0) {      /* CH */
-                bits |= 1 << 13;
+                bits |= 1llu << 31;
             }
             if ((cpu_2050.CH & 2) != 0) {
-                bits |= 1 << 12;
+                bits |= 1llu << 30;
             }
             if ((cpu_2050.CH & 1) != 0) {
-                bits |= 1 << 11;
+                bits |= 1llu << 29;
             }
             /* Instruction reply - 7,8,9,10 */
             /* reply 6 */
             if ((cpu_2050.BCHI) != 0) {       /* BCHI */
-                bits |= 5 << 10;
+                bits |= 1llu << 23;
             }
             /* Proceed on Intrrupt 4 */
             /* Time Out 3 */
             /* Time Check 2 */
             if ((cpu_2050.CHCTL & 1) != 0) {  /* Foul */
-                bits |= 1 << 1;
+                bits |= 1llu << 24;
             }
             /* Blank */
             break;
@@ -75,20 +93,20 @@ roller_1(int position)
 uint64_t
 roller_2(int position)
 {
-    uint64_t bits = 0;
+    uint64_t bits = position;
 
     switch(position) {
     case 0:
-        bits = cpu_2050.SAR_REG;
+//        bits = cpu_2050.SAR_REG;
         break;
     case 1:
-        bits = cpu_2050.BS_REG;
+ //       bits = cpu_2050.BS_REG;
         break;
-   case  2:
-        bits = cpu_2050.M_REG;
+    case  2:
+  //      bits = add_parity(cpu_2050.M_REG);
         break;
-   case  3:
-        bits = cpu_2050.H_REG;
+    case  3:
+   //     bits = add_parity(cpu_2050.H_REG);
         break;
     }
     return bits;
@@ -97,21 +115,33 @@ roller_2(int position)
 uint64_t
 roller_3(int position)
 {
-    uint64_t bits = 0;
+    uint64_t bits;
 
     switch(position) {
     case 0:
-        bits = cpu_2050.L_REG;
+        bits = add_parity(cpu_2050.L_REG);
         break;
     case 1:
-        bits = cpu_2050.R_REG;
+        bits = add_parity(cpu_2050.R_REG);
         break;
-   case  2:
-        bits = cpu_2050.M_REG;
+    case  2:
+        bits = add_parity(cpu_2050.M_REG);
         break;
-   case  3:
-        bits = cpu_2050.H_REG;
+    case  3:
+        bits = add_parity(cpu_2050.H_REG);
         break;
+    case 4:
+        bits = add_parity(cpu_2050.SAR_REG) << 9;
+        bits |= ((uint64_t)cpu_2050.BI_REG) << 4;
+        bits |= (uint64_t)cpu_2050.BS_REG;
+        break;
+    case 5:
+        bits = ((uint64_t)ros_2050[cpu_2050.ROAR].row3) << 9;
+        bits |= ((uint64_t)ros_2050[cpu_2050.ROAR].row4) << 2;
+        break;
+    case 6:
+        bits = ((uint64_t)(cpu_2050.break_in != 0)) << 35;
+        bits |= ((uint64_t)cpu_2050.last_cycle) << 33;
     }
     return bits;
 }
@@ -119,20 +149,25 @@ roller_3(int position)
 uint64_t
 roller_4(int position)
 {
-    uint64_t bits = 0;
+    uint64_t bits = position;
 
     switch(position) {
     case 0:
-        bits = cpu_2050.ros_row1;
+        bits = ((uint64_t)ros_2050[cpu_2050.ROAR].row1) << 4;
         break;
     case 1:
-        bits = cpu_2050.ros_row2;
+        bits = ((uint64_t)ros_2050[cpu_2050.ROAR].row2) << 12;
+        bits |= ((uint64_t)cpu_2050.mvfnc) << 7;
+        bits |= ((uint64_t)cpu_2050.io_mvfnc) << 4;
         break;
    case  2:
-        bits = cpu_2050.mvfnc;
-        break;
-   case  3:
-        bits = cpu_2050.io_mvfnc;
+        bits = ((uint64_t)cpu_2050.SYLS1) << 35;
+        bits |= ((uint64_t)cpu_2050.REFETCH) << 34;
+        bits |= ((uint64_t)cpu_2050.NROAR) << 20;
+ // b & a bits
+        bits |= ((uint64_t)cpu_2050.ILC) << 10;
+        bits |= ((uint64_t)cpu_2050.CC) << 8;
+        bits |= ((uint64_t)cpu_2050.PMASK) << 4;
         break;
     }
     return bits;
