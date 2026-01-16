@@ -46,7 +46,7 @@ display_roller(Widget wid, SDL_Renderer *render)
    SDL_Rect   rect2;
    uint64_t   bits;
    int        i;
-   int        mask;
+   uint64_t   mask;
 
    rect.x = wid->rect.x;
    rect.y = wid->rect.y;
@@ -60,12 +60,12 @@ display_roller(Widget wid, SDL_Renderer *render)
    rect.y += rol->rect.h + 10;
    rect.w = 15;
    rect.h = 15;
-   rect2.x += rol->color * 15;
+   rect2.x = rol->color * 15;
    rect2.y = 0;
    rect2.w = 15;
    rect2.h = 15;
    bits = (*rol->get_row)(rol->pos);
-   mask = 1 << rol->positions;
+   mask = (uint64_t)1 << (rol->positions-1);
    for (i = 0; i < rol->positions; i++) {
         rect.x += rol->offsets[i];
         if (LAMP_TEST || (bits & mask) != 0) {
@@ -83,7 +83,7 @@ click_roller(Widget wid, int x, int y)
 {
    struct _roller_t *rol = (struct _roller_t *)wid->data;
 
-   if (y > rol->rect.h) {
+   if (y < (rol->rect.h/2)) {
          rol->pos++;
          if (rol->pos >= rol->rows) {
              rol->pos = 0;
