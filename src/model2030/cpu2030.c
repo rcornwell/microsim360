@@ -892,7 +892,7 @@ cycle_2030()
              }
 
              print_inst(mem);
-             switch(cpu_2030.LS[0x7BB] & 0xf) {
+             switch(cpu_2030.LS[0x7BB] & 0xf0) {
              case 0x40:  cc = 1; break;
              case 0x20:  cc = 2; break;
              case 0x10:  cc = 3; break;
