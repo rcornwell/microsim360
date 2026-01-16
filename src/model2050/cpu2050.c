@@ -5676,6 +5676,8 @@ channel:
                                  cpu_2050.CHREQ[i] = BIT4;    /* Request new CCW */
                                  cpu_2050.IF_STOP[i] = 1;
                              } else {
+                                 /* Force SLI */
+                                 cpu_2050.FLAGS_REG[i] |= (CHAN_SLI_FLAG << 8);
                                  /* If not command chain, request interrupt */
                                  cpu_2050.C3[i] = 0;
                                  cpu_2050.CHREQ[i] = BIT3;   /* Request end processing */
@@ -5697,6 +5699,8 @@ channel:
                              /* If channel end and not chaining, process results */
                              if ((cpu_2050.FLAGS_REG[i] & (CHAN_CC_FLAG << 8)) == 0) {
                                  cpu_2050.TAGS[ch] &= ~(CHAN_SEL_OUT|CHAN_HLD_OUT);
+                                 /* Force SLI */
+                                 cpu_2050.FLAGS_REG[i] |= (CHAN_SLI_FLAG << 8);
                                  cpu_2050.C2[i] = 0;
                                  cpu_2050.CHREQ[i] = BIT3;   /* Request end processing */
                                  cpu_2050.IOSTAT[i] = BIT4;
@@ -5838,6 +5842,12 @@ channel:
                    }
                }
                if (cpu_2050.last_cycle) {
+                   /* Check for Short Length record. */
+                   if (cpu_2050.C3[i] == 0 &&
+                       (cpu_2050.FLAGS_REG[i] & ((CHAN_SLI_FLAG) << 8)) == 0 &&
+                       (cpu_2050.aob_latch & 0xffff) != 0) {
+                      cpu_2050.FLAGS_REG[i] |= CHAN_LENGTH;
+                   }
                    cpu_2050.C1[i] = 0;
                    cpu_2050.C2[i] = 0;
                    cpu_2050.CHPOS[i] = 0;
