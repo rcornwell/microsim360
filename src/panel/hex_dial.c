@@ -26,9 +26,17 @@
 #include "hex_dial.h"
 
 
+static char *hex_digit[] = {
+   "0", "1", "2", "3", "4", "5", "6", "7",
+   "8", "9", "A", "B", "C", "D", "E", "F"
+};
+
 static void
 display_hex_dial(Widget wid, SDL_Renderer *render)
 {
+   SDL_Surface *surf;
+   SDL_Texture *text;
+   int          hx, wx;
    SDL_Rect  rect;
    uint8_t   value = *((uint8_t *)wid->data);
 
@@ -37,6 +45,17 @@ display_hex_dial(Widget wid, SDL_Renderer *render)
    rect.h = 64;
    rect.w = 64;
    SDL_RenderCopy(render, hex_dials, &rect, &wid->rect);
+   /* Overlay current value */
+   surf = TTF_RenderText_Blended(font1, hex_digit[value], c_white);
+   text = SDL_CreateTextureFromSurface(render, surf);
+   SDL_QueryTexture(text, NULL, NULL, &wx, &hx);
+   SDL_FreeSurface(surf);
+   rect.x = wid->rect.x + 29;
+   rect.y = wid->rect.y + 2;
+   rect.h = hx;
+   rect.w = wx;
+   SDL_RenderCopy(render, text, NULL, &rect);
+
 }
 
 static void
