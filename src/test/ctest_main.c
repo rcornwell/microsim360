@@ -58,6 +58,7 @@ main(int argc, const char *argv[])
            log_init(test_log_file);
            sprintf(buffer, "loglevel %s\n", test_log_level);
            load_line(buffer);
+           log_enable = 1;
        } else if (strcmp(argv[i], "-v") == 0) {
            verbose = 1;
        } else {
