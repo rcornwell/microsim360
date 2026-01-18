@@ -1231,7 +1231,7 @@ cycle_2050()
             break;
 
     case 34: /* TZ*BS */
-            a_bit = ((cpu_2050.alu_out & BS_MASK[cpu_2050.BS_REG]) == 0);
+            a_bit = ((cpu_2050.aob_latch & BS_MASK[cpu_2050.BS_REG]) == 0);
             break;
 
     case 35: /* EDITPAT  */
@@ -3324,8 +3324,7 @@ cycle_2050()
                 s_update |= BIT0;     /* <-- */
             else
                 s_update &= ~BIT0;     /* <-- */
-            cpu_2050.LSA &= 0xf;
-            cpu_2050.LSA |= (sal->ce & 0x3) << 4;
+            cpu_2050.FN = (sal->ce & 03) << 4;
             break;
 
     case 15: /* B0,1SYL */
@@ -3389,7 +3388,7 @@ cycle_2050()
             break;
 
     case 27: /* S47,ED*FP */
-            s_update &= 0xf0;     /* <-- */
+            s_update &= 0xf0;   /* Clear S4 to S7 */
             t = (cpu_2050.alu_out >> 24) & 0xff;
             t1 = (carries & CPOS1) != 0;
             /* Compute ED value */
@@ -3399,9 +3398,23 @@ cycle_2050()
                 cpu_2050.ED_REG = 0x8 | (t & 07);
             else
                 cpu_2050.ED_REG = t & 07;
+            /* Stat 7 turned on:
+                   If ED == 0 */
+            if (cpu_2050.ED_REG == 0)
+                s_update |= BIT7;
+            /* Stat 6 turned on:
+                   If abs(ED) < 16. */
+            if ((t & 0x70) == 0 || (t & 0x70) == 0x70) {
+                s_update |= BIT6;
+            }
             t = (carries & CPOS0) != 0;
             t1 = (cpu_2050.right_bus & CPOS0) != 0;
             t2 = ((cpu_2050.left_bus & CPOS0) != 0);
+            /* Stat 5 turned on:
+                   If right adder bit 0, left adder bit 0 and S1 have even number
+                   of bits. (True add required). */
+            if ((((s_update & BIT1) != 0) ^ t1 ^ t2) != 0)     /* <-- */
+                s_update |= BIT5;     /* <-- */
             /* S0 = add
                S1 = sub
                S2 = unorm
@@ -3413,6 +3426,10 @@ cycle_2050()
                       But not both. (Add type result minus)
                    If S0 and S1 == 0 and left adder input bit 0 != right adder input
                      bit 0 */
+            if ((s_update & (BIT0|BIT1)) != 0 && t1 && t) {
+                s_update |= BIT4;     /* <-- */
+            }
+
             if (((s_update & (BIT0)) != 0 && t1 == 0 && t2 == 0 && carry_out) ||     /* <-- */
                 ((s_update & (BIT0)) != 0 && t1 == 0 && t2 != 0 && !t && carry_out) ||     /* <-- */
                 ((s_update & (BIT1)) != 0 && t1 == 0 && t2 != 0 && t && carry_out) ||     /* <-- */
@@ -3423,19 +3440,6 @@ cycle_2050()
                 ((s_update & (BIT0|BIT1|BIT3)) == 0 && t1 != t2) ||     /* <-- */
                 ((s_update & (BIT0|BIT1|BIT3)) == BIT3 && t1 == t2))     /* <-- */
                 s_update |= BIT4;     /* <-- */
-            /* Stat 5 turned on:
-                   If right adder bit 0, left adder bit 0 and S1 have even number
-                   of bits. (True add required). */
-            if ((((s_update & BIT1) != 0) ^ t1 ^ t2) != 0)     /* <-- */
-                s_update |= BIT5;     /* <-- */
-            /* Stat 6 turned on:
-                   If abs(ED) < 16. */
-            if (t1 < 16 || (t1 & 0xf0) == 0xf0)
-                s_update |= BIT6;     /* <-- */
-            /* Stat 7 turned on:
-                   If ED == 0 */
-            if (cpu_2050.ED_REG == 0)
-                s_update |= BIT7;     /* <-- */
             break;
 
     case 28: /* OPPANEL->S47 */
@@ -3518,11 +3522,11 @@ cycle_2050()
             break;
 
     case 43: /* !S4,S4->CR */
-            cpu_2050.CC = (cpu_2050.S_REG & BIT4) ? 1 : 2;     /* <-- */
+            cpu_2050.CC = ((cpu_2050.S_REG & BIT4) != 0) ? 1 : 2;     /* <-- */
             break;
 
     case 44: /* S4,!S4->CR */
-            cpu_2050.CC = (cpu_2050.S_REG & BIT4) ? 2 : 1;     /* <-- */
+            cpu_2050.CC = ((cpu_2050.S_REG & BIT4) != 0) ? 2 : 1;     /* <-- */
             break;
 
     case 45: /* 1->REFETCH */
