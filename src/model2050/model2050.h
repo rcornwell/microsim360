@@ -68,10 +68,10 @@ extern struct ROS_2050 {
     char     note[20];
 } ros_2050[4096];
 
-#define R1  1                    /* Start of read cycle */
-#define R2  2                    /* Data ready during this cycle */
-#define R3  4                    /* Data can be modified in SDR */
-#define W1  8                    /* Store SDR in memory */
+#define R1  8                    /* Start of read cycle */
+#define R2  4                    /* Data ready during this cycle */
+#define R3  2                    /* Data can be modified in SDR */
+#define W1  1                    /* Store SDR in memory */
 
 /* To initiate Store read, state must be W2.
    Set address into SAR change state to R1. */
@@ -252,6 +252,7 @@ uint16_t    CHREQ[4];           /* Channel position request register */
 uint16_t    CHCLK[4];           /* Channel clock register */
 uint8_t     EOR[4];             /* End of record on channel */
 uint8_t     BCHI;               /* Interrupt pending */
+uint8_t     SEL_CHAN_SEL;       /* Selector channel selection switch */
 
 
 uint16_t    clock_start_lch;      /* CPU Running */

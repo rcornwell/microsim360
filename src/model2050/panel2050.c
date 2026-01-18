@@ -184,7 +184,7 @@ setup_fp2050(char *title)
     SDL_QueryTexture(roll, NULL, NULL, &rw, NULL);
 
     /* Draw top of display */
-    add_area(cpu_panel, 0, 0, 975, 1100, &c_back);
+    add_area(cpu_panel, 0, 0, 975, 1100, &c_label);
 
     /* Draw bottom switch panel */
     rw2 = 40;
@@ -229,13 +229,13 @@ setup_fp2050(char *title)
     }
 
     label.upper[2] = "SC1";
-    label.value[2] = 1;
+    label.value[2] = 0;
     label.upper[3] = "SC2";
-    label.value[3] = 2;
+    label.value[3] = 1;
     label.upper[4] = "SC3";
-    label.value[4] = 3;
+    label.value[4] = 2;
     p = pos + (hx*2);
-    add_dial(cpu_panel, 20 + (wx*11), p+(hx), 60, 120, 30, &label, NULL, 1, 0, font1, &c_black);
+    add_dial(cpu_panel, 20 + (wx*11), p+(hx), 60, 120, 30, &label, &cpu_2050.SEL_CHAN_SEL, 0, 0, font1, &c_black);
     add_label_center(cpu_panel, wx*2, p-(h1/2)-2, wx*8, "SELECTOR", font1, &c_black);
     add_label_center(cpu_panel, wx*2, p, wx*8, "CHANNEL", font1, &c_black);
     add_label_center(cpu_panel, wx*2, p+(h1/2)+2, wx*8, "DISPLAY", font1, &c_black);
