@@ -1072,7 +1072,7 @@ model2311_create(struct _option *opt)
      int              fmt;
      char            *vol;
 
-     dev2841 = find_chan(opt->addr, 0xf8);
+     dev2841 = find_chan_dev(opt->addr, 0xf8);
      if (dev2841 == NULL) {
          fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
          return 0;
@@ -1135,7 +1135,7 @@ model2302_create(struct _option *opt)
      struct  _2841_context *ctx;
      int              i;
 
-     dev2841 = find_chan(opt->addr, 0xf8);
+     dev2841 = find_chan_dev(opt->addr, 0xf8);
      if (dev2841 == NULL) {
          fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
          return 0;

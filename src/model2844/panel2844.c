@@ -132,7 +132,7 @@ model2314_create(struct _option *opt)
      char            *vol;
      int              t;
 
-     dev2844 = find_chan(opt->addr, 0xf8);
+     dev2844 = find_chan_dev(opt->addr, 0xf8);
      if (dev2844 == NULL) {
          fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
          return 0;

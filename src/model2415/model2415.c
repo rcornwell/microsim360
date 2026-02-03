@@ -1347,7 +1347,7 @@ model2415_create(struct _option *opt)
 
      /* Check if dealing with unit */
      if (opt->model == 'U') {
-         dev2415 = find_chan(opt->addr, 0xf8);
+         dev2415 = find_chan_dev(opt->addr, 0xf8);
          if (dev2415 == NULL) {
              fprintf(stderr, "Device not found %s %03x\n", opt->opt, opt->addr);
              return 0;
