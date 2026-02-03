@@ -80,6 +80,7 @@ typedef struct _panel_t {
     widget     *focus;           /* Window that currently has focus */
     SDL_Window *screen;          /* Pointer to screen. */
     SDL_Renderer *render;        /* Pointer to renderer */
+    void        *data;           /* Private data structure */
 } panel, *Panel;
 
 void run_sim();

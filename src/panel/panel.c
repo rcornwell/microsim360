@@ -189,6 +189,7 @@ close_window(Window win)
        }
     }
 
+    free(win->panel->data);
     free(win->title);
     free(win->panel);
     SDL_DestroyRenderer(win->render);
@@ -318,7 +319,6 @@ run_sim()
     SDL_Event event;
     Window       winp;
     Widget       wp;
-    uint32_t ticks;
 
     POWER = 1;
     SYS_RST = 1;  /* Force system reset */
@@ -408,16 +408,12 @@ run_sim()
            } else {
                switch(event.type) {
                case SDL_USEREVENT:
-                    ticks = SDL_GetTicks();
                     draw_screen();
                     SDL_LockMutex(display_mutex);
                     cpu_count = 0;
                     SDL_CondSignal(display_wait);
                     SDL_UnlockMutex(display_mutex);
-                    fps = (int)(SDL_GetTicks() - ticks);
                     SDL_FlushEvent(SDL_USEREVENT);
-                    if (fps < 18)
-                        SDL_Delay(18 - fps);
                     break;
                case SDL_WINDOWEVENT:
                        switch (event.window.event) {
