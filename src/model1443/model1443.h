@@ -46,26 +46,25 @@ struct _1443_context {
     int                    request;      /* Requested channel */
     int                    addressed;    /* Device has been addressed */
     int                    stacked;      /* Stacked status */
-    int                    busy_flag;    /* If we returned fast busy */
     int                    sense;        /* Current sense value */
+    uint16_t               data;
     int                    cmd;          /* Current command */
+    int                    cmd_done;     /* Command finished */
     int                    status;       /* Current bus status */
-    int                    data;         /* Current byte to send/recieve */
-    int                    data_rdy;     /* Data is valid */
-    int                    data_end;     /* End of data transfer */
-    int                    feed_done;    /* Done with paper feed */
+    int                    busy;
     FILE                  *file;         /* Output file. */
     char                  *file_name;    /* Attached file name */
-    int                    buf[144];     /* Line buffer */
+    uint8_t                buffer[144];  /* Line buffer */
     int                    col;          /* Current transfer column */
     int                    row;          /* Current print row */
     int                    lpp;          /* Number of lines per page */
+    int                    ch9;          /* Channel 9 passed */
+    int                    ch12;         /* Channel 12 passed */
     uint16_t               ready;        /* Printer in ready status */
     uint16_t               start;        /* Start printer */
     uint16_t               stop;         /* Stop printer after next cycle */
     uint16_t               single;       /* Single cycle printer */
     uint16_t               form;         /* Forms ready */
-    int                    cnt;          /* Transfer count */
     int                    fcb_num;      /* Forms control number */
     const uint16_t        *fcb;          /* Form control block */
     uint8_t                output[15][120];
@@ -84,5 +83,4 @@ void *model1443_control(struct _device *unit, int u, int x, int y);
 
 void model1443_init(struct _device *unit, void *rend);
 
-int model1443_create(struct _option *opt);
 #endif

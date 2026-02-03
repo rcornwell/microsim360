@@ -147,7 +147,6 @@ static void
     case 0:  /* Start Key */
           if (ctx->state == STATE_IDLE && ctx->file != NULL) {
               ctx->status |= SNS_DEVEND;
-              ctx->data_end = 1;
               ctx->stop = 0;
               ctx->single = 0;
               ctx->ready = 1;
