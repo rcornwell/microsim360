@@ -28,6 +28,15 @@ Planed devices include:
 *  IBM 2803 Tape controller.
 *  IBM 2703 Terminal controller.
 
+Model 30 front panel:
+![](doc/Model30_front_panel.png)
+
+Model 50 front panel:
+![](doc/Model50_front_panel.png)
+
+Devices image:
+![](doc/Devices_panel.png)
+
 To Build on Linux:
 
 ````
