@@ -171,7 +171,9 @@ void print_inst(uint8_t *val);
 
 void add_chan(device_t *dev, uint16_t addr);
 
-struct _device *find_chan(uint16_t addr, uint16_t mask);
+struct _device *find_chan_dev(uint16_t addr, uint16_t mask);
+
+struct _device *find_chan_name(char *name, uint16_t addr);
 
 void del_chan(device_t *dev, uint16_t addr);
 

@@ -136,13 +136,29 @@ add_chan(struct _device *dev, uint16_t addr)
  * Find a device on channel.
  */
 struct _device *
-find_chan(uint16_t addr, uint16_t mask)
+find_chan_dev(uint16_t addr, uint16_t mask)
 {
       uint16_t    ch = (addr >> 8) & 0x7;
       struct      _device *d;
 
       for (d = chan[ch]; d != NULL; d = d->next) {
           if ((d->addr & mask) == (addr & mask))
+              return d;
+      }
+      return NULL;
+}
+
+/*
+ * Find a device on channel by name.
+ */
+struct _device *
+find_chan_name(char *name, uint16_t addr)
+{
+      uint16_t    ch = (addr >> 8) & 0x7;
+      struct      _device *d;
+
+      for (d = chan[ch]; d != NULL; d = d->next) {
+          if (strcmp(d->type_name, name) == 0 && (d->addr & 0xff) == (addr & 0xff))
               return d;
       }
       return NULL;
