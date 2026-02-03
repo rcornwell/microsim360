@@ -90,6 +90,11 @@ char       line_buffer[1024];
  */
 char      *line_ptr;
 
+/*
+ * Pointer to where options begin on line.
+ */
+char      *option_start;
+
 /* Define header to look for */
 DEV_LIST_SECTION struct _control model_list_start = {
         "list_start", 0, 0, NULL, NULL, DEV_LIST_MAGIC
@@ -294,6 +299,20 @@ get_option(struct _option *opt)
     return 1;
 }
 
+/*
+ * Reset parse pointer to start of options.
+ */
+void
+option_reset()
+{
+     if (option_start != NULL) {
+         line_ptr = option_start;
+     }
+}
+
+/*
+ * Grab integer value from option string.
+ */
 int
 get_integer(struct _option *opt, int *value)
 {
@@ -384,6 +403,7 @@ load_config(char *name)
                              }
                              /* Fall through */
                    case CPU_TYPE:
+                             option_start = line_ptr;
                              if ((devlist->create)(&opt) == 0) {
                                 fprintf(stderr, "Unable to create device %s\n", opt.opt);
                                 fclose(config);
@@ -391,6 +411,7 @@ load_config(char *name)
                              }
                              break;
                    case LOG_TYPE:
+                             option_start = line_ptr;
                              if ((devlist->create)(&opt) == 0) {
                                 fprintf(stderr, "Unable to set log %s\n", opt.opt);
                                 fclose(config);

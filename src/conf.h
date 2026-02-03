@@ -108,6 +108,8 @@ int get_integer(struct _option *opt, int *value);
 
 int get_index(struct _option *opt, char *list[]);
 
+void option_reset();
+
 int load_config(char *name);
 
 int load_line(char *line);
