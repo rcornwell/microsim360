@@ -94,6 +94,9 @@ click_device(Widget wid, int x, int y)
     }
     if (ctrl->create_control != NULL) {
         popup = (Panel)(*ctrl->create_control)(ctrl->unit, ctrl->u, x, y);
+        if (popup == NULL) {
+            return;
+        }
         ctrl->popup = popup;
         ctrl->popupID = popup->windowID;
         popup->parentID =  ctrl->parentID;
@@ -170,7 +173,7 @@ create_device_window()
                       np2->w = 0;
                       np2->dev = dev;
                       np2->unit = j + 1;
-                      np2->next = np;
+                      np->next = np2;
                       np = np2;
                   }
                   p = np;
@@ -253,8 +256,8 @@ create_device_window()
       
        nwid->rect.x = p->dev->rect[p->unit].x;
        nwid->rect.y = p->dev->rect[p->unit].y;
-       nwid->rect.w = p->dev->rect[p->unit].h;
-       nwid->rect.h = p->dev->rect[p->unit].w;
+       nwid->rect.w = p->dev->rect[p->unit].w;
+       nwid->rect.h = p->dev->rect[p->unit].h;
        nwid->back_color = &c_black;
        nwid->draw = display_device;
        nwid->click = click_device;
