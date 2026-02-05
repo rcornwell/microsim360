@@ -327,7 +327,7 @@ model2821_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                  unit->selected = 0;
                  ctx->state = STATE_IDLE;
                  /* If address out, halt device */
-                 if ((*tags & CHAN_ADR_OUT) != 0) {
+                 if (dev->bptr < dev->blen && (*tags & CHAN_ADR_OUT) != 0) {
                      log_device("2821: %03x Halt IO\n",unit->addr);
                      if (dev->device_halt != NULL) {
                          dev->device_halt(dev);
@@ -508,6 +508,8 @@ model2821_dev(struct _device *unit, uint16_t *tags, uint16_t bus_out, uint16_t *
                           dev->status |= SNS_CHNEND|SNS_DEVEND;
                           dev->busy = 0;
                           dev->cmd_done = 1;
+                          ctx->state = STATE_END_STATUS;
+                          break;
                       }
                       dev->buffer[dev->bptr] = (uint8_t)(bus_out & 0xff); /* Grab data */
                  }
