@@ -102,29 +102,33 @@ feed_callback(struct _device *unit, void *arg, int iarg)
     ctx->request = 1;
     if (dev->pch_full) {
        stack_card(dev->stack[dev->pch_stk_sel], &dev->pch_card);
-       dev->pch_full = 0;
+       dev->stk_cnt[dev->pch_stk_sel] = stack_size(dev->stack[dev->pch_stk_sel]);
     }
 
     if (dev->pch_stop_flag == 0) {
+        for (i = 0; i < 80; i++) {
+            if (dev->pch_card[i] != ebcdic_to_hol(ctx->buffer[i])) {
+               ctx->sense |= SENSE_EQUCHK;
+               break;
+            }
+        }
         dev->pch_full = read_card(dev->pch_feed, &dev->pch_card);
         dev->pch_hop_cnt = hopper_size(dev->pch_feed);
         dev->pch_ready = dev->pch_full;
         log_device("punch card %d size=%d\n", dev->pch_full, dev->pch_hop_cnt);
         if (dev->pch_hop_cnt == 0) {
             dev->pch_ready = 0;
+            ctx->sense |= SENSE_INTERV;
+            return;
         }
     } else {
         dev->pch_ready = 0;
     }
 
-    for (i = 0; i < 5; i++) {
-       dev->stk_cnt[i] = stack_size(dev->stack[i]);
-    }
-
-    if (ctx->sense != 0) {
-        log_device("Sense %02x\n", ctx->sense);
-        ctx->status |= SNS_UNITCHK;
-    }
+//    if (ctx->sense != 0) {
+//        log_device("Sense %02x\n", ctx->sense);
+//        ctx->status |= SNS_UNITCHK;
+//    }
 }
 
 
@@ -134,6 +138,13 @@ model2540p_xfer_done(struct _2821_dev_context *ctx)
 {
     struct _2540_context *dev = (struct _2540_context *)ctx->ctx;
     int    col;
+
+    if ((ctx->cmd & 0xdf) == 0xc2) {
+       ctx->status |= SNS_CHNEND|SNS_DEVEND;
+       ctx->busy = 0;
+       ctx->cmd_done = 1;
+       return;
+    }
 
     for (col = 0; col < 80; col++) {
          dev->pch_card[col] |= ebcdic_to_hol(ctx->buffer[col]);
@@ -152,25 +163,27 @@ model2540p_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
     log_device("2540p: command %02x\n", bus_out);
     unit->status = 0;
 
-    /* Check if device not ready */
-    if (ctx->pch_ready == 0 || ctx->pch_hop_cnt == 0) {
-        unit->status |= SNS_UNITCHK;
-        return;
-    }
-
     switch (cmd & 07) {
     case 0: /* Test I/O */
+           if (cmd != 0) {
+              unit->sense |= SENSE_CMDREJ;
+           }
+           if (ctx->pch_ready == 0) {
+              unit->sense |= SENSE_INTERV;
+           }
            if (unit->sense != 0) {
               unit->status |= SNS_UNITCHK;
            }
            return;
 
     case 1: /* Write */
-           if ((cmd & 0x3f) != 0x25) {   /* Check if command is diagnostic write */
-               unit->sense |= SENSE_CMDREJ;
-               break;
+           /* Check if device not ready */
+           if (ctx->pch_ready == 0 || ctx->pch_hop_cnt == 0) {
+               unit->status |= SNS_UNITCHK;
+               return;
            }
-           switch (cmd & 0xc0) {
+
+           switch (cmd & 0xd0) {
            case 0x00:
                       ctx->pch_stk_sel = 4;
                       break;
@@ -180,8 +193,9 @@ model2540p_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
            case 0x80:
                       ctx->pch_stk_sel = 2;
                       break;
-           case 0xc0:
+           default:
                       unit->sense |= SENSE_CMDREJ;
+                      unit->status |= SNS_UNITCHK;
                       return;
            }
            unit->cmd = cmd;
@@ -191,36 +205,19 @@ model2540p_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
            unit->busy = 1;
            break;
 
-#if 0
     case 2: /* Read */
            unit->sense &= SENSE_INTERV;
-           if ((cmd & 0x3f) != 0x02 && cmd != 0xd2) {
+           if ((cmd & 0xdf) != 0xc2) {
                unit->sense |= SENSE_CMDREJ;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
+               unit->status = SNS_UNITCHK;
                break;
-           }
-           for (col = 0; col < 80; col++) {
-                uint16_t ch;
-                uint8_t  c;
-                ch = hol_to_ebcdic(ctx->rdr_card[col]);
-                if (ch == 0x100) {
-                    ctx->sense |= SENSE_DATCHK;
-                    log_device("Read error %d\n", col);
-                } else {
-                    unit->buffer[col] = ch & 0xff;
-                }
-                c = ebcdic_to_ascii[ch];
-                if (!isprint(c))
-                   c = '.';
-                log_device("Read data %d:%02x '%c'\n", col, ch, c);
            }
            unit->cmd = cmd;
            unit->cmd_done = 0;
            unit->bptr = 0;
+           unit->sense &= SENSE_INTERV;
            unit->busy = 1;
-           }
            break;
-#endif
 
     case 3: /* Feed */
            unit->cmd = cmd;
@@ -229,28 +226,17 @@ model2540p_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
            if (cmd == 0x3) {
                unit->cmd = 0;
                unit->status = SNS_CHNEND|SNS_DEVEND;
-               break;
-           }
-           if ((cmd & 0x3f) != 0x23 ||cmd == 0xe3) {
+           } else {
                unit->sense |= SENSE_CMDREJ;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
-               break;
+               unit->status = SNS_UNITCHK;
            }
-           if (ctx->pch_ready == 0) {
-               unit->sense |= SENSE_INTERV;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
-               break;
-           }
-           unit->cmd_done = 0;
-           unit->busy = 1;
-           model2540p_xfer_done(unit);
            break;
 
     case 4:  /* Sense */
            log_device("2540: Sense %02x\n", unit->sense);
-           if (cmd != 0x04) {
+           if ((cmd & 0xf) == 0x0c) {
                unit->sense |= SENSE_CMDREJ;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
+               unit->status = SNS_UNITCHK;
 
            } else {
                unit->cmd = cmd;
@@ -261,8 +247,7 @@ model2540p_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
 
     default:
            unit->sense |= SENSE_CMDREJ;     /* Invalid command */
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
-
+           unit->status = SNS_UNITCHK;
            break;
     }
 }
@@ -299,10 +284,11 @@ npro_callback(struct _device *unit, void *arg, int iarg)
  * Move a card from punch to selected stacker.
  */
 void
-model2540p_start(struct _2540_context *ctx)
+model2540p_start(struct _2540_context *ctx, int attn)
 {
     int                   i;
 
+    /* If punch has cards in it, second start does NPRO */
     if (ctx->pch_full) {
        add_event(ctx->pch_ctx->device, npro_callback, 20000, NULL, 0);
        return;
@@ -323,6 +309,11 @@ model2540p_start(struct _2540_context *ctx)
         if (ctx->pch_hop_cnt == 0) {
             ctx->pch_ready = 0;
         }
+        if (ctx->pch_ready == 1 && attn == 1) {
+           ctx->pch_ctx->status = SNS_DEVEND;
+           ctx->pch_ctx->request = 1;
+           ctx->pch_ctx->cmd_done = 1;
+        }
     } else {
         ctx->pch_ready = 0;
     }
@@ -332,7 +323,7 @@ model2540p_start(struct _2540_context *ctx)
        ctx->stk_cnt[i] = stack_size(ctx->stack[i]);
     }
     if (ctx->pch_ready == 0) {
-log_device("intervent\n");
+        log_device("intervent\n");
         ctx->pch_ctx->sense |= SENSE_INTERV;
     } else {
         ctx->pch_ctx->sense &= ~(SENSE_INTERV);

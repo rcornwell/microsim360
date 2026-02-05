@@ -170,16 +170,10 @@ model2540_init_graphics(struct _device *unit, void *rend)
 void
 init_tests()
 {
-    struct _device    *dev_rdr;
-    struct _device    *dev_pch;
-    //struct _2821_dev_context *ctx;
-    //struct _2540_context *rdr;
     init_event();
     (void)model2821_init(0);
-    dev_rdr = model2540_init(0x0c, 0x00, DEVICE_2821_READER);
-    dev_pch = model2540_init(0x0d, 0x00, DEVICE_2821_PUNCH);
-//    ctx = (struct _2821_dev_context *)(dev_rdr->dev);
- //   rdr = (struct _2540_context *)(ctx->ctx);
+    (void)model2540_init(0x0c, 0x00, DEVICE_2821_READER);
+    (void)model2540_init(0x0d, 0x00, DEVICE_2821_PUNCH);
 }
 
 void
@@ -201,8 +195,8 @@ CTEST_SETUP(model2540_test) {
      data->dev = find_chan_dev(0xc, 0xff);
      ASSERT_NOT_NULL(data->dev);
      data->addr = data->dev->addr;
-    ctx = (struct _2821_dev_context *)(data->dev->dev);
-    data->ctx = (struct _2540_context *)(ctx->ctx);
+     ctx = (struct _2821_dev_context *)(data->dev->dev);
+     data->ctx = (struct _2540_context *)(ctx->ctx);
      ASSERT_NOT_NULL(data->ctx);
      empty_cards(data->ctx->rdr_feed);
      empty_cards(data->ctx->stack[0]);
@@ -279,7 +273,7 @@ CTEST2(model2540_test, read) {
      empty_cards(data->ctx->stack[1]);
      ASSERT_EQUAL(1, create_card_file ("file1.deck", 3));
      read_deck(data->ctx->rdr_feed, "file1.deck");
-     model2540r_start(data->ctx);         /* Load first card. */
+     model2540r_start(data->ctx, 0);         /* Load first card. */
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
      set_mem(0x500, 0x02000600); /* Set channel words */
@@ -353,7 +347,7 @@ CTEST2(model2540_test, read_two) {
             stack_size(data->ctx->rdr_feed), hopper_size(data->ctx->stack[0]),
             stack_size(data->ctx->stack[0]));
      }
-     model2540r_start(data->ctx);         /* Load first card. */
+     model2540r_start(data->ctx, 0);         /* Load first card. */
      if (verbose) {
          printf("Size %d %d, %d %d\n", hopper_size(data->ctx->rdr_feed),
             stack_size(data->ctx->rdr_feed), hopper_size(data->ctx->stack[0]),
@@ -434,7 +428,7 @@ CTEST2(model2540_test, read_inter) {
      log_trace("Read intervent\n");
      ASSERT_EQUAL(1, create_card_file ("file1.deck", 2));
      read_deck(ctx->rdr_feed, "file1.deck");
-     model2540r_start(ctx);         /* Load first card. */
+     model2540r_start(ctx, 0);         /* Load first card. */
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
      set_mem(0x500, 0x02000600); /* Set channel words */
@@ -498,7 +492,7 @@ CTEST2(model2540_test, read_eof) {
      ASSERT_EQUAL(1, create_card_file ("file1.deck", 2));
      read_deck(ctx->rdr_feed, "file1.deck");
      ctx->eof_flag = 1;
-     model2540r_start(ctx);         /* Load first card. */
+     model2540r_start(ctx, 0);         /* Load first card. */
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
      set_mem(0x500, 0x02000600); /* Set channel words */
@@ -552,13 +546,12 @@ CTEST2(model2540_test, read_eof) {
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status1);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
-     ASSERT_EQUAL_X(0x40ffffff, get_mem(0x700));
+     ASSERT_EQUAL_X(0x00ffffff, get_mem(0x700));
 }
 
-#if 0
 /* Try to read a card, make sure it got into stacker 2. */
 CTEST2(model2540_test, read_stack2) {
-     struct _2540_context *ctx = (struct _2540_context *)(data->dev->dev);
+     struct _2540_context *ctx = data->ctx;
      int     i;
      uint16_t status1 = 0;
      uint16_t status2 = 0;
@@ -570,23 +563,23 @@ CTEST2(model2540_test, read_stack2) {
      empty_cards(ctx->stack[0]);
      empty_cards(ctx->stack[1]);
      ASSERT_EQUAL(1, create_card_file ("file1.deck", 4));
-     read_deck(ctx->feed, "file1.deck");
+     read_deck(ctx->rdr_feed, "file1.deck");
      if (verbose) {
-         printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[1]));
      }
-     model2540_start(ctx);         /* Load first card. */
+     model2540r_start(ctx, 0);         /* Load first card. */
      if (verbose) {
-         printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[1]));
      }
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
-     set_mem(0x500, 0x22000600); /* Set channel words */
+     set_mem(0x500, 0x42000600); /* Set channel words */
      set_mem(0x504, 0x40000050);
-     set_mem(0x508, 0x22000700); /* Set channel words */
+     set_mem(0x508, 0x42000700); /* Set channel words */
      set_mem(0x50c, 0x00000050);
      set_mem(0x510, 0x04000700); /* Set channel words */
      set_mem(0x514, 0x00000001);
@@ -612,9 +605,9 @@ CTEST2(model2540_test, read_stack2) {
            printf("0x%03x=%08x ", i, get_mem(i));
         }
         printf("\n");
-        printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
+        printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[1]));
      }
      card_data[1] &= 0xF0ffffff;
      for (i = 0; i < 80; i+=4) {
@@ -630,7 +623,7 @@ CTEST2(model2540_test, read_stack2) {
      ASSERT_EQUAL_X(0x08000000, word44);
      ASSERT_EQUAL_X(0xffffffff, get_mem(0x40));
      ASSERT_EQUAL_X(0x0400ffff, get_mem(0x44));
-     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[1]));
+     ASSERT_EQUAL_X(2, hopper_size(ctx->stack[1]));
 
      /* Make sure sense is zero */
      set_mem(0x700, 0xffffffff);
@@ -647,35 +640,35 @@ CTEST2(model2540_test, read_stack2) {
 }
 
 /* Try to feed card then read next card. */
-CTEST2(model2540_test, read_feed) {
-     struct _2540_context *ctx = (struct _2540_context *)(data->dev->dev);
+CTEST2(model2540_test, feed_read) {
+     struct _2540_context *ctx = data->ctx;
      int     i;
      uint16_t status1 = 0;
      uint16_t status2 = 0;
      uint32_t word40;
      uint32_t word44;
 
-     log_trace("Read feed\n");
+     log_trace("Feed Read\n");
      ctx->pch_full = 0;
      empty_cards(ctx->stack[0]);
      empty_cards(ctx->stack[1]);
      ASSERT_EQUAL(1, create_card_file ("file1.deck", 4));
-     read_deck(ctx->feed, "file1.deck");
+     read_deck(ctx->rdr_feed, "file1.deck");
      if (verbose) {
-         printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
             stack_size(ctx->stack[0]));
      }
-     model2540_start(ctx);         /* Load first card. */
+     model2540r_start(ctx, 0);         /* Load first card. */
      if (verbose) {
-         printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
             stack_size(ctx->stack[0]));
      }
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
-     set_mem(0x500, 0x83000000); /* Set channel words */
-     set_mem(0x504, 0x60000050);
+     set_mem(0x500, 0x23000000); /* Set channel words */
+     set_mem(0x504, 0x40000001);
      set_mem(0x508, 0x02000700); /* Set channel words */
      set_mem(0x50c, 0x00000050);
      set_mem(0x510, 0x04000700); /* Set channel words */
@@ -702,9 +695,9 @@ CTEST2(model2540_test, read_feed) {
            printf("0x%03x=%08x ", i, get_mem(i));
         }
         printf("\n");
-        printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
+        printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[1]));
      }
      card_data[1] &= 0xF0ffffff;
      card_data[1] |= 0x01000000;
@@ -717,7 +710,7 @@ CTEST2(model2540_test, read_feed) {
      ASSERT_EQUAL_X(0x08000000, word44);
      ASSERT_EQUAL_X(0xffffffff, get_mem(0x40));
      ASSERT_EQUAL_X(0x0400ffff, get_mem(0x44));
-     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[0]));
+     ASSERT_EQUAL_X(2, hopper_size(ctx->stack[0]));
 
      /* Make sure sense is zero */
      set_mem(0x700, 0xffffffff);
@@ -733,57 +726,38 @@ CTEST2(model2540_test, read_feed) {
      ASSERT_EQUAL_X(0x00ffffff, get_mem(0x700));
 }
 
-/* Try to punch a test card */
-CTEST2(model2540_test, punch_card) {
-     struct _2540_context *ctx = (struct _2540_context *)(data->dev->dev);
+/* Try to feed card */
+CTEST2(model2540_test, feed_cmd) {
+     struct _2540_context *ctx = data->ctx;
      int     i;
      uint16_t status1 = 0;
      uint16_t status2 = 0;
      uint32_t word40;
      uint32_t word44;
-     char     buffer[82];
-     FILE     *f;
 
-     log_trace("Punch card\n");
+     log_trace("Feed Read\n");
      ctx->pch_full = 0;
-     blank_deck(ctx->feed, 10);
      empty_cards(ctx->stack[0]);
      empty_cards(ctx->stack[1]);
-
-     model2540_start(ctx);         /* Load first card. */
+     ASSERT_EQUAL(1, create_card_file ("file1.deck", 4));
+     read_deck(ctx->rdr_feed, "file1.deck");
      if (verbose) {
-         printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[0]));
+     }
+     model2540r_start(ctx, 0);         /* Load first card. */
+     if (verbose) {
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
             stack_size(ctx->stack[0]));
      }
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
-     set_mem(0x500, 0x83000000); /* Set channel words */
-     set_mem(0x504, 0x60000050);
-     set_mem(0x508, 0x81000600); /* Set channel words */
-     set_mem(0x50c, 0x20000050);
+     set_mem(0x500, 0x63000000); /* Set channel words */
+     set_mem(0x504, 0x00000001);
      set_mem(0x510, 0x04000700); /* Set channel words */
      set_mem(0x514, 0x00000001);
-     set_mem(0x600, 0xf0f0f0f0);
-     set_mem(0x604, 0xf040c1c2);
-     set_mem(0x608, 0xc3c4c5c6);
-     set_mem(0x60c, 0xc7c8c9d1);
-     set_mem(0x610, 0xd2d3d4d5);
-     set_mem(0x614, 0xd6d7d8d9);
-     set_mem(0x618, 0xe2e3e4e5);
-     set_mem(0x61c, 0xe6e7e8e9);
-     set_mem(0x620, 0xf0f1f2f3);
-     set_mem(0x624, 0xf4f5f6f7);
-     set_mem(0x628, 0xf8f9c1c2);
-     set_mem(0x62c, 0xc3c4c5c6);
-     set_mem(0x630, 0xc7c8c9d1);
-     set_mem(0x634, 0xd2d3d4d5);
-     set_mem(0x638, 0xd6d7d8d9);
-     set_mem(0x63c, 0xe2e3e4e5);
-     set_mem(0x640, 0xe6e7e8e9);
-     set_mem(0x644, 0xf0f1f2f3);
-     set_mem(0x648, 0xf4f5f6f7);
-     set_mem(0x64c, 0xf8f94040);
      status1 = start_io(data->addr, 0x500, 0, 0);
      word40 = get_mem(0x40);
      word44 = get_mem(0x44);
@@ -794,41 +768,26 @@ CTEST2(model2540_test, punch_card) {
      }
      if (verbose) {
         printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-        printf("\n");
-        printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
+        printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[1]));
      }
-
      ASSERT_EQUAL_X(SNS_CHNEND, status1);
      ASSERT_EQUAL_X(SNS_DEVEND, status2);
-     ASSERT_EQUAL_X(0x00000510, word40);
-     ASSERT_EQUAL_X(0x08000000, word44);
+     ASSERT_EQUAL_X(0x00000508, word40);
+     ASSERT_EQUAL_X(0x08000001, word44);
      ASSERT_EQUAL_X(0xffffffff, get_mem(0x40));
      ASSERT_EQUAL_X(0x0400ffff, get_mem(0x44));
-     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[0]));
+     ASSERT_EQUAL_X(0, hopper_size(ctx->stack[0]));
+     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[1]));
 
      /* Make sure sense is zero */
      set_mem(0x700, 0xffffffff);
      status1 = start_io(data->addr, 0x510, 0, 0);
      if (verbose) {
-         printf("700=%08x 0x40=%08x %08x\n", get_mem(0x700),
+        printf("700=%08x 0x40=%08x %08x\n", get_mem(0x700),
                  get_mem(0x40), get_mem(0x44));
      }
-
-     ASSERT_EQUAL(0, save_deck(ctx->stack[0], "file2.deck"));
-     close_deck(ctx->stack[0]);
-
-    if ((f = fopen("file2.deck", "r")) == NULL)
-        ASSERT_FAIL();
-    i = 0;
-    while(fgets(buffer, sizeof(buffer), f) != NULL) {
-         sprintf(buffer, "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\n", i);
-         ASSERT_STR(buffer, buffer);
-         i++;
-    }
-    fclose(f);
-
 
      ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status1);
      ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
@@ -836,9 +795,10 @@ CTEST2(model2540_test, punch_card) {
      ASSERT_EQUAL_X(0x00ffffff, get_mem(0x700));
 }
 
-/* Try to punch a test card in two writes */
-CTEST2(model2540_test, punch_card2) {
-     struct _2540_context *ctx = (struct _2540_context *)(data->dev->dev);
+
+/* Try to feed card to each stacker */
+CTEST2(model2540_test, feed_stack) {
+     struct _2540_context *ctx = data->ctx;
      int     i;
      uint16_t status1 = 0;
      uint16_t status2 = 0;
@@ -847,48 +807,37 @@ CTEST2(model2540_test, punch_card2) {
      char     buffer[81];
      FILE     *f;
 
-     log_trace("Punch card 2\n");
+     log_trace("Feed Read\n");
      ctx->pch_full = 0;
-     blank_deck(ctx->feed, 10);
      empty_cards(ctx->stack[0]);
      empty_cards(ctx->stack[1]);
-
-     model2540_start(ctx);         /* Load first card. */
+     empty_cards(ctx->stack[2]);
+     empty_cards(ctx->stack[3]);
+     empty_cards(ctx->stack[4]);
+     ASSERT_EQUAL(1, create_card_file ("file1.deck", 4));
+     ctx->eof_flag = 1;
+     read_deck(ctx->rdr_feed, "file1.deck");
      if (verbose) {
-         printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[0]));
+     }
+     model2540r_start(ctx, 0);         /* Load first card. */
+     if (verbose) {
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
             stack_size(ctx->stack[0]));
      }
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
-     set_mem(0x500, 0x02000710); /* Set channel words */
-     set_mem(0x504, 0x60000050);
-     set_mem(0x508, 0x01000600); /* Set channel words */
-     set_mem(0x50c, 0x60000020);
-     set_mem(0x510, 0x81000620); /* Set channel words */
-     set_mem(0x514, 0x20000030);
+     set_mem(0x500, 0x23000000); /* Set channel words */
+     set_mem(0x504, 0x40000001);
+     set_mem(0x508, 0x63000000); /* Set channel words */
+     set_mem(0x50c, 0x40000001);
+     set_mem(0x510, 0xa3000000); /* Set channel words */
+     set_mem(0x514, 0x00000001);
      set_mem(0x520, 0x04000700); /* Set channel words */
      set_mem(0x524, 0x00000001);
-     set_mem(0x600, 0xf0f0f0f0);
-     set_mem(0x604, 0xf040c1c2);
-     set_mem(0x608, 0xc3c4c5c6);
-     set_mem(0x60c, 0xc7c8c9d1);
-     set_mem(0x610, 0xd2d3d4d5);
-     set_mem(0x614, 0xd6d7d8d9);
-     set_mem(0x618, 0xe2e3e4e5);
-     set_mem(0x61c, 0xe6e7e8e9);
-     set_mem(0x620, 0xf0f1f2f3);
-     set_mem(0x624, 0xf4f5f6f7);
-     set_mem(0x628, 0xf8f9c1c2);
-     set_mem(0x62c, 0xc3c4c5c6);
-     set_mem(0x630, 0xc7c8c9d1);
-     set_mem(0x634, 0xd2d3d4d5);
-     set_mem(0x638, 0xd6d7d8d9);
-     set_mem(0x63c, 0xe2e3e4e5);
-     set_mem(0x640, 0xe6e7e8e9);
-     set_mem(0x644, 0xf0f1f2f3);
-     set_mem(0x648, 0xf4f5f6f7);
-     set_mem(0x64c, 0xf8f94040);
      status1 = start_io(data->addr, 0x500, 0, 0);
      word40 = get_mem(0x40);
      word44 = get_mem(0x44);
@@ -898,121 +847,23 @@ CTEST2(model2540_test, punch_card2) {
          status2 = wait_dev(data->addr);
      }
      if (verbose) {
-        printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-        printf("\n");
-        printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
+        printf("0x40=%08x %08x first %08x %08x\n", get_mem(0x40), get_mem(0x44),
+               word40, word44);
+        printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
+            stack_size(ctx->stack[1]));
      }
-
      ASSERT_EQUAL_X(SNS_CHNEND, status1);
      ASSERT_EQUAL_X(SNS_DEVEND, status2);
      ASSERT_EQUAL_X(0x00000518, word40);
-     ASSERT_EQUAL_X(0x08000000, word44);
+     ASSERT_EQUAL_X(0x08000001, word44);
      ASSERT_EQUAL_X(0xffffffff, get_mem(0x40));
      ASSERT_EQUAL_X(0x0400ffff, get_mem(0x44));
      ASSERT_EQUAL_X(1, hopper_size(ctx->stack[0]));
-
-     /* Make sure sense is zero */
-     set_mem(0x700, 0xffffffff);
-     status1 = start_io(data->addr, 0x520, 0, 0);
-     if (verbose) {
-         printf("700=%08x 0x40=%08x %08x\n", get_mem(0x700),
-                 get_mem(0x40), get_mem(0x44));
-     }
-
-     ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status1);
-     ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
-     ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
-     ASSERT_EQUAL_X(0x00ffffff, get_mem(0x700));
-
-     ASSERT_EQUAL(0, save_deck(ctx->stack[0], "file2.deck"));
-     close_deck(ctx->stack[0]);
-
-
-    if ((f = fopen("file2.deck", "r")) == NULL)
-        ASSERT_FAIL();
-    i = 0;
-    while(fgets(buffer, sizeof(buffer), f) != NULL) {
-         if (verbose) {
-             puts(buffer);
-         }
-         sprintf(buffer, "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\n", i);
-         ASSERT_STR(buffer, buffer);
-         i++;
-    }
-    fclose(f);
-}
-
-/* Try to over punch a test card in writes */
-CTEST2(model2540_test, punch_over) {
-     struct _2540_context *ctx = (struct _2540_context *)(data->dev->dev);
-     int     i;
-     uint16_t status1 = 0;
-     uint16_t status2 = 0;
-     uint32_t word40;
-     uint32_t word44;
-     char     buffer[82];
-     FILE     *f;
-
-     log_trace("Punch over\n");
-     ctx->pch_full = 0;
-     empty_cards(ctx->stack[0]);
-     empty_cards(ctx->stack[1]);
-     ASSERT_EQUAL(1, create_card_file2 ("file1.deck", 4));
-     read_deck(ctx->feed, "file1.deck");
-     if (verbose) {
-         printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
-     }
-     model2540_start(ctx);         /* Load first card. */
-     model2540_start(ctx);         /* Move to punch station */
-     if (verbose) {
-         printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
-     }
-     set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
-     set_mem(0x44, 0xffffffff);
-     set_mem(0x500, 0x81000600); /* Set channel words */
-     set_mem(0x504, 0x2000002A);
-     set_mem(0x520, 0x04000700); /* Set channel words */
-     set_mem(0x524, 0x00000001);
-     set_mem(0x600, 0x40404040);
-     set_mem(0x604, 0x4040c1c2);
-     set_mem(0x608, 0xc3c4c5c6);
-     set_mem(0x60c, 0xc7c8c9d1);
-     set_mem(0x610, 0xd2d3d4d5);
-     set_mem(0x614, 0xd6d7d8d9);
-     set_mem(0x618, 0xe2e3e4e5);
-     set_mem(0x61c, 0xe6e7e8e9);
-     set_mem(0x620, 0xf0f1f2f3);
-     set_mem(0x624, 0xf4f5f6f7);
-     set_mem(0x628, 0xf8f94040);
-     status1 = start_io(data->addr, 0x500, 0, 0);
-     word40 = get_mem(0x40);
-     word44 = get_mem(0x44);
-     set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
-     set_mem(0x44, 0xffffffff);
-     if ((status1 & SNS_DEVEND) == 0) {
-         status2 = wait_dev(data->addr);
-     }
-     if (verbose) {
-        printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
-        printf("\n");
-        printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
-            stack_size(ctx->stack[0]));
-     }
-
-     ASSERT_EQUAL_X(SNS_CHNEND, status1);
-     ASSERT_EQUAL_X(SNS_DEVEND, status2);
-     ASSERT_EQUAL_X(0x00000508, word40);
-     ASSERT_EQUAL_X(0x08000000, word44);
-     ASSERT_EQUAL_X(0xffffffff, get_mem(0x40));
-     ASSERT_EQUAL_X(0x0400ffff, get_mem(0x44));
-     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[0]));
+     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[1]));
+     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[2]));
+     ASSERT_EQUAL_X(0, hopper_size(ctx->stack[3]));
+     ASSERT_EQUAL_X(0, hopper_size(ctx->stack[4]));
 
      /* Make sure sense is zero */
      set_mem(0x700, 0xffffffff);
@@ -1027,28 +878,27 @@ CTEST2(model2540_test, punch_over) {
      ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
      ASSERT_EQUAL_X(0x00ffffff, get_mem(0x700));
 
+     for (i = 0; i < 3; i++) {
+         remove("file2.deck");
+         ASSERT_EQUAL(0, save_deck(ctx->stack[i], "file2.deck"));
+         close_deck(ctx->stack[i]);
 
-     ASSERT_EQUAL(0, save_deck(ctx->stack[0], "file2.deck"));
-     close_deck(ctx->stack[0]);
-
-
-    if ((f = fopen("file2.deck", "r")) == NULL)
-        ASSERT_FAIL();
-    i = 0;
-    while(fgets(buffer, sizeof(buffer), f) != NULL) {
-         if (verbose) {
-             puts(buffer);
+         if ((f = fopen("file2.deck", "r")) == NULL)
+             ASSERT_FAIL();
+         while(fgets(buffer, sizeof(buffer), f) != NULL) {
+              if (verbose) {
+                  puts(buffer);
+              }
+              sprintf(buffer, "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\n", i);
+              ASSERT_STR(buffer, buffer);
          }
-         sprintf(buffer, "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\n", i);
-         ASSERT_STR(buffer, buffer);
-         i++;
-    }
-    fclose(f);
+         fclose(f);
+     }
 }
 
 /* Try to read invalid punch card */
 CTEST2(model2540_test, read_invalid) {
-     struct _2540_context *ctx = (struct _2540_context *)(data->dev->dev);
+     struct _2540_context *ctx = data->ctx;
      int     i;
      uint16_t status1 = 0;
      uint16_t status2 = 0;
@@ -1056,13 +906,13 @@ CTEST2(model2540_test, read_invalid) {
      uint32_t word44;
 
      log_trace("Read invalid\n");
-     ctx->pch_full = 0;
+     ctx->rdr_full = 0;
      empty_cards(ctx->stack[0]);
      empty_cards(ctx->stack[1]);
      ASSERT_EQUAL(1, create_card_file3 ("file3.deck", 3));
-     ctx->feed->mode = MODE_BIN;
-     read_deck(ctx->feed, "file3.deck");
-     model2540_start(ctx);         /* Load first card. */
+     ctx->rdr_feed->mode = MODE_BIN;
+     read_deck(ctx->rdr_feed, "file3.deck");
+     model2540r_start(ctx,0);         /* Load first card. */
      set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
      set_mem(0x44, 0xffffffff);
      set_mem(0x500, 0x02000600); /* Set channel words */
@@ -1087,8 +937,8 @@ CTEST2(model2540_test, read_invalid) {
            printf("0x%03x=%08x ", i, get_mem(i));
         }
         printf("\n");
-        printf("Size %d %d, %d %d\n", hopper_size(ctx->feed),
-            stack_size(ctx->feed), hopper_size(ctx->stack[0]),
+        printf("Size %d %d, %d %d\n", hopper_size(ctx->rdr_feed),
+            stack_size(ctx->rdr_feed), hopper_size(ctx->stack[0]),
             stack_size(ctx->stack[0]));
 
      }
@@ -1115,7 +965,7 @@ CTEST2(model2540_test, read_invalid) {
 
 /* Read 10 cards and verify data correct. */
 CTEST2(model2540_test, read_ten) {
-     struct _2540_context *ctx = (struct _2540_context *)(data->dev->dev);
+     struct _2540_context *ctx = data->ctx;
      int      i;
      int      card;
      uint16_t status1 = 0;
@@ -1124,11 +974,11 @@ CTEST2(model2540_test, read_ten) {
      uint32_t word44;
 
      log_trace("Read ten\n");
-     ctx->feed->mode = MODE_AUTO;
+     ctx->rdr_feed->mode = MODE_AUTO;
      ASSERT_EQUAL(1, create_card_file ("file1.deck", 11));
-     read_deck(ctx->feed, "file1.deck");
+     read_deck(ctx->rdr_feed, "file1.deck");
      ctx->eof_flag = 1;
-     model2540_start(ctx);         /* Load first card. */
+     model2540r_start(ctx,0);         /* Load first card. */
      for (card = 0; card < 10; card++) {
          set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
          set_mem(0x44, 0xffffffff);
@@ -1200,4 +1050,290 @@ CTEST2(model2540_test, read_ten) {
          ASSERT_EQUAL_X(0xffffffff, get_mem(0x40));
          ASSERT_EQUAL_X(0x0500ffff, get_mem(0x44));
 }
-#endif
+
+CTEST_DATA(model2540p_test) {
+    uint16_t       addr;
+    struct _device *dev;
+    struct _2540_context *ctx;
+};
+
+CTEST_SETUP(model2540p_test) {
+    struct _2821_dev_context *ctx;
+     log_trace("Init test\n");
+     data->dev = find_chan_dev(0xd, 0xff);
+     ASSERT_NOT_NULL(data->dev);
+     data->addr = data->dev->addr;
+     ctx = (struct _2821_dev_context *)(data->dev->dev);
+     data->ctx = (struct _2540_context *)(ctx->ctx);
+     ASSERT_NOT_NULL(data->ctx);
+     empty_cards(data->ctx->rdr_feed);
+     empty_cards(data->ctx->pch_feed);
+     empty_cards(data->ctx->stack[0]);
+     empty_cards(data->ctx->stack[1]);
+     empty_cards(data->ctx->stack[3]);
+     empty_cards(data->ctx->stack[4]);
+     data->ctx->pch_full = 0;
+     data->ctx->rdr_full = 0;
+}
+
+CTEST_TEARDOWN(model2540p_test) {
+     log_trace("teardown test\n");
+     (void)remove("file1.deck");
+     (void)remove("file2.deck");
+     (void)remove("file3.deck");
+}
+
+/* Try to send Test I/O to controller */
+CTEST2(model2540p_test, test_io) {
+    log_trace("TIO\n");
+    ASSERT_EQUAL_X(SNS_UNITCHK, test_io(data->addr));
+}
+
+/* Try to send Nop to controller */
+CTEST2(model2540p_test, nop) {
+     uint16_t status;
+
+     log_trace("Nop\n");
+     set_mem(0x40,  0xffffffff);         /* Set CSW to zero */
+     set_mem(0x44,  0xffffffff);
+     set_mem(0x48,  0x500);   /* Set CAW */
+     set_mem(0x500, 0x03000600); /* Set channel words */
+     set_mem(0x504, 0x00000001);
+     set_mem(0x600, 0xffffffff);
+     status = start_io(data->addr, 0x500, 0, 0);
+     ASSERT_EQUAL_X(SNS_CHNEND|SNS_DEVEND, status);
+     ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0c000001, get_mem(0x44));
+     ASSERT_EQUAL_X(0xffFFFFFF, get_mem(0x600));
+}
+
+/* Try to issue sense command */
+CTEST2(model2540p_test, sense) {
+     uint16_t status;
+     log_trace("Sense\n");
+     set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
+     set_mem(0x44, 0xffffffff);
+     set_mem(0x500, 0x04000700); /* Set channel words */
+     set_mem(0x504, 0x00000001);
+     set_mem(0x700, 0xffffffff);
+     status = start_io(data->addr, 0x500, 0, 0);
+     if (verbose) {
+        printf("700=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                get_mem(0x40), get_mem(0x44));
+     }
+
+     ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status);
+     ASSERT_EQUAL_X(0x00000508, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
+     ASSERT_EQUAL_X(0x40ffffff, get_mem(0x700));
+     ASSERT_EQUAL_X(0, hopper_size(data->ctx->stack[3]));
+     ASSERT_EQUAL_X(0, hopper_size(data->ctx->stack[4]));
+}
+
+
+/* Try to punch a test card */
+CTEST2(model2540p_test, punch_card) {
+     struct _2540_context *ctx = data->ctx;
+     int     i;
+     uint16_t status1 = 0;
+     uint16_t status2 = 0;
+     uint32_t word40;
+     uint32_t word44;
+     char     buffer[82];
+     FILE     *f;
+
+     log_trace("Punch card\n");
+     ctx->pch_full = 0;
+     blank_deck(ctx->pch_feed, 10);
+     empty_cards(ctx->stack[3]);
+     empty_cards(ctx->stack[4]);
+
+     model2540p_start(ctx, 0);         /* Load first card. */
+     if (verbose) {
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->pch_feed),
+            stack_size(ctx->pch_feed), hopper_size(ctx->stack[3]),
+            stack_size(ctx->stack[4]));
+     }
+     set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
+     set_mem(0x44, 0xffffffff);
+     set_mem(0x500, 0x41000600); /* Set channel words */
+     set_mem(0x504, 0x00000050);
+     set_mem(0x510, 0x04000700); /* Set channel words */
+     set_mem(0x514, 0x00000001);
+     set_mem(0x600, 0xf0f0f0f0);
+     set_mem(0x604, 0xf040c1c2);
+     set_mem(0x608, 0xc3c4c5c6);
+     set_mem(0x60c, 0xc7c8c9d1);
+     set_mem(0x610, 0xd2d3d4d5);
+     set_mem(0x614, 0xd6d7d8d9);
+     set_mem(0x618, 0xe2e3e4e5);
+     set_mem(0x61c, 0xe6e7e8e9);
+     set_mem(0x620, 0xf0f1f2f3);
+     set_mem(0x624, 0xf4f5f6f7);
+     set_mem(0x628, 0xf8f9c1c2);
+     set_mem(0x62c, 0xc3c4c5c6);
+     set_mem(0x630, 0xc7c8c9d1);
+     set_mem(0x634, 0xd2d3d4d5);
+     set_mem(0x638, 0xd6d7d8d9);
+     set_mem(0x63c, 0xe2e3e4e5);
+     set_mem(0x640, 0xe6e7e8e9);
+     set_mem(0x644, 0xf0f1f2f3);
+     set_mem(0x648, 0xf4f5f6f7);
+     set_mem(0x64c, 0xf8f94040);
+     status1 = start_io(data->addr, 0x500, 0, 0);
+     word40 = get_mem(0x40);
+     word44 = get_mem(0x44);
+     set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
+     set_mem(0x44, 0xffffffff);
+     if ((status1 & SNS_DEVEND) == 0) {
+         status2 = wait_dev(data->addr);
+     }
+     if (verbose) {
+        printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+        printf("\n");
+        printf("Size %d %d, %d %d\n", hopper_size(ctx->pch_feed),
+            stack_size(ctx->pch_feed), hopper_size(ctx->stack[3]),
+            stack_size(ctx->stack[4]));
+     }
+
+     ASSERT_EQUAL_X(SNS_CHNEND, status1);
+     ASSERT_EQUAL_X(SNS_DEVEND, status2);
+     ASSERT_EQUAL_X(0x00000508, word40);
+     ASSERT_EQUAL_X(0x08000000, word44);
+     ASSERT_EQUAL_X(0xffffffff, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0400ffff, get_mem(0x44));
+     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[3]));
+
+     /* Make sure sense is zero */
+     set_mem(0x700, 0xffffffff);
+     status1 = start_io(data->addr, 0x510, 0, 0);
+     if (verbose) {
+         printf("700=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                 get_mem(0x40), get_mem(0x44));
+     }
+
+     ASSERT_EQUAL(0, save_deck(ctx->stack[3], "file2.deck"));
+     close_deck(ctx->stack[3]);
+
+    if ((f = fopen("file2.deck", "r")) == NULL)
+        ASSERT_FAIL();
+    i = 0;
+    while(fgets(buffer, sizeof(buffer), f) != NULL) {
+         sprintf(buffer, "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\n", i);
+         ASSERT_STR(buffer, buffer);
+         i++;
+    }
+    fclose(f);
+
+
+     ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status1);
+     ASSERT_EQUAL_X(0x00000518, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
+     ASSERT_EQUAL_X(0x00ffffff, get_mem(0x700));
+}
+
+/* Try to punch a test card in two writes */
+CTEST2(model2540p_test, punch_card2) {
+     struct _2540_context *ctx = data->ctx;
+     int     i;
+     uint16_t status1 = 0;
+     uint16_t status2 = 0;
+     uint32_t word40;
+     uint32_t word44;
+     char     buffer[81];
+     FILE     *f;
+
+     log_trace("Punch card 2\n");
+     ctx->pch_full = 0;
+     blank_deck(ctx->pch_feed, 10);
+     empty_cards(ctx->stack[3]);
+     empty_cards(ctx->stack[4]);
+
+     model2540p_start(ctx, 0);         /* Load first card. */
+     if (verbose) {
+         printf("Size %d %d, %d %d\n", hopper_size(ctx->pch_feed),
+            stack_size(ctx->pch_feed), hopper_size(ctx->stack[3]),
+            stack_size(ctx->stack[4]));
+     }
+     set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
+     set_mem(0x44, 0xffffffff);
+     set_mem(0x500, 0x41000620); /* Set channel words */
+     set_mem(0x504, 0x00000030);
+     set_mem(0x520, 0x04000700); /* Set channel words */
+     set_mem(0x524, 0x00000001);
+     set_mem(0x600, 0xf0f0f0f0);
+     set_mem(0x604, 0xf040c1c2);
+     set_mem(0x608, 0xc3c4c5c6);
+     set_mem(0x60c, 0xc7c8c9d1);
+     set_mem(0x610, 0xd2d3d4d5);
+     set_mem(0x614, 0xd6d7d8d9);
+     set_mem(0x618, 0xe2e3e4e5);
+     set_mem(0x61c, 0xe6e7e8e9);
+     set_mem(0x620, 0xf0f1f2f3);
+     set_mem(0x624, 0xf4f5f6f7);
+     set_mem(0x628, 0xf8f9c1c2);
+     set_mem(0x62c, 0xc3c4c5c6);
+     set_mem(0x630, 0xc7c8c9d1);
+     set_mem(0x634, 0xd2d3d4d5);
+     set_mem(0x638, 0xd6d7d8d9);
+     set_mem(0x63c, 0xe2e3e4e5);
+     set_mem(0x640, 0xe6e7e8e9);
+     set_mem(0x644, 0xf0f1f2f3);
+     set_mem(0x648, 0xf4f5f6f7);
+     set_mem(0x64c, 0xf8f94040);
+     status1 = start_io(data->addr, 0x500, 0, 0);
+     word40 = get_mem(0x40);
+     word44 = get_mem(0x44);
+     set_mem(0x40, 0xffffffff);   /* Set CSW to all ones */
+     set_mem(0x44, 0xffffffff);
+     if ((status1 & SNS_DEVEND) == 0) {
+         status2 = wait_dev(data->addr);
+     }
+     if (verbose) {
+        printf("0x40=%08x %08x\n", get_mem(0x40), get_mem(0x44));
+        printf("\n");
+        printf("Size %d %d, %d %d\n", hopper_size(ctx->pch_feed),
+            stack_size(ctx->pch_feed), hopper_size(ctx->stack[3]),
+            stack_size(ctx->stack[4]));
+     }
+
+     ASSERT_EQUAL_X(SNS_CHNEND, status1);
+     ASSERT_EQUAL_X(SNS_DEVEND, status2);
+     ASSERT_EQUAL_X(0x00000508, word40);
+     ASSERT_EQUAL_X(0x08400000, word44);
+     ASSERT_EQUAL_X(0xffffffff, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0400ffff, get_mem(0x44));
+     ASSERT_EQUAL_X(1, hopper_size(ctx->stack[3]));
+
+     /* Make sure sense is zero */
+     set_mem(0x700, 0xffffffff);
+     status1 = start_io(data->addr, 0x520, 0, 0);
+     if (verbose) {
+         printf("700=%08x 0x40=%08x %08x\n", get_mem(0x700),
+                 get_mem(0x40), get_mem(0x44));
+     }
+
+     ASSERT_EQUAL_X(SNS_DEVEND|SNS_CHNEND, status1);
+     ASSERT_EQUAL_X(0x00000528, get_mem(0x40));
+     ASSERT_EQUAL_X(0x0c000000, get_mem(0x44));
+     ASSERT_EQUAL_X(0x00ffffff, get_mem(0x700));
+
+     ASSERT_EQUAL(0, save_deck(ctx->stack[3], "file2.deck"));
+     close_deck(ctx->stack[3]);
+
+
+    if ((f = fopen("file2.deck", "r")) == NULL)
+        ASSERT_FAIL();
+    i = 0;
+    while(fgets(buffer, sizeof(buffer), f) != NULL) {
+         if (verbose) {
+             puts(buffer);
+         }
+         sprintf(buffer, "%05d ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\n", i);
+         ASSERT_STR(buffer, buffer);
+         i++;
+    }
+    fclose(f);
+}
+
+

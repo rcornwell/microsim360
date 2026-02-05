@@ -103,7 +103,7 @@ model2540_init(uint16_t addr, uint16_t addr_2821, int dev_type)
     }
     dev2540->dev = (void *)ctx2540;
 
-    /* See if context is available */
+    /* See if 2540 context is available */
     if(ctx2821 == NULL) {
         init = 1;
         /* Create one if not */

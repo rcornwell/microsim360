@@ -45,7 +45,7 @@
  *  Read Feed    00C00010       R1  Type AA
  *               01C00010       R2
  *               10C00010       RP3
- *  Read         11C00010           Type AB
+ *  Read No Feed 11C00010           Type AB
  *  Read Feed    11C10010       No stacker selected. Type BA
  *  Feed         00100011       R1  Type BA
  *               01100011       R2
@@ -105,7 +105,7 @@ feed_callback(struct _device *unit, void *arg, int iarg)
         ctx->status |= SNS_UNITCHK;
     }
 
-    if (ctx->cmd != 0xc2 && dev->rdr_full) {
+    if (dev->rdr_full) {
        stack_card(dev->stack[dev->rdr_stk_sel], &dev->rdr_card);
        dev->stk_cnt[dev->rdr_stk_sel] = stack_size(dev->stack[dev->rdr_stk_sel]);
        dev->rdr_full = 0;
@@ -123,8 +123,6 @@ feed_callback(struct _device *unit, void *arg, int iarg)
         dev->rdr_ready = dev->rdr_full;
         log_device("read card %d size=%d\n", dev->rdr_full, dev->rdr_hop_cnt);
         if (dev->rdr_hop_cnt == 0 && dev->eof_flag == 0) {
-            ctx->sense |= SENSE_INTERV;
-            ctx->status |= SNS_UNITCHK;
             dev->rdr_ready = 0;
         }
     } else {
@@ -140,6 +138,11 @@ model2540r_xfer_done(struct _2821_dev_context *ctx)
 {
     /* If diagnostics write, no feed  */
     if ((ctx->cmd & 0x3f) == 0x25) {
+        ctx->status |= SNS_CHNEND;
+        ctx->cmd_done = 1;
+        return;
+    }
+    if ((ctx->cmd & 0xdf) == 0xc2) {
         ctx->status |= SNS_CHNEND|SNS_DEVEND;
         ctx->cmd_done = 1;
         return;
@@ -161,23 +164,27 @@ model2540r_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
 
     switch (cmd & 07) {
     case 0: /* Test I/O */
-           if (ctx->rdr_ready == 0) { // || ctx->rdr_hop_cnt == 0) {
+           if (ctx->rdr_ready == 0) {
                unit->sense |= SENSE_INTERV;
            }
+           if (cmd != 0) {
+               unit->sense |= SENSE_CMDREJ;
+           }
            if (unit->sense != 0) {
-              unit->status |= SNS_UNITCHK;
+              unit->status = SNS_UNITCHK;
            }
            return;
 
     case 1: /* Write */
+           unit->sense |= SENSE_INTERV;
            if (cmd != 0x25) {
                unit->sense |= SENSE_CMDREJ;
+               unit->status = SNS_UNITCHK;
                break;
            }
            unit->cmd = cmd;
            unit->cmd_done = 0;
            unit->bptr = 0;
-           unit->sense &= SENSE_INTERV;
            unit->busy = 1;
            break;
 
@@ -185,13 +192,13 @@ model2540r_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
            unit->sense &= SENSE_INTERV;
            if ((cmd & 0x3f) != 0x02 && cmd != 0xd2) {
                unit->sense |= SENSE_CMDREJ;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
+               unit->status = SNS_UNITCHK;
                break;
            }
            /* Check if device not ready */
            if (ctx->rdr_ready == 0) { // || ctx->rdr_hop_cnt == 0) {
                unit->sense |= SENSE_INTERV;
-               unit->status |= SNS_UNITCHK;
+               unit->status = SNS_UNITCHK;
                return;
            }
            for (col = 0; col < 80; col++) {
@@ -221,29 +228,28 @@ model2540r_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
            break;
 
     case 3: /* Feed */
-           unit->cmd = cmd;
-           unit->cmd_done = 1;
            unit->sense &= SENSE_INTERV;
            if (cmd == 0x3) {
-               unit->cmd = 0;
+               unit->cmd = cmd;
+               unit->cmd_done = 1;
                unit->status = SNS_CHNEND|SNS_DEVEND;
                break;
            }
            if ((cmd & 0x3f) != 0x23) {
                unit->sense |= SENSE_CMDREJ;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
+               unit->status = SNS_UNITCHK;
                break;
            }
            if (ctx->rdr_ready == 0) {
                unit->sense |= SENSE_INTERV;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
+               unit->status = SNS_UNITCHK;
                break;
            }
            if ((cmd & 0xc0) != 0xc0) {
                ctx->rdr_stk_sel = (cmd >> 6) & 3;
            } else {
                unit->sense |= SENSE_CMDREJ;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
+               unit->status = SNS_UNITCHK;
                break;
            }
            unit->cmd_done = 0;
@@ -253,21 +259,19 @@ model2540r_cmd(struct _2821_dev_context *unit, uint16_t bus_out)
 
     case 4:  /* Sense */
            log_device("2540: Sense %02x\n", unit->sense);
-           if (cmd != 0x04) {
+           if ((cmd & 0xf) != 0x04) {
+               unit->sense &= SENSE_INTERV;
                unit->sense |= SENSE_CMDREJ;
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
-
+               unit->status = SNS_UNITCHK;
            } else {
                unit->cmd = cmd;
                unit->cmd_done = 0;
-               return;
            }
            break;
 
     default:
            unit->sense |= SENSE_CMDREJ;     /* Invalid command */
-               unit->status = SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
-
+           unit->status = SNS_UNITCHK;
            break;
     }
 }
@@ -305,7 +309,7 @@ npro_callback(struct _device *unit, void *arg, int iarg)
  * Move a card from reader to selected stacker.
  */
 void
-model2540r_start(struct _2540_context *ctx)
+model2540r_start(struct _2540_context *ctx, int attn)
 {
     int                   i;
 
@@ -330,7 +334,7 @@ model2540r_start(struct _2540_context *ctx)
         if (ctx->rdr_hop_cnt == 0 && ctx->eof_flag == 0) {
             ctx->rdr_ready = 0;
         }
-        if (ctx->rdr_ready == 1) {
+        if (ctx->rdr_ready == 1 && attn == 1) {
             ctx->rdr_ctx->status = SNS_DEVEND;
             ctx->rdr_ctx->request = 1;
             ctx->rdr_ctx->cmd_done = 1;

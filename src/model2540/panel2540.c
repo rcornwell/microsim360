@@ -312,11 +312,16 @@ static void model2540_update(void *args, int iarg)
     switch (iarg) {
     case 1:  /* Reader Start Key */
           log_device("Reader Start key\n");
-          model2540r_start(ctx);
+          model2540r_start(ctx, 1);
           break;
 
     case 2:  /* STOP */
-          ctx->rdr_stop_flag = 1;
+          if (ctx->rdr_ctx->busy) {
+              ctx->rdr_stop_flag = 1;
+          } else {
+              ctx->rdr_ctx->sense = BIT1;
+              ctx->rdr_ready = 0;
+          }
           break;
 
     case 3: /* Empty reader hopper */
@@ -338,11 +343,16 @@ static void model2540_update(void *args, int iarg)
 
     case 6:  /* Punch Start Key */
           log_device("Punch Start key\n");
-          model2540p_start(ctx);
+          model2540p_start(ctx, 1);
           break;
 
     case 7:  /* STOP */
-          ctx->pch_stop_flag = 1;
+          if (ctx->pch_ctx->busy) {
+              ctx->pch_stop_flag = 1;
+          } else {
+              ctx->pch_ctx->sense = BIT1;
+              ctx->pch_ready = 0;
+          }
           break;
 
     case 8: /* Empty reader hopper */
@@ -561,7 +571,7 @@ model2540_control(struct _device *unit, int u, int x, int y)
                         2 * hx, 10 * wx, "PUNCH", "CHECK", NULL, 0, font10,
                               &c_black, &eof_color_on, &eof_color_off);
         add_indicator(panel, 20 + ((12*wx) * 1), 20 + ((3*hx) * 1),
-                        2 * hx, 10 * wx, "READY", NULL, &dev->rdr_ready, 0, font10,
+                        2 * hx, 10 * wx, "READY", NULL, &dev->pch_ready, 0, font10,
                               &c_black, &start_on, &start_col);
         add_button_callback(panel, 20 + ((12*wx) * 2), 20 + ((3*hx) * 1),
                         2 * hx, 10 * wx, "STOP", NULL, &model2540_update, (void *)dev, 7,
@@ -597,10 +607,10 @@ model2540_control(struct _device *unit, int u, int x, int y)
         dev->stack_input[4] = (void *)add_textinput(panel, 25 + (12*wx) * 4, row, hx+5, 40*wx,
                        dev->stack[4]->file_name);
         add_button_callback(panel, 20 + ((12*wx) * 8), row,
-                        2 * hx, 10 * wx, "EMPTY", NULL, &model2540_update, (void *)dev, 17,
+                        2 * hx, 10 * wx, "EMPTY", NULL, &model2540_update, (void *)dev, 19,
                         font10, &c_white, &button_col);
         add_button_callback(panel, 20 + ((12*wx) * 9), row,
-                        2 * hx, 10 * wx, "SAVE", NULL, &model2540_update, (void *)dev, 18,
+                        2 * hx, 10 * wx, "SAVE", NULL, &model2540_update, (void *)dev, 20,
                         font10, &c_white, &button_col);
         add_combo(panel, 25 + (12 * wx) * 11, row, h+2, 10 * wx, card_fmt_type, &dev->stack[4]->mode,
                             font14, &c_black, &c_white);
@@ -609,12 +619,12 @@ model2540_control(struct _device *unit, int u, int x, int y)
         row += 3*hx;
         add_label(panel, 25 + (12 * wx) * 3, row, "P2:", font10, &c_black);
         dev->stack_input[3] = (void *)add_textinput(panel, 25 + (12*wx) * 4, row, hx+5, 40*wx,
-                       dev->stack[1]->file_name);
+                       dev->stack[3]->file_name);
         add_button_callback(panel, 20 + ((12*wx) * 8), row,
-                        2 * hx, 10 * wx, "EMPTY", NULL, &model2540_update, (void *)dev, 19,
+                        2 * hx, 10 * wx, "EMPTY", NULL, &model2540_update, (void *)dev, 17,
                         font10, &c_white, &button_col);
         add_button_callback(panel, 20 + ((12*wx) * 9), row,
-                        2 * hx, 10 * wx, "SAVE", NULL, &model2540_update, (void *)dev, 20,
+                        2 * hx, 10 * wx, "SAVE", NULL, &model2540_update, (void *)dev, 18,
                         font10, &c_white, &button_col);
         add_combo(panel, 25 + (12 * wx) * 11, row, h+2, 10 * wx, card_fmt_type, &dev->stack[3]->mode,
                             font14, &c_black, &c_white);

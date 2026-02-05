@@ -55,9 +55,9 @@ struct _2540_context {
 
 int model2540_create(struct _option *opt);
 
-void model2540r_start(struct _2540_context *ctx);
+void model2540r_start(struct _2540_context *ctx, int attn);
 
-void model2540p_start(struct _2540_context *ctx);
+void model2540p_start(struct _2540_context *ctx, int attn);
 
 void model2540p_cmd(struct _2821_dev_context *ctx, uint16_t bus_out);
 
