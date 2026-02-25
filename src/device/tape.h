@@ -56,7 +56,7 @@
 #define FUNC_V      12
 #define FUNC_M      7
 
-#define IRG_LEN     1200               /* Number of frames for a IRQ */
+#define IRG_LEN     1200               /* Number of frames for a IRG */
 #define IRG_MASK    0x80               /* P7B inter record marker */
 #define BCD_TM      0xf                /* IRG tape mark */
 
@@ -80,7 +80,9 @@ struct _tape_buffer {
      int           len_buff;            /* Length of buffer */
      uint32_t      lrecl;               /* Logical record length of current record */
      uint32_t      orecl;               /* Original record length */
+     int           rec_type;            /* Record type */
      int           parity;              /* Record incomplete */
+     int           in_irg;              /* Read started in IRQ, skip until real record */
      long          srec;                /* Start of record offset for TAP and E11 format */
      int           dirty;               /* Buffer dirty */
      uint8_t       buffer[32*1024];     /* Buffer of current record */
@@ -137,6 +139,11 @@ void tape_unselect(struct _tape_buffer *tape);
  * Is-selected tape drive.
  */
 int tape_is_selected(struct _tape_buffer *tape);
+
+/*
+ * Return if previous record read was bad.
+ */
+int tape_parity_error(struct _tape_buffer *tape);
 
 /*
  * Attach a tape to buffer:
